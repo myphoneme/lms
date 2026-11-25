@@ -1,0 +1,284 @@
+[
+ {
+  "id": "LkolbURrtTs",
+  "ok": true,
+  "title": "OSI Model: A Practical Perspective - Networking Fundamentals - Lesson 2a",
+  "author": "Practical Networking"
+ },
+ {
+  "id": "BWZ-MHIhqjM",
+  "ok": true,
+  "title": "What is Subnetting? - Subnetting Mastery - Part 1 of 7",
+  "author": "Practical Networking"
+ },
+ {
+  "id": "mpQZVYPuDGU",
+  "ok": true,
+  "title": "How a DNS Server (Domain Name System) works.",
+  "author": "PowerCert Animated Videos"
+ },
+ {
+  "id": "g2fT-g9PX9o",
+  "ok": true,
+  "title": "Network Ports Explained",
+  "author": "PowerCert Animated Videos"
+ },
+ {
+  "id": "rYodcvhh7b8",
+  "ok": true,
+  "title": "Packet Traveling - How Packets Move Through a Network",
+  "author": "Practical Networking"
+ },
+ {
+  "id": "CWy3x3Wux6o",
+  "ok": true,
+  "title": "VPNs Explained | Site-to-Site + Remote Access",
+  "author": "CertBros"
+ },
+ {
+  "id": "MnY0K-3_Fjk",
+  "ok": true,
+  "title": "Linux Commands for Beginners 04 - Navigating the Filesystem",
+  "author": "Learn Linux TV"
+ },
+ {
+  "id": "0dG3vUYt7Uk",
+  "ok": true,
+  "title": "journalctl Basics: How to Easily Check Your Linux Logs",
+  "author": "Learn Linux TV"
+ },
+ {
+  "id": "0SGGCklKa1U",
+  "ok": true,
+  "title": "Linux Commands for Beginners 21 - Changing Permissions Numerically",
+  "author": "Learn Linux TV"
+ },
+ {
+  "id": "phY8Q7Woxsw",
+  "ok": true,
+  "title": "How to Use the ss Command (Linux Crash Course Series)",
+  "author": "Learn Linux TV"
+ },
+ {
+  "id": "wHfIFZlDxtU",
+  "ok": true,
+  "title": "How to Use the ip Command in Linux: A Beginner’s Guide",
+  "author": "Learn Linux TV"
+ },
+ {
+  "id": "Tky5uCQUZPQ",
+  "ok": true,
+  "title": "Troubleshooting Linux Disk Space Issues at 2 AM?",
+  "author": "Red Hat Enterprise Linux"
+ },
+ {
+  "id": "rurs7cdT5cc",
+  "ok": true,
+  "title": "Basic Networking Commands (Part 1)",
+  "author": "Neso Academy"
+ },
+ {
+  "id": "cOTM7s6Gx1U",
+  "ok": true,
+  "title": "What Are Windows Services? (Startup Types & User Accounts)",
+  "author": "TechKnowSurge"
+ },
+ {
+  "id": "MLFg-nRmHx4",
+  "ok": true,
+  "title": "Let's try: Net user (command)",
+  "author": "Nathan Bradford"
+ },
+ {
+  "id": "hIMcQqqtxq4",
+  "ok": true,
+  "title": "PowerShell Tutorials Event Viewer #3 : Get-WinEvent (Filter by Hashtable)",
+  "author": "JackedProgrammer"
+ },
+ {
+  "id": "QKmyf6c83Rs",
+  "ok": true,
+  "title": "Working with the PowerShell Pipeline",
+  "author": "TechThoughts"
+ },
+ {
+  "id": "WJOV5QjCiUU",
+  "ok": true,
+  "title": "Troubleshooting Windows - CompTIA A+ 220-1102 - 3.1",
+  "author": "Professor Messer"
+ },
+ {
+  "id": "3yqGCsuREfQ",
+  "ok": true,
+  "title": "CIA Triad - N10-008 CompTIA Network+ : 4.1",
+  "author": "Professor Messer"
+ },
+ {
+  "id": "AhaZtj5P2a8",
+  "ok": true,
+  "title": "Authentication, Authorization, and Accounting - CompTIA Security+ SY0-701 - 1.2",
+  "author": "Professor Messer"
+ },
+ {
+  "id": "86cQJ0MMses",
+  "ok": true,
+  "title": "TLS Handshake Explained - Computerphile",
+  "author": "Computerphile"
+ },
+ {
+  "id": "55GaIolVVqI",
+  "ok": true,
+  "title": "What is Endpoint Detection and Response (EDR)?",
+  "author": "IBM Technology"
+ },
+ {
+  "id": "z4LhLJnmoZ0",
+  "ok": true,
+  "title": "Cross-Site Scripting: A 25-Year Threat That Is Still Going Strong",
+  "author": "IBM Technology"
+ },
+ {
+  "id": "2zIQSzf7hQk",
+  "ok": true,
+  "title": "CertMike Explains CVSS",
+  "author": "Mike Chapple"
+ },
+ {
+  "id": "12MITs5KK40",
+  "ok": true,
+  "title": "Passive Reconnaissance - Whois Lookup Tutorial",
+  "author": "HackerSploit"
+ },
+ {
+  "id": "F2PXe_o7KqM",
+  "ok": true,
+  "title": "How Nmap really works // And how to catch it // Stealth scan vs TCP scan // Wireshark analysis",
+  "author": "David Bombal"
+ },
+ {
+  "id": "HCHFX5O1IaQ",
+  "ok": true,
+  "title": "How TCP Works - The Handshake",
+  "author": "Chris Greer"
+ },
+ {
+  "id": "ouDe5sJ_uC8",
+  "ok": true,
+  "title": "How to intercept HTTP requests and responses using Burp Suite",
+  "author": "PortSwigger"
+ },
+ {
+  "id": "uu7o6hEswVQ",
+  "ok": true,
+  "title": "2021 OWASP Top Ten Overview",
+  "author": "F5 DevCentral Community"
+ },
+ {
+  "id": "cEMKm-k-Drs",
+  "ok": true,
+  "title": "Launch a Credentialed Scan with Nessus Professional",
+  "author": "Tenable Product Education"
+ },
+ {
+  "id": "XXZp6LQZSJU",
+  "ok": true,
+  "title": "What is Microsoft Azure Sentinel? Cloud-native SIEM.",
+  "author": "Microsoft Mechanics"
+ },
+ {
+  "id": "GWl-TuAAF-k",
+  "ok": true,
+  "title": "Basic Searching in Splunk Enterprise",
+  "author": "Splunk How-To"
+ },
+ {
+  "id": "inIjEbWE8FM",
+  "ok": true,
+  "title": "Same Alert. Real Attack or False Positive? (How SOC Analysts Decide)",
+  "author": "MyDFIR"
+ },
+ {
+  "id": "Esvve_BWmBw",
+  "ok": true,
+  "title": "SIEM Correlation Rules for Beginners",
+  "author": "Prabh Nair"
+ },
+ {
+  "id": "Yxv1suJYMI8",
+  "ok": true,
+  "title": "MITRE ATT&CK® Framework",
+  "author": "mitrecorp (The MITRE Corporation)"
+ },
+ {
+  "id": "aNnFC7me4vM",
+  "ok": true,
+  "title": "A Day in the Life of a SOC Analyst: Coffee, Alerts, Repeat",
+  "author": "TryHackMe"
+ },
+ {
+  "id": "7ryrnVMkGmA",
+  "ok": true,
+  "title": "Incident Triage: Severity vs Priority, Timeline & Escalation (Hands-On Lab) | CySA+ CS0-004",
+  "author": "DevOps Simplified"
+ },
+ {
+  "id": "taSB4-qgS2A",
+  "ok": true,
+  "title": "Evidence Acquisition | Digital Forensics Ep 2 for Professionals",
+  "author": "Practical Forensics"
+ },
+ {
+  "id": "VBbUQCqKxm4",
+  "ok": true,
+  "title": "Episode 6: Order of Volatility",
+  "author": "SANS Digital Forensics and Incident Response"
+ },
+ {
+  "id": "1oXpWJC_VUc",
+  "ok": true,
+  "title": "Cybersecurity Tool for Beginner Security Analysts - VirusTotal",
+  "author": "MyDFIR"
+ },
+ {
+  "id": "X2UiMLxRdhE",
+  "ok": true,
+  "title": "Incident Response - CompTIA Security+ SY0-701 - 4.8",
+  "author": "Professor Messer"
+ },
+ {
+  "id": "7t3lTYEd_PM",
+  "ok": true,
+  "title": "What is Root Cause Analysis (RCA)?",
+  "author": "IBM Technology"
+ },
+ {
+  "id": "Uh2ebFW8OYM",
+  "ok": true,
+  "title": "Python Tutorial: File Objects - Reading and Writing to Files",
+  "author": "Corey Schafer"
+ },
+ {
+  "id": "Xnbef8F_Yfc",
+  "ok": true,
+  "title": "Master Python Requests In 15 Minutes. Call Any API",
+  "author": "Tech With Tim"
+ },
+ {
+  "id": "SPwyp2NG-bE",
+  "ok": true,
+  "title": "you need to learn BASH Scripting RIGHT NOW!! // EP 1",
+  "author": "NetworkChuck"
+ },
+ {
+  "id": "i-iJNXmlGJc",
+  "ok": true,
+  "title": "31. Regular Expressions in Python | re module for regex | Advanced Python Tutorial | Amit Thinks",
+  "author": "Amit Thinks"
+ },
+ {
+  "id": "35Exd9GrR5I",
+  "ok": true,
+  "title": "Malware Analysis Bootcamp - Creating YARA Rules",
+  "author": "HackerSploit"
+ }
+]

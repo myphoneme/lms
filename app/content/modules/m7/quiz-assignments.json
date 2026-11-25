@@ -1,0 +1,355 @@
+{
+  "moduleId": "m7",
+  "quiz": {
+    "id": "q7",
+    "moduleId": "m7",
+    "title": "Incident response and forensics — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q7-1",
+        "q": "At 08:40 your monitoring tool raises an alert: CPU on `app02` held at 91 percent for six minutes, then returned to 30 percent. No user has called and the application is responding. How do you classify this?",
+        "options": [
+          "An incident, because the monitoring tool labeled it an incident and the tool label sets the ticket type",
+          "A capacity ticket for the infrastructure team, because a CPU spike is always a sizing problem",
+          "An event and a note: a threshold breach alone is not an incident until there is confirmed or suspected harm",
+          "A false positive to close with no note, because the value returned to normal on its own"
+        ],
+        "answer": 2,
+        "explain": "A threshold breach is an event; it becomes an incident when it is tied to confirmed or suspected harm, and a six-minute spike that cleared with no user impact fails that test. Option A is tempting because the tool stamps the word incident on the alert, but the tool's label is not your classification.",
+        "tag": "ir"
+      },
+      {
+        "id": "q7-2",
+        "q": "A colleague takes a suspicious USB stick from a user's laptop, plugs it into her own workstation to look at the filenames, then writes the serial number on a sticky note. Which step damaged the evidence most?",
+        "options": [
+          "Plugging it into her workstation, which writes to the device and adds artifacts from a second host",
+          "Writing the serial number on a sticky note instead of in the case log, so the log cannot show who held the stick",
+          "Taking the stick without photographing the port it came from",
+          "Not telling the user why the stick was taken"
+        ],
+        "answer": 0,
+        "explain": "Attaching the device changed it, so the timestamps and host records no longer show only what the attacker left. The sticky note is a documentation weakness and has to be fixed, but it does not alter the exhibit itself.",
+        "tag": "ir"
+      },
+      {
+        "id": "q7-3",
+        "q": "A server is suspected of running a miner. It is still powered on and reachable, and the business wants it back in service within the hour. What do you collect first?",
+        "options": [
+          "A full disk image, because the disk holds the largest amount of evidence and the image can be examined later without the host",
+          "The application log files, because they are the easiest to export",
+          "The disk image and the memory dump at the same time, to save the hour",
+          "Memory, because the running process list and connections exist only in RAM and are lost at reboot"
+        ],
+        "answer": 3,
+        "explain": "RAM holds the process list and live connections that no disk image can recover, so it is the evidence that expires. Imaging the disk first is tempting because disk evidence feels more permanent, but a running process disappears the moment the host restarts.",
+        "tag": "ir"
+      },
+      {
+        "id": "q7-4",
+        "q": "At 14:10 a user reports that files on the shared drive are renamed with a `.locked` extension. The file server is still serving the share and her laptop is still on the network. Your lead says contain it now. Which action stops the spread and keeps the evidence you will need?",
+        "options": [
+          "Delete the renamed files on the share so the encryption cannot continue and the users get their folders back",
+          "Disconnect the laptop from the network, disable her account, and leave both machines powered on",
+          "Run a full antivirus scan on the file server and let it quarantine whatever it finds",
+          "Pull the power cable from the file server so nothing else can be written, then restart it once the share stops changing"
+        ],
+        "answer": 1,
+        "explain": "Cutting the network stops the spread while the memory and running processes stay intact for collection. Pulling the power is tempting as the fastest stop, but it destroys the volatile evidence the next step needs, and deleting the files destroys the exhibit.",
+        "tag": "ir"
+      },
+      {
+        "id": "q7-5",
+        "q": "A ticket carries an attachment named `invoice_2411.docm` and the user asks whether it is safe. You have a corporate laptop and no isolated lab available today. What do you do?",
+        "options": [
+          "Open it in Word with macros disabled and look for anything unusual",
+          "Upload it to a public multi-engine scanner and read the report, since a hash alone cannot tell you whether the macro is bad",
+          "Hash the file, check the hash against the approved source, and send the file to the malware team unopened",
+          "Rename it to `.txt` and open it in Notepad to read the macro code"
+        ],
+        "answer": 2,
+        "explain": "A hash lookup answers whether the file is known without executing it, and an unopened file is still clean evidence. Opening it with macros off feels harmless, but a malformed document can still exploit the parser, and the attachment stops being evidence once it has run on a corporate host.",
+        "tag": "security"
+      },
+      {
+        "id": "q7-6",
+        "q": "You image a 500 GB disk with `dd` and hand the image to another team. Which record makes that copy defensible when they open it next week?",
+        "options": [
+          "Matching SHA-256 hashes of the original and of the image, with the tool and the UTC time recorded in the case log",
+          "The byte size of the image file",
+          "A screenshot of the imaging tool at the 50 percent mark",
+          "The name and employee number of the technician who ran the command, recorded when the image is handed over"
+        ],
+        "answer": 0,
+        "explain": "Identical hashes are the claim that the copy is bit-for-bit the same, which is what another examiner relies on. The technician's identity belongs in the custody record, but on its own it says who made the copy, not that the copy is intact.",
+        "tag": "ir"
+      },
+      {
+        "id": "q7-7",
+        "q": "On one host inside 20 minutes you see six 4625 failures for `svc_backup`, a 4688 record for `powershell.exe -enc <base64>`, and an antivirus detection that was quarantined. Which finding moves this from suspicious to an incident you escalate now?",
+        "options": [
+          "The six 4625 failures, because repeated failures in a short window are brute force and brute force means someone is trying to get in",
+          "The antivirus detection, because any detection is an incident by definition",
+          "All three signals together, because three signals on one host is correlation",
+          "The encoded PowerShell launch, because code executed on the host instead of merely being attempted against it"
+        ],
+        "answer": 3,
+        "explain": "Escalation rests on execution: a process ran with an encoded command, which is behavior on the host. The failures are the tempting signal because brute force sounds severe, but they prove attempts, and the detection was already stopped by quarantine.",
+        "tag": "windows"
+      },
+      {
+        "id": "q7-8",
+        "q": "Your draft report says the outage happened because a user fell for a phishing email. The client's security manager sends it back, saying that is not a root cause. What is missing?",
+        "options": [
+          "A severity rating for the phishing email itself",
+          "The control that failed and let one click become an outbreak, such as missing sandboxing or an over-privileged account",
+          "The full name and address of the person who sent the email, so the sender can be blocked at the mail gateway and named in the report",
+          "The exact second the email arrived, so the timeline can be reconstructed precisely"
+        ],
+        "answer": 1,
+        "explain": "Root cause names the failed control that turned one click into an incident, which is the only part the client can fix. Adding a severity rating is tempting because it looks like rigor, but rating the email still does not explain why the click mattered.",
+        "tag": "ir"
+      },
+      {
+        "id": "q7-9",
+        "q": "You are L1 on a confirmed incident: one laptop, malware detected and quarantined, the user's account still active. When do you stop and escalate?",
+        "options": [
+          "Immediately, because L1 does not handle security incidents at all",
+          "After you wipe and rebuild the laptop, so L2 receives a clean machine and starts from a known state",
+          "When the scope is unknown or growing, compromise is confirmed on a shared system, or the next step needs authority you do not have",
+          "After you have taken the memory and disk images yourself, so the case arrives complete and nobody has to go back to the user a second time"
+        ],
+        "answer": 2,
+        "explain": "L1 can identify, classify, preserve and contain within policy; unknown or widening scope, confirmed compromise of a shared system, or a decision above your authority are the triggers to hand over. Imaging it yourself is tempting because it sounds thorough, but it delays containment and forensics collection is not an L1 task in most organizations.",
+        "tag": "soc"
+      },
+      {
+        "id": "q7-10",
+        "q": "A user forwards a suspicious email and asks whether it is real. The mail client already downloaded the attachment. What gives the investigation the most to work with?",
+        "options": [
+          "Ask the user to delete the message so nobody else opens it, then tell the service desk it is handled",
+          "Have the user forward it again as an attachment, and export the original with full internet headers",
+          "Reply to the sender to ask whether the message is legitimate",
+          "Screenshot the email body and attach the image to the ticket, because the ticket is the record that gets archived and audited"
+        ],
+        "answer": 1,
+        "explain": "Full headers carry the received chain, the true sender and the message ID that let the team find every other copy. A screenshot is tempting because it is fast and safe, but it throws away the routing data and cannot be matched against other recipients.",
+        "tag": "security"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a31",
+      "day": 31,
+      "moduleId": "m7",
+      "title": "Three alerts, one shift: classify before you escalate",
+      "level": 4,
+      "minutes": 25,
+      "scenario": "Monday 08:40, NOC handover. The queue holds three alerts with no context: a CPU spike on `app02` that already cleared, six failed logons for `svc_backup` on `dc01`, and a user on `ws-0142` who says her screen flashed and closed while she was on a bank site. Last week 9 of 24 security tickets reached L2 with no classification and 4 came straight back for detail. Your lead wants every one of these classified before it moves.",
+      "task": "1. Create the working folder and write the three alerts into a file, so you classify the same text every time instead of retyping it from memory.\n\n```bash\nmkdir -p ~/m7/day31 && cd ~/m7/day31\ncat > signals.txt <<'SIG'\n08:31 app02    CPU 91% for 6 min, back to 30%, app responding, no user calls\n08:36 dc01     Event 4625 x6 for svc_backup in 4 min, source 10.20.4.77\n08:39 ws-0142  User: my screen flashed and closed while I was on a bank site\nSIG\ncat signals.txt\n```\n\n2. For each alert fill four cells: what is confirmed, what is assumed, what evidence would settle it, who is affected. A cell that reads \"probably malware\" without a fact behind it is an assumption and goes in the assumed column.\n\n3. Classify each alert with the scale below, and take the scale with you.\n\n| Level | Meaning |\n|---|---|\n| P1 | Confirmed compromise of a shared or customer-facing system |\n| P2 | Confirmed compromise of a single host or account |\n| P3 | Suspicious activity, not confirmed |\n| P4 | Policy or hygiene issue, no compromise indicated |\n\nWrite the level and the word event or incident. If it is an incident, quote the line from `signals.txt` that made it one.\n\n4. Name the single next check for each alert, with the tool, the host it runs on and the command. Examples of the shape:\n\n```bash\nping -c 3 10.20.4.77\nnslookup svc_backup.corp.example\n```\n\n```powershell\nGet-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 20\n```\n\nWhere the check needs a host you cannot reach from your laptop, write the check as `requested from <team>` and still include the exact command you would send them.\n\n5. Decide close, monitor or escalate for each alert, and write the criterion in one sentence with a threshold or a named authority in it. Then add the one fact that would flip the decision.\n\n6. Write `triage.md`: the table from step 2 plus the decision column, then one paragraph naming the alert you would have over-escalated before this exercise and the sentence you would now write instead.\n\n7. Keep the drill self-contained. The hostnames and the `10.20.4.77` address are drill values; do not paste real customer addresses, usernames or ticket text into the file.",
+      "deliverable": "triage.md with one row per alert carrying the P-level, classification, next check with its command, decision and a one-sentence criterion.",
+      "tools": [
+        "text editor",
+        "bash",
+        "PowerShell",
+        "Get-WinEvent",
+        "eventvwr",
+        "ping",
+        "nslookup"
+      ],
+      "rubric": [
+        {
+          "criterion": "Fact separated from assumption",
+          "weight": 35,
+          "lookFor": "each row quotes at least one fact taken from signals.txt and names at least one thing the row assumes, and no row claims confirmation that the signal does not show"
+        },
+        {
+          "criterion": "Level and decision follow the stated scale",
+          "weight": 40,
+          "lookFor": "the P-level and the close, monitor or escalate decision match the scale quoted in the task, each decision carries a one-sentence criterion with a threshold or a named authority, and each row names the fact that would flip it"
+        },
+        {
+          "criterion": "Next check is executable",
+          "weight": 25,
+          "lookFor": "every next check names a tool, a host and a command that would actually run, or is marked requested from a named team with the exact command included"
+        }
+      ],
+      "hints": [
+        "A threshold breach is a state, not an event. If nothing happened because of it and it cleared, the note belongs in monitoring history, not in the incident queue.",
+        "Six 4625s for one service account look like brute force and are usually a stale password in a scheduled task. The source address in the event decides which one you write down.",
+        "`-MaxEvents 20` keeps the console readable, and `Get-WinEvent` against the Security log needs an elevated session. That permission gap is often the real reason an L1 ticket goes up half-written."
+      ]
+    },
+    {
+      "id": "a32",
+      "day": 32,
+      "moduleId": "m7",
+      "title": "Hash it, log it, then copy: a chain of custody you can defend",
+      "level": 4,
+      "minutes": 30,
+      "scenario": "A colleague in finance reports a script on her desktop that she did not write, and the security team wants the file, not the laptop. Your manager says L1 hands over an exhibit. You rehearse the method on a fictional file first, because the real one carries a user's home folder path and a share name that must not leave the company.",
+      "task": "1. Build the case structure. The folder names are the instructions: nothing is edited in `01-exhibits`.\n\n```bash\nmkdir -p ~/m7/day32/case-2026-1124/{01-exhibits,02-working,03-reports}\ncd ~/m7/day32/case-2026-1124\n```\n\n2. Create a fictional exhibit and give it a known modification time. It must contain no real path, user or share.\n\n```bash\ncat > 01-exhibits/exhibit-01.txt <<'EOF'\nREM fictional exhibit for training only\nnet use Z: \\\\fileshare\\drop\ncopy C:\\Users\\demo\\notes.txt Z:\\\nEOF\ntouch -t 202611240910 01-exhibits/exhibit-01.txt\n```\n\n3. Record the intake block before you copy anything: who, what, where from, when in UTC, size, modification time.\n\n```bash\ndate -u +%Y-%m-%dT%H:%M:%SZ | tee 03-reports/intake.txt\nstat -c '%n size=%s mtime=%y' 01-exhibits/exhibit-01.txt | tee -a 03-reports/intake.txt\n```\n\nOn macOS, `stat -c` is `stat -f '%N size=%z mtime=%Sm'`. On Windows:\n\n```powershell\nGet-Item .\\01-exhibits\\exhibit-01.txt | Select-Object Name,Length,LastWriteTime | Tee-Object ..\\03-reports\\intake.txt\n```\n\n4. Hash the original. `sha256sum` is GNU, `shasum -a 256` ships with macOS, and `Get-FileHash` is the Windows form.\n\n```bash\nsha256sum 01-exhibits/exhibit-01.txt | tee 03-reports/hash-original.txt\n```\n\n```powershell\nGet-FileHash .\\01-exhibits\\exhibit-01.txt -Algorithm SHA256 | Tee-Object ..\\03-reports\\hash-original.txt\n```\n\n5. Copy into the working folder, preserving timestamps, then hash the copy. The two values must match. Compare the first field only: `diff` on the two files also compares their paths, so it reports a difference even when the hashes are identical.\n\n```bash\ncp -p 01-exhibits/exhibit-01.txt 02-working/exhibit-01-copy.txt\nsha256sum 02-working/exhibit-01-copy.txt | tee 03-reports/hash-copy.txt\na=$(awk '{print $1}' 03-reports/hash-original.txt)\nb=$(awk '{print $1}' 03-reports/hash-copy.txt)\n[ \"$a\" = \"$b\" ] && echo MATCH\n```\n\n6. Prove the working copy is not the exhibit: append one line to the copy, rehash it, and record that the hash changed while the original still matches its first value.\n\n```bash\necho 'REM analysis note' >> 02-working/exhibit-01-copy.txt\nsha256sum 02-working/exhibit-01-copy.txt 01-exhibits/exhibit-01.txt | tee -a 03-reports/hash-copy.txt\n```\n\n7. Write `custody.csv` with one header row and one row per transfer. Columns: `case_id,exhibit_id,description,source,collector,collected_utc,hash_algo,hash_value,from,to,purpose,transfer_utc,storage`.\n\n```bash\nprintf 'case_id,exhibit_id,description,source,collector,collected_utc,hash_algo,hash_value,from,to,purpose,transfer_utc,storage\\n' > custody.csv\n```\n\n8. Add the gaps and the boundary. Name what your log does not have (no photographic record of the screen or the port, no signature), and write the escalation line: hand the exhibit to forensics when it may be used in a legal or HR process, or when collection would require powering the device off.\n\nSafety and privacy: use the fictional file only. Do not practice on a real user's file, do not copy company data to a personal laptop, and delete the case folder when the drill is marked.",
+      "deliverable": "custody.csv with a numbered transfer row per handoff plus intake.txt and two matching SHA-256 values.",
+      "tools": [
+        "sha256sum",
+        "shasum",
+        "Get-FileHash",
+        "certutil",
+        "stat",
+        "cp",
+        "diff",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Intake recorded before the copy",
+          "weight": 35,
+          "lookFor": "intake.txt carries a UTC timestamp, a byte size and a modification time, and each hash file names the path it belongs to"
+        },
+        {
+          "criterion": "The hashes prove the copy",
+          "weight": 40,
+          "lookFor": "the original and copy SHA-256 values match, the log records the algorithm and the value per exhibit, and the edited copy shows a different hash while the original still matches its first value"
+        },
+        {
+          "criterion": "Custody log is complete",
+          "weight": 25,
+          "lookFor": "every transfer row has from, to, purpose and a UTC time, and the missing items such as the photographic record and the signature are named instead of omitted"
+        }
+      ],
+      "hints": [
+        "`cp -p` preserves the modification time but creates a new inode change time. That is why the hash, not the timestamp, is the claim you make about the copy.",
+        "`stat -c` is the GNU form and `stat -f` the macOS form. Sending the wrong one is the most common reason an evidence command fails in front of a reviewer.",
+        "A log with one row per file and no transfer rows is an inventory, not a chain. The from and to columns are what answer who held it between Tuesday and Thursday."
+      ]
+    },
+    {
+      "id": "a33",
+      "day": 33,
+      "moduleId": "m7",
+      "title": "Six events, one timeline: disk and log artifacts on your own machine",
+      "level": 4,
+      "minutes": 35,
+      "scenario": "The review of last month's ransomware case needs a timeline, and the only artifacts left are file times and a fragment of system log. You build the method on your own machine, where every time source is visible, then write down the two questions the timeline answers and the two it cannot.",
+      "task": "1. Create three marker files with controlled times, standing in for attacker activity at 14:10, 14:22 and 14:41.\n\n```bash\nmkdir -p ~/m7/day33/artifacts && cd ~/m7/day33/artifacts\ntouch -t 202611241410 stage1.txt\ntouch -t 202611241422 stage2.txt\ntouch -t 202611241441 stage3.txt\nstat -c '%n mtime=%y ctime=%z' stage*.txt\n```\n\nOn macOS use `stat -f '%N mtime=%Sm ctime=%Sc' stage*.txt`. On Windows:\n\n```powershell\nGet-ChildItem stage*.txt | Select-Object Name,LastWriteTime,CreationTime\n```\n\n2. Copy one file with `cp -p` and one without, then compare the results. Record which timestamp a copy can preserve and which one it always changes, and write down what each of the three Windows timestamps means.\n\n3. Pull a real log slice from the host into the case folder.\n\n```bash\njournalctl --since '2 hours ago' -p warning --no-pager | tail -n 20 > ../journal.txt\n```\n\n```powershell\nGet-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddHours(-2)} |\n  Select-Object -First 20 |\n  Format-Table TimeCreated,Id,ProviderName -AutoSize |\n  Out-File -Encoding utf8 ..\\system-log.txt\n```\n\nOn macOS, where neither command exists, use `log show --last 2h --style compact | tail -n 20 > ../system-log.txt`.\n\n4. From the artifacts, answer three questions: which file was written and when, which was only accessed, and whether a process ran. Name the record that would prove execution: 4688 with command-line auditing on Windows, or shell history on Linux. If that record does not exist on your machine, absence is the finding and goes in the report.\n\n5. Normalize at least six rows into one CSV, in UTC, sorted ascending, with the columns `timestamp_utc,source,artifact,what_it_proves`.\n\n```bash\nprintf 'timestamp_utc,source,artifact,what_it_proves\\n' > ../timeline.csv\n# add your rows below, then sort while keeping the header first\n( head -n 1 ../timeline.csv; tail -n +2 ../timeline.csv | sort -t, -k1,1 ) > ../timeline-sorted.csv\nmv ../timeline-sorted.csv ../timeline.csv\ncat ../timeline.csv\n```\n\n6. Write `gaps.md`: the two artifact classes you could not collect on a laptop, and the one gap that would change the conclusion if it were closed.\n\n7. Keep it to your own machine. If you share the file, redact your username and hostname; no customer logs and no work laptop in this drill.",
+      "deliverable": "timeline.csv with at least six UTC rows sorted ascending, plus gaps.md naming the two artifacts you could not collect.",
+      "tools": [
+        "touch",
+        "stat",
+        "cp",
+        "journalctl",
+        "Get-WinEvent",
+        "Get-ChildItem",
+        "sort",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Times normalized and ordered",
+          "weight": 35,
+          "lookFor": "every row is UTC in one format, the file is sorted ascending with the header still on the first line, and the source column names an artifact class rather than a file name"
+        },
+        {
+          "criterion": "Artifact types distinguished",
+          "weight": 40,
+          "lookFor": "the note says what mtime, ctime and the log record each prove, records the result of the two copies, and names 4688 with command-line auditing as the record that proves a process ran"
+        },
+        {
+          "criterion": "Gaps stated with consequence",
+          "weight": 25,
+          "lookFor": "gaps.md names memory and the process-creation record, and states which missing piece would change the conclusion"
+        }
+      ],
+      "hints": [
+        "`touch -t` sets the modification time in local time, not UTC, and it also updates ctime. A timeline built from touched files is a rehearsal, not evidence.",
+        "On Windows the Security log needs an elevated session, and 4688 with command-line auditing is off by default on many builds. Record the gap; do not fill it with a guess.",
+        "`sort -k1,1` will move a header row into the middle of the file. Keep the header out of the sort and put it back."
+      ]
+    },
+    {
+      "id": "a34",
+      "day": 34,
+      "moduleId": "m7",
+      "title": "One unfamiliar file, no execution: static triage and an IOC sheet",
+      "level": 4,
+      "minutes": 40,
+      "scenario": "The phishing queue holds an attachment nobody wants to open and the malware team is off shift. You are asked for a first read: is this file known, what does it reach for, and what should the ticket say. You work on a file you already own and on a public report for a sample you do not download, because running a live sample on a corporate laptop is how the last incident started.",
+      "task": "1. Set up the folder and copy in a file you already own, such as an installer you downloaded. Do not download malware for this drill.\n\n```bash\nmkdir -p ~/m7/day34 && cd ~/m7/day34\ncp /path/to/your/downloaded/installer ./sample.bin\n```\n\n2. Record identity before reading the content: size, file type, and two hashes.\n\n```bash\nls -l sample.bin\nfile sample.bin\nshasum -a 256 sample.bin | tee hashes.txt\nmd5 -q sample.bin | tee -a hashes.txt\n```\n\nLinux uses `sha256sum` and `md5sum`. Windows:\n\n```powershell\nGet-FileHash .\\sample.bin -Algorithm SHA256 | Out-File hashes.txt\nGet-FileHash .\\sample.bin -Algorithm MD5 | Out-File -Append hashes.txt\ncertutil -hashfile sample.bin SHA256\n```\n\n3. Read the printable strings without running anything, and look for URLs, command interpreters and paths.\n\n```bash\nstrings -n 8 sample.bin | grep -Ei 'https?://|powershell|cmd\\.exe|/tmp/|AppData' | head -n 20\n```\n\nOn Windows, use the free Sysinternals `strings.exe`: `strings.exe -n 8 sample.bin | findstr /i \"http powershell cmd.exe AppData\"`.\n\n4. Look up the SHA-256 on one free reputation service: VirusTotal hash search, Hybrid Analysis, or MalwareBazaar. Record the detection count, the first-seen date, any family label, and the UTC time of the lookup. Hash lookup only.\n\n5. Open one public sandbox report for a sample you did not download. Extract the parent process, the child processes, the network destinations, the persistence location, and the report URL.\n\n6. Write the verdict: malicious, unknown or benign. Give three facts that support it and two that would change it. State the difference between \"no detections\" and \"not malicious\" in one sentence.\n\n7. Build `iocs.csv` with the columns `type,value,source,confidence`, using the types `sha256`, `md5`, `domain`, `ip` and `file_path`, with at least four rows.\n\n8. Close with the safety paragraph: what you did not do. No execution, no upload, no live sample, no customer file. Keep `sample.bin` in the case folder and delete it when the drill is marked.\n\nSafety and privacy: never upload a customer attachment or an internal file to a public scanner, because the upload is a disclosure. A hash lookup is not an upload, which is exactly why it is the first step.",
+      "deliverable": "verdict.md with three supporting facts and two that would flip it, iocs.csv with at least four sourced rows, and the not-done line.",
+      "tools": [
+        "sha256sum",
+        "shasum",
+        "Get-FileHash",
+        "certutil",
+        "strings",
+        "grep",
+        "Sysinternals strings",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Identity and lookup recorded",
+          "weight": 30,
+          "lookFor": "the hash block carries SHA-256, MD5, size and the UTC lookup time, and the reputation result quotes either a detection count or an explicit no-record finding"
+        },
+        {
+          "criterion": "Verdict separates absence of evidence",
+          "weight": 40,
+          "lookFor": "the verdict names what the facts support, states that no detections is not proof of safety, and gives two specific facts that would change the verdict"
+        },
+        {
+          "criterion": "IOCs are usable and sourced",
+          "weight": 30,
+          "lookFor": "each IOC row names the source it came from and a confidence, and the safety paragraph states that nothing was executed and nothing was uploaded"
+        }
+      ],
+      "hints": [
+        "`strings -n 8` drops runs shorter than eight characters, which removes most noise and some short API names. Lower it to 4 when the first pass finds nothing.",
+        "A hash that appears in no public database means nobody reported it, not that the file is clean. For a fresh phishing attachment that is the normal result.",
+        "The parent and child processes in a sandbox report are the fastest read of intent: `winword.exe` spawning `powershell.exe` deserves a ticket even with zero detections."
+      ]
+    },
+    {
+      "id": "a35",
+      "day": 35,
+      "moduleId": "m7",
+      "title": "14:10 ransomware call: declare, contain, hand over, report",
+      "level": 4,
+      "minutes": 50,
+      "scenario": "Thursday 14:10. Forty users on `fs01` report files renamed with a `.locked` extension, one workstation shows a ransom note, and the newest backup is 26 hours old. The customer-facing portal keeps its data on the same storage VLAN. You are the only L1 on shift, one L2 is on a call, and the account manager wants an ETA. You have 50 minutes to produce what leaves your desk.",
+      "task": "1. Declare it. Write four lines: the confirmed facts, the assumptions, the P-level against a scale you quote, and the single fact that makes this an incident rather than an event. Say where the scale comes from, or mark it as your own with the thresholds written out.\n\n2. Order the containment. Give every step an owner and a time, then name three actions you deliberately do not take and the reason for each. Choose from this list: isolate `fs01` from the network, isolate the workstation, disable the affected accounts, block the share at the firewall, power off the workstation, wipe and rebuild, restore the newest backup over the share.\n\n3. Set the evidence order. List what L1 preserves in the order it must happen, mark each item collect-now or hand-over, and name the one item lost if someone reboots the workstation and the one lost if the share is restored first.\n\n4. Decide eradication and recovery: rebuild or clean, with the reason. Give the restore order, and the single verification check that must pass before the share is re-enabled. Say what you do with the 26-hour-old backup before you trust it.\n\n```bash\n# the check itself is a plan, not a command you run here; write the exact command\n# you would run on the restore target, for example:\nsha256sum /srv/restore/fs01/quarterly.xlsx\n```\n\n5. Write the handover, eight lines, no prose paragraphs: what happened, when it started, what is affected, how many users, what is contained, what evidence exists, what you did, what decision you need and from whom.\n\n6. Write the escalation criterion in one sentence that tells the next L1 when this case must leave L1, and a second sentence for when it stays. Both sentences must name a condition someone else can check.\n\n7. Write the client section: a five-row timeline table, root cause in one sentence naming the failed control rather than the user who clicked, impact in numbers, three recommendations each with an owner, and the current status.\n\n8. Close with the boundary: three things you handled or closed yourself, one you escalated, and the reason. Use fictional numbers only and no customer name.\n\nSafety and privacy: this is a paper exercise. Do not touch a real share, do not run a restore against production, and keep every identifier fictional so the report can be reviewed in training.",
+      "deliverable": "incident-package.md holding the declaration, containment order with three refused actions, eight-line handover, five-row timeline, one-sentence root cause and the escalation criterion.",
+      "tools": [
+        "text editor",
+        "bash",
+        "sha256sum",
+        "markdown table",
+        "diagramming on paper"
+      ],
+      "rubric": [
+        {
+          "criterion": "Declaration and containment are decided, not listed",
+          "weight": 35,
+          "lookFor": "the declaration separates confirmed facts from assumptions and quotes a P-level against a named scale, and the containment step gives an owner and a time per step plus three named actions not taken with a reason each"
+        },
+        {
+          "criterion": "Evidence and recovery sequence is defensible",
+          "weight": 35,
+          "lookFor": "memory is preserved ahead of disk, each item is marked collect-now or hand-over, and the recovery step names the verification check that gates re-enabling the share and what is done with the 26-hour-old backup first"
+        },
+        {
+          "criterion": "Handover and report route the case",
+          "weight": 30,
+          "lookFor": "the eight-line note states the decision needed and from whom, the root cause names a failed control rather than the user, and the closing line names three items handled at L1 and one escalated with a reason"
+        }
+      ],
+      "hints": [
+        "Isolation beats shutdown because a powered-off workstation takes the RAM with it. If policy forces a shutdown, write down what the decision destroyed.",
+        "A 26-hour-old backup on an encrypted share is a candidate, not a plan. Restore it to a separate path and verify it before it touches production.",
+        "A root cause sentence has two halves: the human event and the missing control. Drop either one and the client's manager sends it back, which is what happened to the report on your desk."
+      ]
+    }
+  ]
+}

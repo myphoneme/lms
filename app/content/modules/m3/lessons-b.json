@@ -1,0 +1,414 @@
+{
+  "moduleId": "m3",
+  "lessons": [
+    {
+      "id": "l3-4",
+      "moduleId": "m3",
+      "seq": 4,
+      "title": "Event logs: Get-EventLog, Get-WinEvent and six IDs that matter",
+      "subtitle": "Turn a vague 'it logged me out' into a timestamp you can defend.",
+      "minutes": 17,
+      "level": "Applying",
+      "objectives": [
+        "Read the System, Application and Security logs and say which one answers the caller's question.",
+        "Choose Get-EventLog or Get-WinEvent from the shell version in front of you.",
+        "Build a FilterHashtable query that returns one time window instead of the whole log.",
+        "Recognize six event IDs and state what each one lets you claim in a ticket."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC — desktop queue",
+        "subject": "It signs me out every morning around nine",
+        "body": "Since Monday the user is signed out of webmail and Outlook between 08:55 and 09:10, then signs back in and works the rest of the day. They rebooted twice and changed their password yesterday with no change. Two colleagues on the same floor are unaffected.",
+        "impact": "An accounts-payable clerk loses 15 to 20 minutes each morning; the Monday close is at risk."
+      },
+      "sections": [
+        {
+          "h": "The user says they were logged out, and the ticket has no time in it",
+          "body": "\"Logged out\" covers four different failures: the screen locked, the session ended, the account locked, or the password stopped working. The caller cannot tell them apart and will usually offer a guess, often \"the network dropped,\" which is the least likely of the four. Write that guess into the ticket and the next engineer inherits it as fact.\n\nThe evidence already exists on the machine and on the domain controller. Windows writes a record for each of those four events with a timestamp, an account name, and, for logons, a source machine. Your job on the call is to convert the sentence into an event ID plus a time. That pair is what every later decision uses.\n\nThree logs matter here: **System** for drivers, services and reboots; **Application** for programs that crashed; **Security** for logons and lockouts. Security is the one you cannot read from a standard shell. Without elevation you get an access error or an empty result, and an empty result reads exactly like \"no such event.\""
+        },
+        {
+          "h": "Get-EventLog is the old name, and it is not on the new shell",
+          "body": "Windows ships two shells that look identical. Windows PowerShell 5.1 has `Get-EventLog`. PowerShell 7 does not: the cmdlet was left behind when the shell moved off the .NET Framework, so a command that works on your colleague's console fails on yours. Check the version before you debug anything else.\n\n```\nPS C:\\> $PSVersionTable.PSVersion\n\nMajor  Minor  Build  Revision\n-----  -----  -----  --------\n5      1      19041  3803\n```\n\n`Get-EventLog` is fine for a quick read because it returns entry types that match what the Event Viewer console shows. Use it on 5.1 when you want the last twenty entries in front of a human.\n\nUse `Get-WinEvent` for anything that goes into a ticket or into another command. It exists in both shells, it reads the modern `Microsoft-Windows-*` channels, and its filter is applied by the event log service before events travel to your console. That last point is why a filtered query returns in a second while an unfiltered one takes a minute on a busy server."
+        },
+        {
+          "h": "Ask for a window, not the whole log",
+          "body": "`Get-WinEvent -LogName System` pulls what it can and sorts it after the fact. `-FilterHashtable` takes the same fields the Event Viewer filter dialog offers and hands the work to the service:\n\n```\nPS C:\\> Get-WinEvent -FilterHashtable @{LogName='System'; Id=41,1074,6008; StartTime=(Get-Date).AddDays(-3)}\n\n   ProviderName: Microsoft-Windows-Kernel-Power\n\nTimeCreated                Id LevelDisplayName Message\n-----------                -- ---------------- -------\n11/24/2025 7:52:41 AM      41 Critical         The system has rebooted without cleanly shutting down first.\n```\n\nThe keys you will use are `LogName`, `Id` (one value or a comma list), `StartTime`, `EndTime`, `ProviderName`, `Level` and `UserID`. `StartTime` takes a `[datetime]`, so `(Get-Date).AddHours(-12)` is valid and is easier to defend than a bare date someone has to interpret.\n\nResults come back newest first. `-MaxEvents` caps them, which matters because one lockout on a busy controller can produce hundreds of records inside an hour.\n\nA query with no matches is not silent. `Get-WinEvent` writes `No events were found that match the specified selection criteria` to the error stream, so a zero result reads like a broken command until you know the wording. Add `-ErrorAction SilentlyContinue` only after you have decided that zero is a valid answer."
+        },
+        {
+          "h": "Six IDs, and what each one lets you claim",
+          "body": "| ID | Log | What the record says | What you do with it |\n| --- | --- | --- | --- |\n| 4625 | Security | A logon failed. Sub-status `0xC000006A` is a bad password, `0xC0000234` is a locked account | Count them and note the source workstation |\n| 4740 | Security, on a DC | An account was locked out, with the caller's computer name | Find the stale credential on that machine |\n| 41 | System | The machine rebooted without a clean shutdown | Pair it with 6008, which carries the actual shutdown time |\n| 1074 | System | A process or user started a shutdown, with a reason string | Confirms a planned patch window |\n| 7036 | System | A named service entered the running or stopped state | Tells you what stopped and when |\n| 1000 | Application | A program crashed, with the faulting module | Names the component, not the fix |\n\nTwo rules cover most calls built on that table. If 4740 appears, the PC in front of you is not the fault: something on some machine is still sending the old password, and an unlock alone buys one day. If 41 appears without a matching 1074, the machine went down hard, which points at power, the hypervisor, or a bugcheck, and not at anything the user did."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Write the note as evidence, not narrative: log name, event ID, timestamp, account, source, and how many times it repeated. One line per finding.\n\nDecision rule: same ID, same clock time, three days running, means it is scheduled. Look for a task, a policy refresh or a reboot window, and stop asking the user what they did. Irregular timestamps with 4625 dominating means a credential source, so ask which device still holds the old password.\n\nClosing note to paste: \"System log shows 41 at 07:52 on 11/24 and 6008 for a shutdown at 07:41; no 1074 in the window. Security shows four 4625 from PC-0412 at 08:47 and 4740 at 08:49. Account unlocked at 08:58; 4740 returned at 09:06. Suspected stale credential on PC-0412.\"\n\nEscalate to L2 when 4740 returns after two unlocks in one shift, or when 41 appears more than once in 24 hours on a server. At that point the question is power or platform, and it is no longer an account ticket."
+        }
+      ],
+      "diagram": {
+        "type": "timeline",
+        "title": "Four logon records, one clock",
+        "caption": "The lockout at 08:49 trails the failed logons at 08:47 by two minutes. The account was not broken; one machine kept sending a stale credential, and the second lockout after the unlock says so.",
+        "data": {
+          "events": [
+            {
+              "t": "08:41",
+              "title": "Password reset",
+              "detail": "user resets it on a phone",
+              "actor": "system"
+            },
+            {
+              "t": "08:47",
+              "title": "4625 x4 on dc01",
+              "detail": "bad password from PC-0412",
+              "actor": "system"
+            },
+            {
+              "t": "08:49",
+              "title": "4740 lockout",
+              "detail": "account locked by policy",
+              "actor": "system"
+            },
+            {
+              "t": "08:58",
+              "title": "Unlock at the desk",
+              "detail": "user signs in, works",
+              "actor": "defender"
+            },
+            {
+              "t": "09:06",
+              "title": "4740 returns",
+              "detail": "same source machine",
+              "actor": "defender"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "PowerShell Tutorials Event Viewer #3 : Get-WinEvent (Filter by Hashtable)",
+        "channel": "JackedProgrammer",
+        "url": "https://www.youtube.com/watch?v=hIMcQqqtxq4",
+        "start": 0,
+        "length": "12:14",
+        "why": "Shows the hashtable being built and run against a real log, so the key names and the console layout appear in output rather than in prose."
+      },
+      "commands": [
+        {
+          "cmd": "$PSVersionTable.PSVersion",
+          "what": "Which shell and version you are in, which decides whether Get-EventLog exists"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='System'; Id=41,1074,6008; StartTime=(Get-Date).AddDays(-3)}",
+          "what": "Reboots and shutdowns for the last three days, filtered by the log service"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740; StartTime=(Get-Date).AddHours(-12)} -MaxEvents 5",
+          "what": "Account lockouts in the last twelve hours, needs an elevated shell"
+        },
+        {
+          "cmd": "Get-WinEvent -LogName System -MaxEvents 20",
+          "what": "The newest twenty System records with no filter, for a first look"
+        },
+        {
+          "cmd": "Get-EventLog -LogName System -Newest 20",
+          "what": "Same log with entry types, Windows PowerShell 5.1 only"
+        },
+        {
+          "cmd": "wevtutil qe System /c:5 /rd:true /f:text",
+          "what": "The newest five System records when PowerShell is unavailable"
+        }
+      ],
+      "pitfalls": [
+        "Running Get-EventLog on PowerShell 7: the cmdlet was dropped from that shell, so the command fails before it reads anything and the log looks inaccessible.",
+        "Querying Security without elevation: you get an access error or silence, and silence is easy to write into the ticket as 'no events found'.",
+        "Reporting the event 41 timestamp as the crash time: 41 is written at the next boot, so the real shutdown minute is in the message of 6008."
+      ],
+      "takeaways": [
+        "A logout claim becomes a ticket only when it carries a log name, an event ID and a timestamp.",
+        "4740 points at a credential source, not a broken PC; the caller-computer field is the lead.",
+        "FilterHashtable asks the log service for one window, so the query stays fast on a busy server."
+      ],
+      "drill": {
+        "prompt": "Query your own machine for the last three days of reboot and service events, then write the four lines a ticket would need.",
+        "minutes": 9,
+        "checklist": [
+          "Shell version printed and named as 5.1 or 7",
+          "A FilterHashtable query returns at least one event from the last 72 hours",
+          "You can state the log, ID and timestamp of the most recent 41 or 1074",
+          "One query returns zero events and you explain why that is not an error"
+        ]
+      },
+      "sheetTopics": [
+        "Get-EventLog",
+        "Get-WinEvent"
+      ]
+    },
+    {
+      "id": "l3-5",
+      "moduleId": "m3",
+      "seq": 5,
+      "title": "PowerShell for L1: objects, pipes and safe one-liners",
+      "subtitle": "Stop parsing text; select, sort and filter real objects.",
+      "minutes": 16,
+      "level": "Applying",
+      "objectives": [
+        "Explain why a cmdlet's output has named properties and not columns of text.",
+        "Use Get-Member to find a property name before writing a filter.",
+        "Build a one-liner that filters, selects and exports without formatting first.",
+        "Test a state-changing command with -WhatIf before it runs."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC — reporting queue",
+        "subject": "The stopped-services report is 40 lines of System.ServiceProcess.ServiceController",
+        "body": "The weekly patching check pipes stopped services into Set-Content and attaches the file to the change record. Since a colleague rewrote it, the file holds one repeated type name per line and no service names, so the change record is unreadable. The same pipeline still shows a correct table on screen.",
+        "impact": "Friday's patch report for 60 servers has no service list, and the change record cannot be approved without it."
+      },
+      "sections": [
+        {
+          "h": "The one-liner that handed back a type name",
+          "body": "Someone on the desk built a weekly check for stopped services. It piped the output into `Set-Content`, and the attached file held forty lines of `System.ServiceProcess.ServiceController` with no service names anywhere. The pipeline looked correct on screen, because the console renders objects as a table and the file does not.\n\nThe mistake is treating objects as text. PowerShell does not hand you lines. It hands you objects with named properties, and the table you see is a rendering decision made at the very end. Once you know the property names, you select them instead of scraping them, and the file, the CSV and the screen all agree."
+        },
+        {
+          "h": "Ask the object what it has",
+          "body": "`Get-Member` ends the guessing. Pipe anything into it and it prints the type name and every property and method:\n\n```\nPS C:\\> Get-Service -Name Spooler | Get-Member\n\n   TypeName: System.ServiceProcess.ServiceController\n\nName       MemberType  Definition\n----       ----------  ----------\nName       Property    string Name {get;set;}\nStatus     Property    System.ServiceProcess.ServiceControllerStatus Status {get;set;}\nStartType  Property    System.ServiceProcess.ServiceStartMode StartType {get;}\nStop       Method      void Stop()\n```\n\nThe `TypeName` line tells you what you are holding. The property list gives you the exact spelling to type later: `Status`, not `State`. That thirty seconds replaces most of the trial and error in a one-liner."
+        },
+        {
+          "h": "Filter the object, not the line",
+          "body": "`Where-Object` keeps the objects that satisfy a condition on a property. From PowerShell 3.0 onward you can drop the braces and `$_` for a simple comparison:\n\n```\nPS C:\\> Get-Service | Where-Object Status -eq 'Stopped' | Select-Object -First 4 Name, Status, StartType\n\nName          Status   StartType\n----          ------   ---------\nBITS          Stopped  Manual\nMapsBroker    Stopped  Automatic\nRemoteAccess  Stopped  Disabled\nwuauserv      Stopped  Manual\n```\n\n`-eq`, `-ne`, `-gt`, `-lt`, `-like` and `-match` are the operators you need, combined with `-and`, `-or` and `-not`. Two differences from other languages catch people out: comparisons are case-insensitive by default, and `-eq` against a collection returns the matching members instead of a single true or false.\n\n`StartType` matters as much as `Status`. A service set to `Automatic` that sits stopped after a clean boot is a finding. A service set to `Manual` that is stopped may be exactly right, and restarting it is a change you did not need to make."
+        },
+        {
+          "h": "Select, sort, then format last",
+          "body": "`Select-Object` chooses properties, `Sort-Object` orders by one, and `Format-Table` decides how the console prints them. Order matters, because `Format-*` turns your objects into formatting instructions and everything downstream then sees the formatting rather than the data.\n\n```\nPS C:\\> Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" |\n>>   Select-Object DeviceID, @{n='FreeGB';e={[math]::Round($_.FreeSpace/1GB,1)}}\n\nDeviceID FreeGB\n-------- ------\nC:         41.2\nD:        310.8\n```\n\nThat `@{n=...;e=...}` block is a calculated property. It adds a column that does not exist on the object, which is how a raw byte count becomes a number a change board will read. Learn the form once and every report becomes one command."
+        },
+        {
+          "h": "Before you press Enter",
+          "body": "Read `Get-Help <cmdlet> -Examples` before using an unfamiliar parameter. It costs ten seconds and has caught more mistakes at this desk than any checklist.\n\nTest a state-changing command with `-WhatIf` first. It prints the actions without taking them, and it works on `Restart-Service`, `Stop-Process`, `Remove-Item` and other cmdlets that support `ShouldProcess`. Keep `-Confirm` on when one command will touch more than one object.\n\nPut `-ErrorAction Stop` inside `try/catch` whenever the result decides the next step. Without it a failed lookup returns nothing, the pipeline continues, and the script reports success with empty output, which is worse than an error.\n\nDo not paste `Invoke-Expression` or a download-and-run block from a chat window. An L1 account can read logs and restart a spooler. It should not be executing code of unknown origin on a production host."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note carries the command, the property the decision rests on, and the count. \"Three services set to Automatic are stopped, including Spooler, since the 06:12 boot\" is a finding. \"Services look wrong\" is not.\n\nDecision rule: `Automatic` and stopped means restart it once and watch the status for five minutes, then capture the 7036 and 7000 records if it stops again. `Manual` and stopped means change nothing and say so in the note.\n\nClosing note to paste: \"Get-Service filtered on Status -eq 'Stopped' returns 12 objects. Three are StartType Automatic: Spooler, PrintNotify, Fax. Spooler stopped at 06:12 per 7036 in the System log and did not restart. No 7000 in the window.\"\n\nEscalate to L2 when the fix needs a startup-type change or an account change, since both are change records rather than desk actions, or when the cmdlet you need is blocked: no `Get-ADUser`, no remote `Get-CimInstance`, no rights to read the log you need."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "One object, five honest steps",
+        "caption": "Each step works on objects until the last one, which is the only step allowed to care about column widths. Formatting early is what puts type names in a file.",
+        "data": {
+          "steps": [
+            {
+              "label": "Name the object",
+              "detail": "Get-Service -Name Spooler"
+            },
+            {
+              "label": "Read its members",
+              "detail": "Get-Member lists properties"
+            },
+            {
+              "label": "Filter the objects",
+              "detail": "Where-Object Status -eq 'Stopped'"
+            },
+            {
+              "label": "Choose properties",
+              "detail": "Select-Object Name, StartType"
+            },
+            {
+              "label": "Format only to read",
+              "detail": "Format-Table -AutoSize, last"
+            }
+          ],
+          "footer": "If the output leaves PowerShell, stop before step five."
+        }
+      },
+      "video": {
+        "title": "Working with the PowerShell Pipeline",
+        "channel": "TechThoughts",
+        "url": "https://www.youtube.com/watch?v=QKmyf6c83Rs",
+        "start": 0,
+        "length": "15:17",
+        "why": "Demonstrates a pipeline being built and run on live objects, which the printed output in the text cannot show."
+      },
+      "commands": [
+        {
+          "cmd": "Get-Service -Name Spooler | Get-Member",
+          "what": "The type name and the exact property spelling to filter on"
+        },
+        {
+          "cmd": "Get-Service | Where-Object Status -eq 'Stopped' | Select-Object Name, Status, StartType",
+          "what": "Stopped services as objects, with startup type to separate a fault from a design choice"
+        },
+        {
+          "cmd": "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, Id, CPU",
+          "what": "The five busiest processes with the property used to rank them"
+        },
+        {
+          "cmd": "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | Select-Object DeviceID, @{n='FreeGB';e={[math]::Round($_.FreeSpace/1GB,1)}}",
+          "what": "Free space in gigabytes through a calculated property"
+        },
+        {
+          "cmd": "Get-Help Restart-Service -Examples",
+          "what": "Real usage for an unfamiliar parameter before you type it on a production host"
+        },
+        {
+          "cmd": "Restart-Service -Name Spooler -WhatIf",
+          "what": "Prints what would be restarted, changes nothing"
+        }
+      ],
+      "pitfalls": [
+        "Piping into findstr or Select-String to pull out a field: the field is already a property, and text matching breaks on any value containing a space.",
+        "Format-Table before Export-Csv: the CSV receives formatting objects, so the next tool sees column widths instead of data.",
+        "Leaving -ErrorAction at Continue inside a chain: a failed lookup returns nothing, the pipe carries on, and the script reports success with empty output."
+      ],
+      "takeaways": [
+        "Cmdlets return objects; the table on screen is a rendering choice made at the end.",
+        "Get-Member before Where-Object, because the property name is most of the problem.",
+        "Format-* is for humans; Select-Object is for files and for the next command."
+      ],
+      "drill": {
+        "prompt": "Rewrite one text-scraping command from your desk as an object pipeline that ends in Export-Csv.",
+        "minutes": 10,
+        "checklist": [
+          "Get-Member output pasted with the TypeName line identified",
+          "Where-Object uses a property name, not a text match",
+          "A calculated property produces a numeric column with one decimal",
+          "The CSV opens with the expected headers and no formatting artifacts"
+        ]
+      },
+      "sheetTopics": []
+    },
+    {
+      "id": "l3-6",
+      "moduleId": "m3",
+      "seq": 6,
+      "title": "The Windows triage runbook: slow PC, no RDP, locked account",
+      "subtitle": "Three common calls, one order of checks, evidence in the ticket.",
+      "minutes": 18,
+      "level": "Diagnosing",
+      "objectives": [
+        "Order the checks for a slow PC, an RDP failure and a lockout without guessing.",
+        "Read TcpTestSucceeded, fDenyTSConnections and event 4740 as evidence rather than symptoms.",
+        "Write a handover that names the check, the result and the timestamp.",
+        "Decide within two minutes whether a call stays at L1 or goes to L2."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC — server queue",
+        "subject": "Nobody can remote into app01 since the reboot",
+        "body": "app01 was rebooted in the 06:00 window and Remote Desktop now fails for three admins with 'An internal error has occurred'. Ping to 10.20.6.14 answers and file shares on the same host work. The hypervisor console session still works and the reboot itself was scheduled.",
+        "impact": "Three admins are working through the console; a vendor session at 11:00 needs RDP."
+      },
+      "sections": [
+        {
+          "h": "The 08:55 call that says nothing works",
+          "body": "Three calls arrive before nine: a laptop that has become slow, a server nobody can reach over Remote Desktop, and a user who cannot sign in at all. The caller describes all three as \"nothing works,\" and the first engineer to write a theory into the ticket usually routes it to the wrong team.\n\nThe three share one opening move: get three facts before any command. Is it one user or many. Is it one machine or any machine. When did it start. One user on one machine is a desk ticket. Many users, or the same fault on a second machine, is not, and saying so early is most of the value L1 adds."
+        },
+        {
+          "h": "Slow PC: CPU, disk, startup, in that order",
+          "body": "\"Slow\" has four usual causes: a process burning CPU, a disk that cannot keep up, too much starting at logon, or too little memory. Separate them with numbers, not with the colors in Task Manager.\n\n```\nPS C:\\> Get-Process | Sort-Object CPU -Descending |\n>>   Select-Object -First 5 Name, Id, CPU, @{n='MB';e={[math]::Round($_.WorkingSet64/1MB)}}\n\nName       Id     CPU     MB\n----       --     ---     --\nMsMpEng   3184  912.44  402.1\nOUTLOOK   6712  288.10  611.7\nchrome    9044  141.02  988.3\n```\n\nHigh `CPU` means a process is doing work. Read the name before you call it a problem, because the antivirus engine and the update service are both supposed to work. Then check the disk:\n\n```\nPS C:\\> Get-Counter '\\PhysicalDisk(_Total)\\Current Disk Queue Length' -SampleInterval 2 -MaxSamples 3\n\nTimestamp               CounterSamples\n---------               --------------\n11/24/2025 9:02:11 AM   \\\\pc-0412\\physicaldisk(_total)\\current disk queue length : 0.04\n```\n\nA sustained queue above 2 on one spindle, or above 4 on a small SSD set, makes the disk the bottleneck, and every other number is downstream of it. Startup load comes from `Get-CimInstance Win32_StartupCommand | Select-Object Name, Location, User`. Report those entries; do not disable them for the user."
+        },
+        {
+          "h": "No RDP: test the port before the password",
+          "body": "Remote Desktop fails in three places: the service is stopped, the listener is disabled in the registry, or a firewall drops 3389. The password is the fourth possibility and the one callers blame first.\n\n```\nPS C:\\> Test-NetConnection -ComputerName app01 -Port 3389 -InformationLevel Detailed\n\nComputerName           : app01\nRemoteAddress          : 10.20.6.14\nRemotePort             : 3389\nInterfaceAlias         : Ethernet\nSourceAddress          : 10.20.4.55\nTcpTestSucceeded       : True\n```\n\n`TcpTestSucceeded : True` means a packet reached a listening socket, which rules out the firewall and the service in one line and sends you to authentication. `False` sends you to the host:\n\n```\nPS C:\\> Get-Service TermService | Select-Object Name, Status\n\nName        Status\n----        ------\nTermService Running\n\nPS C:\\> Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server' -Name fDenyTSConnections |\n>>   Select-Object fDenyTSConnections\n\nfDenyTSConnections\n------------------\n0\n```\n\n`0` allows connections and `1` refuses them in the registry, which overrides a healthy service. On the host itself, `qwinsta` shows a session named `rdp-tcp` in `Listen` state when the listener is up, and `Get-NetFirewallRule -DisplayGroup 'Remote Desktop'` shows whether the inbound rule is enabled and on which profile."
+        },
+        {
+          "h": "Locked account: prove it away from the PC",
+          "body": "A lockout is a domain event, not a desktop event. The record is 4740 on the controller that handled it, and the caller-computer field names the machine that kept sending the wrong password. If that machine is not the one the user sits at, the user is telling the truth, and the fix lives on a phone, a mapped drive or a scheduled task still running as that account.\n\n```\nPS C:\\> Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740; StartTime=(Get-Date).AddHours(-12)} -MaxEvents 3 |\n>>   Select-Object TimeCreated, @{n='Account';e={$_.Properties[0].Value}}\n\nTimeCreated            Account\n-----------            -------\n11/24/2025 8:49:26 AM  ap.clerk\n```\n\nOn a workstation with a local account, `Get-LocalUser -Name ap.clerk | Select-Object Name, Enabled, LockedOut` answers the same question. For a domain account, `Get-ADUser -Identity ap.clerk -Properties LockedOut, LastBadPasswordAttempt` needs RSAT installed, and `Search-ADAccount -LockedOut` lists every locked account at once.\n\nTwo rules. If `LockedOut` is `False` and the user still cannot sign in, you have a password problem, not a lockout, and further unlocks waste the call. If the lockout returns within minutes of an unlock, a device is still retrying, so find it before the next unlock or you will be unlocking all shift."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The handover carries three lines: what the caller reported, which check confirmed or contradicted it, and the event ID with a timestamp. That is enough for L2 to start where you stopped instead of starting over.\n\nDecision rule: one user, one machine, evidence in the logs, and you own it. Many users, or a second machine with the same symptom, or an event ID pointing at a service or the hypervisor, and you escalate now with the reason attached.\n\nClosing note to paste: \"app01 RDP fails for three admins since the 06:00 reboot. Ping 10.20.6.14 answers, SMB to the same host works. Test-NetConnection port 3389 from desk subnet returns TcpTestSucceeded False. TermService Running, fDenyTSConnections 0. No 3389 listener in qwinsta. Not an account fault.\"\n\nEscalate to L2 when `TcpTestSucceeded` is `False` from two source networks after the service and the firewall rule are confirmed, when disk queue stays above 4 after a reboot, or when 4740 returns after two unlocks in one shift."
+        }
+      ],
+      "diagram": {
+        "type": "tree",
+        "title": "Which check owns the call",
+        "caption": "Each branch is one command with one possible answer. The last branch is a decision, not a failure: no evidence at L1 is itself a finding worth escalating.",
+        "data": {
+          "root": "User cannot work",
+          "branches": [
+            {
+              "label": "Slow, one machine?",
+              "result": "CPU, disk, startup",
+              "tone": "warn"
+            },
+            {
+              "label": "Port 3389 open?",
+              "result": "Listener or auth",
+              "tone": "warn"
+            },
+            {
+              "label": "4740 on the DC?",
+              "result": "Lockout, not the PC",
+              "tone": "bad"
+            },
+            {
+              "label": "41 or 6008 present?",
+              "result": "Unplanned reboot",
+              "tone": "bad"
+            },
+            {
+              "label": "No evidence at L1?",
+              "result": "Escalate with the log",
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Troubleshooting Windows - CompTIA A+ 220-1102 - 3.1",
+        "channel": "Professor Messer",
+        "url": "https://www.youtube.com/watch?v=WJOV5QjCiUU",
+        "start": 0,
+        "length": "13:27",
+        "why": "Walks the establish, test, verify and document order against Windows symptoms, which is the sequence this runbook enforces and the text can only assert."
+      },
+      "commands": [
+        {
+          "cmd": "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, Id, CPU",
+          "what": "Whether a process is consuming the machine or something else is"
+        },
+        {
+          "cmd": "Get-Counter '\\PhysicalDisk(_Total)\\Current Disk Queue Length' -SampleInterval 2 -MaxSamples 3",
+          "what": "Three samples of disk pressure, which separates a slow disk from a busy CPU"
+        },
+        {
+          "cmd": "Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location, User",
+          "what": "What launches at logon, as evidence rather than something to disable"
+        },
+        {
+          "cmd": "Test-NetConnection -ComputerName app01 -Port 3389 -InformationLevel Detailed",
+          "what": "Whether a packet reaches a listening RDP socket from where you sit"
+        },
+        {
+          "cmd": "Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server' -Name fDenyTSConnections",
+          "what": "0 allows Remote Desktop, 1 refuses it regardless of the service state"
+        },
+        {
+          "cmd": "qwinsta",
+          "what": "Sessions and the rdp-tcp listener in Listen state on the host itself"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740; StartTime=(Get-Date).AddHours(-12)}",
+          "what": "Lockouts with the caller computer name, read with an elevated shell"
+        }
+      ],
+      "pitfalls": [
+        "Unlocking the account without reading the caller computer: the lockout returns within minutes and the user stops trusting the fix.",
+        "Testing RDP only from your own desk: a firewall rule can allow your subnet and drop the user's, so a good test proves less than it seems.",
+        "Trusting guest CPU on a virtual machine: host contention shows as low CPU inside the guest with high disk latency, and the process list looks innocent."
+      ],
+      "takeaways": [
+        "Ask three questions first: one user or many, one machine or any, since when.",
+        "TcpTestSucceeded separates a listening socket from an authentication failure in one line.",
+        "A lockout that returns after an unlock is a device still retrying, not a user forgetting."
+      ],
+      "drill": {
+        "prompt": "Run the three opening checks against one lab Windows host and time yourself from first command to written handover.",
+        "minutes": 10,
+        "checklist": [
+          "Test-NetConnection to port 3389 returns a value with the address shown",
+          "fDenyTSConnections read and its value explained in one sentence",
+          "Get-WinEvent returns the most recent 41 or 1074 with a timestamp",
+          "A three-line handover written that a stranger could act on"
+        ]
+      },
+      "sheetTopics": []
+    }
+  ]
+}

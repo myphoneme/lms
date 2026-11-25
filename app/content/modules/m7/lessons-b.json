@@ -1,0 +1,414 @@
+{
+  "moduleId": "m7",
+  "lessons": [
+    {
+      "id": "l7-4",
+      "moduleId": "m7",
+      "seq": 4,
+      "title": "Malware analysis without becoming the next victim",
+      "subtitle": "Safe handling, hashes, sandboxes and what a report must contain.",
+      "minutes": 17,
+      "level": "Diagnosing",
+      "objectives": [
+        "Preserve a suspicious file and produce its SHA256 with two tools that agree",
+        "Get a detection verdict from a hash lookup without uploading the client's file",
+        "Decide when a sample must not be run, and name the authorization a run would need",
+        "Write a six-field sample note that the malware desk can act on without asking you questions"
+      ],
+      "ticket": {
+        "from": "Service Desk - Finance queue",
+        "subject": "Opened the invoice attachment, now Excel opens a blank page",
+        "body": "A finance user opened Remittance_8841.zip from an external sender at 09:14 and says a blank Excel window appeared for a second, then closed. The mail gateway now blocks the same attachment for the rest of the team, but the file is still on the user's desktop and a copy sits in quarantine. The laptop is on the office VLAN with a mapped drive to the finance share. Month-end processing starts at 14:00.",
+        "impact": "One user offline since 09:20; the finance share is reachable from that laptop and month-end closes today."
+      },
+      "diagram": {
+        "type": "flow",
+        "title": "From a suspicious file to a sample note",
+        "caption": "Steps one to three never execute the file. Step four does, and only inside an authorized lab. Most L1 samples stop at step three.",
+        "data": {
+          "steps": [
+            {
+              "label": "Quarantine the copy",
+              "detail": "original stays put, copy labeled"
+            },
+            {
+              "label": "Hash and record",
+              "detail": "SHA256, size, sender, time"
+            },
+            {
+              "label": "Look up the hash",
+              "detail": "detection stats, no upload"
+            },
+            {
+              "label": "Detonate in the lab",
+              "detail": "authorized, no shared folders"
+            },
+            {
+              "label": "Write the sample note",
+              "detail": "hash, source, verdict, gaps"
+            }
+          ],
+          "footer": "Detonation and upload are the steps that leave your control. Both need written approval."
+        }
+      },
+      "video": {
+        "title": "Cybersecurity Tool for Beginner Security Analysts - VirusTotal",
+        "channel": "MyDFIR",
+        "url": "https://www.youtube.com/watch?v=1oXpWJC_VUc",
+        "start": 0,
+        "length": "4:51",
+        "why": "Walks the search-by-hash workflow on the VirusTotal site, so the panes you quote in a sample note are ones you have already seen on screen."
+      },
+      "commands": [
+        {
+          "cmd": "Get-FileHash .\\invoice_8841.zip -Algorithm SHA256",
+          "what": "The sample's identity for the ticket, the report and every later lookup"
+        },
+        {
+          "cmd": "certutil -hashfile C:\\Samples\\invoice_8841.zip SHA256",
+          "what": "Same hash from a second tool; a mismatch means the copy changed"
+        },
+        {
+          "cmd": "Get-AuthenticodeSignature .\\setup.exe",
+          "what": "Publisher and signature status; NotSigned on an invoice is a finding"
+        },
+        {
+          "cmd": "curl -s -H \"x-apikey: $VT_API_KEY\" https://www.virustotal.com/api/v3/files/<sha256>",
+          "what": "Detection stats for a hash without sending the file anywhere"
+        },
+        {
+          "cmd": "Enable-WindowsOptionalFeature -Online -FeatureName \"Containers-DisposableClientVM\" -All",
+          "what": "Enables Windows Sandbox for an isolated run, admin rights required"
+        },
+        {
+          "cmd": "strings -n 8 sample.bin | head -40",
+          "what": "URLs, registry paths and mutex names readable without executing anything"
+        }
+      ],
+      "pitfalls": [
+        "Double-clicking the sample on your own laptop to see what it does. Your session carries SSO tokens and mapped drives, so the second infection has more reach than the first.",
+        "Uploading the client's file to a public multi-scanner. Those services share submissions with the vendors behind their engines, which is a disclosure and needs written approval first.",
+        "Calling a sample clean because a sandbox showed nothing. Many families check for virtual hardware or sleep past the run window, so absence of behavior is not absence of capability."
+      ],
+      "takeaways": [
+        "A hash is the sample's identity; get it from two tools before you write anything down.",
+        "A hash lookup gives a verdict without moving the file, and uploading it is a disclosure decision, not a technical one.",
+        "Detonation happens in a named lab under written authorization; outside that, \"not detonated\" is a complete answer."
+      ],
+      "drill": {
+        "prompt": "Pick any installer already in your Downloads folder. Hash it with Get-FileHash and certutil and confirm the two strings match, check Get-AuthenticodeSignature, look the SHA256 up on VirusTotal, then write the six-field sample note for it. Do not download a real sample and do not run the installer.",
+        "minutes": 10,
+        "checklist": [
+          "Both tools return the same SHA256 and you can say why a mismatch would matter",
+          "Signature status and publisher are recorded, or NotSigned is recorded as the finding",
+          "The lookup result includes the detection ratio and the first submission date",
+          "The note has all six fields and ends with what you did not do"
+        ]
+      },
+      "sheetTopics": [
+        "Malware Analysis"
+      ],
+      "sections": [
+        {
+          "h": "The user opened it once; do not open it twice",
+          "body": "The ticket says the user opened an invoice attachment and a blank Excel window appeared. The file is still on the desktop, the laptop is on the office VLAN, and the obvious next step, double-clicking it to see what happens, is the mistake that turns one infected machine into two.\n\nYour laptop is not a clean room. It holds a browser session with SSO tokens for the ticketing system, mapped drives to the file server, a VPN profile, and cached credentials for other systems. Malware that runs there inherits all of it. **Malware analysis at L1** is three actions in order: preserve the sample, identify it from data that does not execute, and leave the running of it to a lab.\n\nWritten authorization for that lab names the environment, the sample hash, the owner and the time window. Outside that boundary the answer in your note is \"not detonated\", and that is a complete answer."
+        },
+        {
+          "h": "Hash the copy before you look at anything else",
+          "body": "Take the sample out of circulation without destroying it. If the mail gateway quarantined the attachment, export it from the console, not from the user's desktop. If the desktop copy is the only one, put it on a labeled USB stick, record who copied it and when, and do not rename, open or edit it.\n\nThen hash it. The SHA256 becomes the sample's identity for the rest of the incident: it goes in the ticket, in the report, and into every search you run.\n\n```console\nPS C:\\Samples> Get-FileHash .\\invoice_8841.zip -Algorithm SHA256\n\nAlgorithm  Hash                                                             Path\n---------  ----                                                             ----\nSHA256     9f2c41b7d0e8a36c5f19be72d4a8c0e3f61d5b28ca97f04e1d3b6a8c2f5e9071 C:\\Samples\\invoice_8841.zip\n\nPS C:\\Samples> Get-AuthenticodeSignature .\\setup.exe\n\nSignerCertificate Status     StatusMessage\n----------------- ------     -------------\n                  NotSigned  The file C:\\Samples\\setup.exe is not digitally signed.\n```\n\n`certutil -hashfile invoice_8841.zip SHA256` must return the same string. If it does not, the copy changed and the hash you are about to report is wrong. `NotSigned` on a document that claims to be an invoice is a finding by itself."
+        },
+        {
+          "h": "The hash answers the first question without an upload",
+          "body": "One request to a multi-scanner returns a detection ratio, a first-seen date and the names other engines use for the sample. VirusTotal indexes files by SHA256, so nothing leaves your network.\n\n```console\n$ curl -s -H \"x-apikey: $VT_API_KEY\" \\\n    \"https://www.virustotal.com/api/v3/files/9f2c41b7d0e8a36c5f19be72d4a8c0e3f61d5b28ca97f04e1d3b6a8c2f5e9071\" \\\n  | jq '.data.attributes.last_analysis_stats'\n\n{\n  \"harmless\": 58,\n  \"type-unsupported\": 4,\n  \"suspicious\": 0,\n  \"confirmed-timeout\": 0,\n  \"timeout\": 0,\n  \"failure\": 0,\n  \"malicious\": 12,\n  \"undetected\": 8\n}\n```\n\nTwelve detections across 82 engines is enough to isolate the host and escalate. Zero detections proves nothing: fresh samples and targeted ones are often unknown, so read `first_submission_date` as well as the ratio.\n\nDo not upload the file to get this answer. A public multi-scanner shares submissions with the security vendors that run its engines, so a client contract or an internal build leaves the estate the moment you click upload. Uploading needs written approval; a hash lookup does not.\n\n**Decision rule:** an unknown hash on a file that arrived by mail means isolate the host and hand it up. Do not detonate it to learn more."
+        },
+        {
+          "h": "It only runs in a lab, under a named authorization",
+          "body": "Sometimes the question is behavioral: what does it do after it starts. That question belongs in a lab, and the lab is never a production machine.\n\nAn isolated environment has no shared folders, no clipboard, no mapped drives and no route to production. Windows Sandbox is the lightest option on a Windows 11 Pro or Enterprise workstation: enable it, then start a session from a `.wsb` file that sets `<Networking>Disable</Networking>` and mounts the sample folder as read-only. A virtual machine with a snapshot is stronger, because you keep the disk and the network capture afterward.\n\nNeither is proof of anything. Many families check for virtual hardware, sleep for ten minutes, or wait for a mouse click. A note that says \"no malicious behavior observed\" without saying \"the sample may detect a sandbox\" misleads the next analyst, who will act on it.\n\n**Decision rule:** if you cannot name the isolated environment and the person who authorized the run, you do not run the file."
+        },
+        {
+          "h": "What you hand over",
+          "body": "One ticket note and one indicator block. No sample attached, no link to a live sample store.\n\n> Sample `invoice_8841.zip`, SHA256 `9f2c41b7...9071`, 41,208 bytes, ZIP containing `setup.exe`. Source: external mail to a finance user, subject \"Remittance 8841\", delivered 09:14. 12 of 82 engines malicious, first submitted 2025-11-16. Authenticode: NotSigned. Host 10.20.14.62 isolated at 10:05, awaiting the malware desk. Not detonated.\n\nWrite the indicators defanged so nobody clicks them inside the document:\n\n```text\nsha256  9f2c41b7d0e8a36c5f19be72d4a8c0e3f61d5b28ca97f04e1d3b6a8c2f5e9071\ndomain  cdn-update[.]example[.]invalid\nip      203.0.113[.]44:8443\n```\n\nEscalate to the malware desk when the hash is unknown, when the file is a document that asks for macros or a password, or when the host it ran on had administrative rights over other systems. A known hash, a contained host and a written note close at L1."
+        }
+      ]
+    },
+    {
+      "id": "l7-5",
+      "moduleId": "m7",
+      "seq": 5,
+      "title": "Containment, eradication and recovery",
+      "subtitle": "Isolate the blast radius, remove the root cause, restore with proof.",
+      "minutes": 18,
+      "level": "Diagnosing",
+      "objectives": [
+        "Choose a containment action by disruption, and name who must approve it",
+        "Isolate a host and disable an account without destroying the evidence on the machine",
+        "Enumerate the persistence that survives a file deletion, and decide clean versus rebuild",
+        "Close a recovery with proof and a monitoring window instead of an announcement"
+      ],
+      "ticket": {
+        "from": "Service Desk - Endpoint queue",
+        "subject": "Account locks an hour after every password reset",
+        "body": "A finance user reports a taskbar window they do not recognize and an account that locks within an hour of each reset. This is the third reset in two days. The same laptop was reimaged two weeks ago for a similar report and that ticket was closed as resolved. The laptop has a mapped drive to the payroll share.",
+        "impact": "User blocked since 07:40; the payroll share is reachable from a device that has already been reimaged once for the same symptom."
+      },
+      "diagram": {
+        "type": "timeline",
+        "title": "One incident, from beacon to monitoring window",
+        "caption": "Isolation comes 25 minutes after the alert and never powers the host off. The last event opens a monitoring window, so the incident is not closed yet.",
+        "data": {
+          "events": [
+            {
+              "t": "09:12",
+              "title": "First C2 beacon",
+              "detail": "10.20.14.62 out to 443",
+              "actor": "attacker"
+            },
+            {
+              "t": "09:40",
+              "title": "EDR alert",
+              "detail": "credential access",
+              "actor": "system"
+            },
+            {
+              "t": "10:05",
+              "title": "Host isolated",
+              "detail": "network cut, power kept",
+              "actor": "defender"
+            },
+            {
+              "t": "10:20",
+              "title": "Account disabled",
+              "detail": "sessions revoked",
+              "actor": "defender"
+            },
+            {
+              "t": "14:30",
+              "title": "Rebuilt and restored",
+              "detail": "pre-incident image",
+              "actor": "defender"
+            },
+            {
+              "t": "16:00",
+              "title": "Monitoring opens",
+              "detail": "48 hours, same subnet",
+              "actor": "defender"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Incident Response - CompTIA Security+ SY0-701 - 4.8",
+        "channel": "Professor Messer",
+        "url": "https://www.youtube.com/watch?v=X2UiMLxRdhE",
+        "start": 0,
+        "length": "9:13",
+        "why": "Walks preparation, isolation and recovery as separate phases, which is the order the floor rushes when a host is still beaconing."
+      },
+      "commands": [
+        {
+          "cmd": "Disable-ADAccount -Identity jdoe",
+          "what": "Stops new logons; tokens already issued keep working until they expire"
+        },
+        {
+          "cmd": "Revoke-MgUserSignInSession -UserId jdoe@example.com",
+          "what": "Invalidates issued sessions so a stolen cookie stops being useful"
+        },
+        {
+          "cmd": "New-NetFirewallRule -DisplayName \"IR block c2\" -Direction Outbound -Action Block -RemoteAddress 203.0.113.44",
+          "what": "Cuts a confirmed command address while the host stays up for analysis"
+        },
+        {
+          "cmd": "Get-CimInstance Win32_Service | Where-Object { $_.PathName -notlike 'C:\\Windows\\*' }",
+          "what": "Services whose binaries live outside the system directory, which is where persistence hides"
+        },
+        {
+          "cmd": "Get-ScheduledTask | Where-Object { $_.Author -notmatch 'Microsoft' }",
+          "what": "Scheduled tasks created by someone other than the OS or an installer"
+        },
+        {
+          "cmd": "Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending | Select-Object -First 5",
+          "what": "What Defender caught, when, and which process it was attached to"
+        }
+      ],
+      "pitfalls": [
+        "Reimaging to close the ticket. It removes the evidence of the initial access and the account abuse, and this ticket shows what happens when the cause was never removed.",
+        "Shutting the host down to contain it. Memory disappears with the power, and memory holds the running process, the injected code and any credentials still in use.",
+        "Disabling the account and stopping there. Existing sessions and refresh tokens stay valid, so the intruder keeps the access without needing the password."
+      ],
+      "takeaways": [
+        "Containment is picked by disruption and approved by name; the cheapest action that stops the spread wins.",
+        "Eradication means nothing restarts the malware, and a host that held reusable credentials gets rebuilt, not cleaned.",
+        "Recovery ends with a monitoring window and a business owner's confirmation, not with a service answering on its port."
+      ],
+      "drill": {
+        "prompt": "On your own laptop or a lab VM, record a baseline of the three persistence locations: services outside C:\\Windows, non-Microsoft scheduled tasks, and the HKCU and HKLM Run keys. Then write the five-row containment record you would fill in for an infected workstation, with the column headings and one example row per action type. Do not disable any account, block any address, or stop any service.",
+        "minutes": 10,
+        "checklist": [
+          "Baseline captured for all three persistence locations with timestamps",
+          "The record has time, action, by and proof columns before any row is filled",
+          "Every row names an approver, including the one you would not need approval for",
+          "The escalation criterion is written at the bottom, not remembered"
+        ]
+      },
+      "sheetTopics": [
+        "Containment",
+        "Eradication",
+        "Recovery"
+      ],
+      "sections": [
+        {
+          "h": "The laptop was reimaged and the answer left with it",
+          "body": "The user reports a taskbar window they do not recognize and an account that locks an hour after every password reset. It is the third reset in two days. Two weeks ago the same laptop was reimaged for a similar report, and that ticket was closed as resolved.\n\nThe reimage is the problem. It removed the dropped file and, with it, every process, registry key, logon record and network connection that explained how the file arrived. The user is happy, the laptop is back, and the question the client will ask next week has no answer.\n\nThe opposite failure costs more. A host stays online for two days while three people discuss whether it can come off the network, and in those two days the same credentials reach the payroll share.\n\n**Containment** stops the spread and keeps the evidence. **Eradication** removes what restarts the malware. **Recovery** returns the service and proves it is clean. They run in that order, and the clock starts at the first evidence, not at the first approval."
+        },
+        {
+          "h": "Containment is a decision with an owner and a clock",
+          "body": "Pick the smallest action that stops the spread, and pick it quickly. From least to most disruptive:\n\n| Action | Stops | Costs |\n|---|---|---|\n| Block the command address | beaconing from every host | nothing, if the address is confirmed |\n| Isolate the host in the EDR console | C2 and lateral movement | user offline, memory intact |\n| Disable the account and revoke sessions | reuse of stolen tokens | user cannot work at all |\n| Power the host off | everything, including evidence | memory is gone |\n\nPowering off is last, not first. Memory holds the running process, the injected code and any credentials in flight, and none of it survives a shutdown. Isolate at the network layer and leave the machine running.\n\nIsolating a workstation is usually L1 with the on-call engineer's nod. Taking a production server offline or disabling a service account is the client's decision in writing, with a named business owner. Find out who that person is before the incident, because at 02:00 nobody remembers.\n\n**Decision rule:** if the host is still talking to a command address, isolate it now and capture memory after. If it went quiet an hour ago, capture memory first and isolate second."
+        },
+        {
+          "h": "Eradication is about what restarts the malware",
+          "body": "Deleting the dropped file removes one artifact. Whatever starts it again is still in place: a Run key, a scheduled task, a service, a startup folder, a browser extension, or an account created for the purpose.\n\n```powershell\nPS C:\\> Get-CimInstance Win32_Service | Where-Object { $_.PathName -notlike 'C:\\Windows\\*' } |\n>>   Select-Object Name, State, StartName, PathName | Format-Table -AutoSize\n\nName       State   StartName   PathName\n----       -----   ---------   --------\nWinUpdSvc  Running LocalSystem C:\\ProgramData\\WinUpd\\svc.exe -k netsvc\n```\n\nA service whose binary sits in `C:\\ProgramData` and runs as `LocalSystem` is persistence, not a Windows component. Cross-check it against `Get-ScheduledTask | Where-Object { $_.Author -notmatch 'Microsoft' }` and the Run keys under `HKCU` and `HKLM`.\n\n**Decision rule:** if the intruder had administrative rights, or the host held credentials that are valid elsewhere, clean is not enough. Rebuild from a known-good image and rotate every credential the host could touch. A cleaned host that held domain credentials leaves you with a clean machine inside a compromised domain."
+        },
+        {
+          "h": "Recovery is proven, not announced",
+          "body": "Recovery ends with evidence, not with an email saying the server is back.\n\n1. Restore from a backup taken before the first evidence timestamp, not before the alert.\n2. Change the credentials the host used, and confirm MFA on every account that logged on to it.\n3. Scan the restored host with current signatures, and compare restored files against their known-good hashes.\n4. Watch the host and its subnet for 48 to 72 hours for the same indicator or the same account activity.\n5. Get the business owner to confirm the service does what it is supposed to do. A web server that answers on 443 but returns stale prices is not recovered.\n\nIf the same indicator appears inside that window, eradication failed. Do not repeat the same step on the same host. Isolate it again and escalate with the new evidence, because the second clean-and-release cycle is how a small incident becomes a long one."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Isolation needs its own record, separate from the ticket narrative. One row per action, with a time, a name and a proof:\n\n| Time (UTC) | Action | By | Proof |\n|---|---|---|---|\n| 10:05 | Host 10.20.14.62 isolated | L1, ticket 4471 | EDR console entry |\n| 10:20 | Account disabled, sessions revoked | L1 | `Get-ADUser` output |\n| 11:15 | Command address blocked at edge | network on-call | firewall rule ID |\n\nThen the closing note:\n\n> Contained 10:05 UTC. Host network-isolated, not powered off, memory intact for the lab. Account disabled and sessions revoked. Command address blocked at host and edge. Not eradicated: one service and one scheduled task found, sample still under analysis. Business owner approved the isolation at 09:58.\n\nEscalate to the IR lead when the blast radius reaches a domain controller, a hypervisor, a backup server or more than five hosts, and when the same indicator returns after eradication. One workstation with a confirmed indicator is L1 work."
+        }
+      ]
+    },
+    {
+      "id": "l7-6",
+      "moduleId": "m7",
+      "seq": 6,
+      "title": "Root cause, documentation and the report a client reads",
+      "subtitle": "Write the timeline, the cause, the fix and the prevention — plainly.",
+      "minutes": 18,
+      "level": "Diagnosing",
+      "objectives": [
+        "Build a UTC timeline where every row names its source",
+        "Separate the proximate cause from the control that failed, and fix the control",
+        "Draft the six blocks of a client report in plain language with numbers instead of adjectives",
+        "Turn every prevention item into an action with an owner, a date and a proof"
+      ],
+      "ticket": {
+        "from": "Account Management - client follow-up",
+        "subject": "Client compliance wants to know what the intruder read",
+        "body": "The mailbox compromise from 18 November was closed the same day: password reset, forwarding rule removed, user re-enabled. The client's compliance manager has now asked for a written report covering which messages were exposed and for how long. There is no timeline in the ticket, and the analyst who handled it is on leave. The client wants the report by Friday.",
+        "impact": "Client asked Monday; the account manager cannot answer the regulator question and the Friday deadline is two working days away."
+      },
+      "diagram": {
+        "type": "flow",
+        "title": "From raw logs to a report the client signs off",
+        "caption": "The cause is agreed before the prose starts, and nothing is sent before the IR lead has seen the scope statement.",
+        "data": {
+          "steps": [
+            {
+              "label": "Freeze the timeline",
+              "detail": "UTC, one source per row"
+            },
+            {
+              "label": "Agree the cause",
+              "detail": "the control that failed"
+            },
+            {
+              "label": "Write the six blocks",
+              "detail": "summary through prevention"
+            },
+            {
+              "label": "Review the scope",
+              "detail": "IR lead, redaction"
+            },
+            {
+              "label": "Send and version it",
+              "detail": "PDF, date, v1.2"
+            }
+          ],
+          "footer": "A report without a source column is a story. The client's auditor reads the footnotes first."
+        }
+      },
+      "video": {
+        "title": "What is Root Cause Analysis (RCA)?",
+        "channel": "IBM Technology",
+        "url": "https://www.youtube.com/watch?v=7t3lTYEd_PM",
+        "start": 0,
+        "length": "8:32",
+        "why": "Explains RCA on a whiteboard as a repeatable method for finding a cause you can fix, which is the reasoning the client's follow-up question tests."
+      },
+      "commands": [
+        {
+          "cmd": "Get-TimeZone",
+          "what": "The host's offset; a timeline built from local times across hosts is wrong by hours"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime='2025-11-18T05:00:00'; EndTime='2025-11-18T07:00:00'}",
+          "what": "Failed logons in a window, with the account and source address for the timeline"
+        },
+        {
+          "cmd": "wevtutil qe Security /q:\"*[System[(EventID=1102)]]\" /f:text /c:5",
+          "what": "Shows whether the audit log was cleared, and when"
+        },
+        {
+          "cmd": "journalctl -u sshd --since \"2025-11-18 00:00\" --until \"2025-11-18 06:00\" -o short-iso",
+          "what": "Linux service events in ISO timestamps with the offset included"
+        },
+        {
+          "cmd": "Get-ChildItem -Path C:\\inetpub\\wwwroot -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 10",
+          "what": "Files changed closest to the incident window, which is where a web shell shows up"
+        }
+      ],
+      "pitfalls": [
+        "Building the timeline in local time. Three hosts in three offsets produce a sequence that never happened and a cause that cannot be defended.",
+        "Naming the user as the root cause. It reads as blame, it cannot be fixed, and it hides the missing control the client is paying to close.",
+        "Sending the draft straight to the client. Scope statements and redaction are the IR lead's call, and a report released early cannot be recalled."
+      ],
+      "takeaways": [
+        "First evidence and first alert are different times, and the exposure window is what the client asks about.",
+        "A root cause names a setting, a permission or a missing control, never a person or a job title.",
+        "A prevention item with no owner, date and proof is a wish, and the client's auditor treats it as one."
+      ],
+      "drill": {
+        "prompt": "Take the mailbox case in the ticket and build the report skeleton: six block headings, a timeline table with four rows taken from logs on your own machine (4624, 4625 or 1102), and a three-sentence summary. Do not use any real client data, and do not open anyone else's mailbox.",
+        "minutes": 10,
+        "checklist": [
+          "Every timeline row carries a UTC time and a named source",
+          "The summary is three sentences and contains no tool names",
+          "Each prevention item has an owner, a date and a proof column",
+          "The unknowns are written down as unknowns, with the log retention limit stated"
+        ]
+      },
+      "sheetTopics": [
+        "Root Cause Analysis",
+        "Documentation",
+        "Reporting"
+      ],
+      "sections": [
+        {
+          "h": "The ticket said resolved and the client asked what was read",
+          "body": "Three weeks after a mailbox compromise, the client's compliance manager asks which messages the intruder read and whether anything about their customers was in them. The ticket is closed. The notes say password reset, forwarding rule removed, resolved. There is no timeline, no scope, and no record of the rule that forwarded mail outside the organization. Nobody can answer, so the client answers for us and assumes the worst.\n\nA report is not paperwork that follows the fix. It is the part of the incident the client keeps. The fix disappears when the host is rebuilt; the report goes to auditors, insurers and, sometimes, the client's own customers.\n\nWrite it for a reader with one hour, no security background and a decision to make. That reader needs four answers on page one: what happened, when, what was affected, and what has changed."
+        },
+        {
+          "h": "A timeline is a table, and every row has a source",
+          "body": "Build the timeline before the prose: the prose is the timeline explained.\n\n```console\nPS C:\\> Get-TimeZone | Select-Object Id, BaseUtcOffset\n\nId         BaseUtcOffset\n--         -------------\nUTC        00:00:00\n\nPS C:\\> Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime='2025-11-18T05:00:00'; EndTime='2025-11-18T07:00:00'} |\n>>   Select-Object -First 2 TimeCreated, @{n='User';e={$_.Properties[5].Value}}, @{n='IP';e={$_.Properties[19].Value}}\n\nTimeCreated          User        IP\n-----------          ----        --\n11/18/2025 6:04:11 AM svc-backup 10.20.4.31\n11/18/2025 6:07:02 AM svc-backup 10.20.4.31\n```\n\nEvery row carries a UTC time, what happened, and where the fact came from: an event ID and log, a firewall entry, an EDR alert, a mail header, or a call with the user. A row without a source is a rumor, and the auditor asks for the source on the first one.\n\nTwo distinctions change the document. **First evidence** is not **first alarm**: the failed logons started on 12 November, the alert fired on the 18th, and the report states both, because the exposure window is the number the client cares about. Absence is evidence too: \"no successful network logon from 203.0.113.0/24 between 12 and 18 November\" is a finding, provided you name the log and its retention."
+        },
+        {
+          "h": "Root cause is the control that failed, not the person who clicked",
+          "body": "\"User opened a phishing email\" is where the investigation stops, not where it ends. That user will open mail tomorrow, so the statement cannot be tested or closed.\n\nWork down from the event. The message was delivered because that attachment type was not blocked at the gateway. It ran because macro execution from internet-marked files was allowed. It reached a file server because the account had write access to a share it did not need. Three causes, three fixes, none of them a person.\n\nCall the action closest to the damage the **proximate cause**; it belongs in the timeline. Call the fixable one the **root cause**, and be honest when there are several. A report that names one cause for a four-step intrusion reads as tidy and gets challenged on the first follow-up.\n\n**Decision rule:** if a cause line contains a job title or a person's name, rewrite it until it names a setting, a permission or a missing control."
+        },
+        {
+          "h": "Write the summary for someone who gets one page",
+          "body": "Structure beats eloquence. Six blocks in this order: summary, impact, timeline, cause, what we did, what changes. The summary is three sentences on what happened and what it means. Impact states systems, data, account count and duration with units: \"one mailbox, 41 days, two external recipients\".\n\nRules that keep it readable:\n\n- Past tense, active voice, numbers not adjectives: \"The attacker created three forwarding rules\", not \"a forwarding rule was observed to have been created\".\n- No tool names in the summary. `Get-WinEvent` belongs in the appendix; \"the security log\" belongs in the summary.\n- Every finding gets a \"so what\" line. A mailbox rule matters because it forwarded mail outside the organization, not because rules are interesting.\n- State the unknowns: \"we cannot confirm whether the attachment was opened on the file server\" is stronger than silence.\n\nRedact other tenants: hostnames, address ranges, ticket numbers. Name the shared platform, not the neighbor."
+        },
+        {
+          "h": "Prevention needs an owner, a date, and a test",
+          "body": "\"Improve monitoring\" is not an action. An action has an owner, a date and a proof.\n\n| Action | Owner | Due | Proof |\n|---|---|---|---|\n| Block external macro attachments | mail team | 2025-12-05 | rule ID and a test send |\n| Remove finance group write access to the finance share | AD team | 2025-12-12 | `Get-Acl` before and after |\n| Deny egress to 203.0.113.0/24 except via proxy | network | 2025-12-19 | rule ID and a blocked test |\n\nKeep detective and preventive items apart. A new alert detects the next attempt; a removed permission prevents this one. Clients test what they can, which is why every row has a proof column.\n\nLeave out anything the team cannot deliver. A report that commits to a 30-day project nobody has staffed becomes the reason the next report is not believed."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Two artifacts, one email.\n\nThe report: a PDF with the six blocks, a timeline table, an appendix of raw log lines, page numbers, and a version and date on page one. Name it `IR-2025-11-18-mailbox-compromise-v1.2.pdf`, not `report-final-final`.\n\nThe ticket note, which is what the account manager quotes to the client:\n\n> Report v1.2 attached, 14 pages. Scope: one mailbox, one workstation, 12 to 18 November. Cause: a mailbox without MFA using a reused password, plus an inbox rule forwarding to an external address. Contained 18 November 10:05 UTC. Three preventive actions with owners and dates. Open: whether the file server attachment was opened; logs kept 30 days. Reviewed by the IR lead before release.\n\nEscalate and do not send when the draft raises a possible regulatory notification, when the client's legal team has not seen the scope statement, or when the incident crossed into another client's environment. Reports leave through the IR lead, not the technician's mailbox."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,274 @@
+{
+ "ports": [
+  {
+   "port": "20, 21",
+   "service": "FTP",
+   "use": "Active/passive data channel and control channel. Plaintext \u2014 if a customer still uses it, the fix is SFTP, not a firewall rule."
+  },
+  {
+   "port": "22",
+   "service": "SSH",
+   "use": "Remote shell and file copy. First check when a Linux host 'cannot be reached' but pings: is sshd listening, is the key right, is fail2ban blocking you?"
+  },
+  {
+   "port": "23",
+   "service": "Telnet",
+   "use": "Plaintext remote terminal. Treat as a finding in any scan; it belongs in a legacy VLAN, never on the internet."
+  },
+  {
+   "port": "25",
+   "service": "SMTP",
+   "use": "Mail relay. Most L1 mail tickets are port 25 blocked by the ISP/host, or a relay that refuses your IP."
+  },
+  {
+   "port": "53",
+   "service": "DNS",
+   "use": "UDP mostly, TCP for large answers and zone transfer. If name resolution fails, nothing else looks healthy."
+  },
+  {
+   "port": "80",
+   "service": "HTTP",
+   "use": "Plain web. Redirects to 443 should be the only thing it serves; a login form on 80 is an audit finding."
+  },
+  {
+   "port": "110",
+   "service": "POP3",
+   "use": "Mail download, usually deletes from server. Explains 'mail disappeared from my phone but is on my laptop'."
+  },
+  {
+   "port": "143",
+   "service": "IMAP",
+   "use": "Mail sync across devices. Wrong port or TLS mode is the usual Outlook 'cannot connect' cause."
+  },
+  {
+   "port": "443",
+   "service": "HTTPS",
+   "use": "TLS web. Certificate errors here are the most common 'site is down' call that is not a site outage."
+  },
+  {
+   "port": "445",
+   "service": "SMB",
+   "use": "Windows file shares. Blocked by most ISPs on purpose; never expose to the internet."
+  },
+  {
+   "port": "3389",
+   "service": "RDP",
+   "use": "Remote desktop. Brute-forced constantly; if it must exist, it goes behind VPN or a gateway with MFA."
+  }
+ ],
+ "linux": [
+  {
+   "cmd": "pwd",
+   "what": "Print working directory \u2014 confirms where a relative path will resolve before you run anything destructive."
+  },
+  {
+   "cmd": "ls",
+   "what": "List directory contents; -la shows permissions, owners and hidden files, which is where most 'file is missing' tickets end."
+  },
+  {
+   "cmd": "cd",
+   "what": "Change directory; no argument returns to the home directory."
+  },
+  {
+   "cmd": "mkdir",
+   "what": "Create a directory; -p creates parents in one step."
+  },
+  {
+   "cmd": "cat",
+   "what": "Print a file; the fastest way to read a small config or log without an editor."
+  },
+  {
+   "cmd": "grep",
+   "what": "Search text; -r walks a tree, -i ignores case, -n gives line numbers for the handover note."
+  },
+  {
+   "cmd": "find",
+   "what": "Find files by name, age, size or permission \u2014 'what changed in the last hour' is a find command."
+  },
+  {
+   "cmd": "chmod",
+   "what": "Change permission bits; 644 files, 755 directories and scripts are the default starting point."
+  },
+  {
+   "cmd": "chown",
+   "what": "Change owner and group; a web server that cannot read its own document root is usually this."
+  },
+  {
+   "cmd": "ps",
+   "what": "List processes; aux or -ef shows the command line and the user, which identifies the runaway job."
+  },
+  {
+   "cmd": "top",
+   "what": "Live process view; press M for memory, P for CPU, and read load average before blaming the application."
+  },
+  {
+   "cmd": "sudo",
+   "what": "Run one command with elevated rights; -l shows what you are allowed to run without guessing."
+  },
+  {
+   "cmd": "ip addr",
+   "what": "Show interfaces and addresses; confirms the box has the address you think it has."
+  },
+  {
+   "cmd": "ss -tulnp",
+   "what": "Show listening TCP/UDP sockets with process names; the single most useful 'is the service actually up' check."
+  },
+  {
+   "cmd": "journalctl",
+   "what": "Read the systemd journal; -u for one unit, -xe for recent failures with context, --since for a window."
+  }
+ ],
+ "windows": [
+  {
+   "cmd": "ipconfig",
+   "what": "Address, gateway, DNS servers; /all also shows the DHCP server and lease, /flushdns clears a poisoned cache."
+  },
+  {
+   "cmd": "ping",
+   "what": "Reachability and latency; a reply proves the path, a timeout does not prove the host is down (ICMP may be blocked)."
+  },
+  {
+   "cmd": "whoami",
+   "what": "Current identity and groups; /groups shows whether the elevated token is actually present."
+  },
+  {
+   "cmd": "tasklist",
+   "what": "Running processes with PID and memory; /svc shows which services run inside each process."
+  },
+  {
+   "cmd": "net user",
+   "what": "List or manage local accounts; also the fastest check for a locked or disabled account."
+  },
+  {
+   "cmd": "Get-Process",
+   "what": "PowerShell process objects; sort by CPU or working set and pipe to Select-Object for a readable top ten."
+  },
+  {
+   "cmd": "Get-Service",
+   "what": "Service state and start type; a service set to Manual that should be Automatic is a classic reboot surprise."
+  },
+  {
+   "cmd": "Get-EventLog",
+   "what": "Read classic Windows event logs (Application, System, Security) with -Newest and -EntryType filters."
+  },
+  {
+   "cmd": "Get-WinEvent",
+   "what": "Query any event channel with structured filters; the right tool for 'find every 4625 in the last hour'."
+  }
+ ],
+ "filters": [
+  {
+   "filter": "dns",
+   "use": "Show only DNS queries and responses \u2014 the first filter in any 'name does not resolve' capture."
+  },
+  {
+   "filter": "http",
+   "use": "Show HTTP requests and responses; confirms whether the client ever sent the request."
+  },
+  {
+   "filter": "tcp",
+   "use": "Show TCP segments; combine with a port to isolate one conversation."
+  },
+  {
+   "filter": "udp",
+   "use": "Show UDP datagrams; DHCP and DNS failures live here."
+  },
+  {
+   "filter": "icmp",
+   "use": "Show ping and ICMP errors; unreachable messages explain silent timeouts."
+  },
+  {
+   "filter": "tcp.flags.syn == 1",
+   "use": "Show only connection attempts; distinguishes 'no route' from 'connection refused'."
+  },
+  {
+   "filter": "ip.addr == 192.168.1.10",
+   "use": "Focus on one host in either direction; add tcp.port to narrow further."
+  },
+  {
+   "filter": "dns.flags.rcode != 0",
+   "use": "Show DNS answers that failed (NXDOMAIN, SERVFAIL) \u2014 the proof for a resolver ticket."
+  }
+ ],
+ "eventIds": [
+  {
+   "id": "4624",
+   "meaning": "Successful logon",
+   "why": "Baseline for who logged on where; logon type 3 (network) and 10 (RDP) tell different stories."
+  },
+  {
+   "id": "4625",
+   "meaning": "Failed logon",
+   "why": "A burst is brute force or a stale service account; one every few minutes is often a scheduled task."
+  },
+  {
+   "id": "4688",
+   "meaning": "Process creation",
+   "why": "The audit trail for what actually ran; requires command-line auditing to be useful."
+  },
+  {
+   "id": "4720",
+   "meaning": "User account created",
+   "why": "Any unexpected account creation is a containment decision, not a ticket to close."
+  },
+  {
+   "id": "4726",
+   "meaning": "User account deleted",
+   "why": "Often an offboarding mistake or an attacker cleaning up; correlate with the HR leaver list."
+  },
+  {
+   "id": "1102",
+   "meaning": "Security audit log cleared",
+   "why": "Almost never legitimate on a production host. Treat as high severity until proven otherwise."
+  }
+ ],
+ "vulnerabilities": [
+  {
+   "name": "SQL Injection",
+   "severity": "Context-dependent",
+   "fix": "Parameterised queries or an ORM; never string concatenation, and never a WAF as the only fix."
+  },
+  {
+   "name": "XSS",
+   "severity": "Context-dependent",
+   "fix": "Output encoding at the sink plus a Content-Security-Policy; input filtering alone does not fix it."
+  },
+  {
+   "name": "Weak authentication",
+   "severity": "Context-dependent",
+   "fix": "MFA for remote and privileged access, lockout thresholds, and no shared accounts."
+  },
+  {
+   "name": "Misconfiguration",
+   "severity": "Context-dependent",
+   "fix": "Hardening baseline, remove default pages and sample apps, close unused ports, restrict management planes."
+  },
+  {
+   "name": "Outdated components",
+   "severity": "Context-dependent",
+   "fix": "Patch cadence with an owner, an inventory of versions, and a rollback plan."
+  }
+ ],
+ "projects": [
+  {
+   "project": "Wireshark Traffic Analysis",
+   "skills": "Networking, packet analysis",
+   "role": "SOC Analyst"
+  },
+  {
+   "project": "SIEM Threat Detection",
+   "skills": "SIEM, log analysis, detection",
+   "role": "SOC Analyst"
+  },
+  {
+   "project": "Phishing Detection",
+   "skills": "Python, NLP, email security",
+   "role": "Security Analyst"
+  },
+  {
+   "project": "Vulnerability Assessment",
+   "skills": "Nmap, Burp, OWASP, reporting",
+   "role": "VAPT Analyst"
+  }
+ ]
+}

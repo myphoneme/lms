@@ -1,0 +1,455 @@
+{
+  "moduleId": "m8",
+  "lessons": [
+    {
+      "id": "l8-4",
+      "moduleId": "m8",
+      "seq": 4,
+      "title": "PowerShell automation: objects, filters and scheduled checks",
+      "subtitle": "One pipeline that answers 'which services are stopped and should not be'.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Read a cmdlet result as objects and list its properties with Get-Member before filtering",
+        "Filter services by StartMode and State instead of reading a console by eye",
+        "Run one check across a server list with Invoke-Command and export a CSV",
+        "Register a scheduled task as SYSTEM and prove it ran from LastTaskResult"
+      ],
+      "ticket": {
+        "from": "Service Desk — Windows server queue",
+        "subject": "Printers down again on the file server, second time this week",
+        "body": "Users on the second floor have not been able to print since about 10:00. The spooler service on fs01 was stopped when we looked and someone started it, but this is the second time in four days. The morning service check was logged as clean at 06:40. No change was made to the server that we know of.",
+        "impact": "About 60 users on one floor are blocked, and the shift has no way to tell whether another server has the same fault right now."
+      },
+      "sections": [
+        {
+          "h": "Spooler was down for four hours and the check said clean",
+          "body": "Every morning the Windows queue runs the same check on 34 servers: open a remote console, type `Get-Service`, read down the Status column, and write \"clean\" in the shift log. On 14 November nine minutes of reading produced a clean log. The print spooler on fs01 had stopped at 06:12 and a user started it at 10:05. In between, about 60 people sent print jobs into a queue that did nothing.\n\nThe engineer was not careless. The filter was a human eyeball reading 34 console windows, and an eyeball that misses one line is doing what an eyeball does. The same check written as a pipeline does not get tired, and it leaves a file that says what it saw. That is the whole of L1 PowerShell automation: **get objects, filter them, export the result**."
+        },
+        {
+          "h": "Get-Service returns objects, which is why you stop parsing text",
+          "body": "On Linux you parse `ps` output with `awk` because `ps` prints text. PowerShell cmdlets return **objects** — records with named properties — and `Get-Service` returns `System.ServiceProcess.ServiceController` objects. Nothing is text until something displays it.\n\nAsk the object what it has before you filter on it:\n\n```powershell\nPS C:\\> Get-Service -Name Spooler | Get-Member -MemberType Property\n\n   TypeName: System.ServiceProcess.ServiceController\n\nName                MemberType Definition\n----                ---------- ----------\nDependentServices   Property   ...ServiceController[] DependentServices {get;}\nDisplayName         Property   string DisplayName {get;set;}\nMachineName         Property   string MachineName {get;set;}\nServiceName         Property   string ServiceName {get;}\nStatus              Property   ...ServiceControllerStatus Status {get;}\n```\n\n`Status` is an enum with values such as `Running`, `Stopped`, `StartPending` and `Paused`. `Format-Table` decides how those properties look on screen; `Export-Csv` writes them out as data. Both are display decisions on the same object; only one survives being opened by the next person."
+        },
+        {
+          "h": "Filter on StartMode, because \"stopped\" alone is noise",
+          "body": "A stopped service is normal: dozens are Manual and start when needed. The finding is a service set to start at boot that is not running.\n\n`Get-Service` exposes `StartType` only on Windows Server 2016 and later. `Get-CimInstance Win32_Service` exposes `StartMode` as `Auto`, `Manual` or `Disabled` on every supported version, so use that one:\n\n```console\nPS C:\\> Get-CimInstance -ClassName Win32_Service |\n>>   Where-Object { $_.StartMode -eq 'Auto' -and $_.State -eq 'Stopped' } |\n>>   Select-Object Name, DisplayName, State, StartMode\n\nName     DisplayName                            State   StartMode\n----     -----------                            -----   ---------\nMSDTC    Distributed Transaction Coordinator    Stopped Auto\nSpooler  Print Spooler                          Stopped Auto\nWinRM    Windows Remote Management (WS-Manag... Stopped Auto\n```\n\n`$_` is the current object inside the block, `-eq` compares, and `Where-Object` keeps the objects that pass. Prefer `-eq 'Stopped'` over `-ne 'Running'`, because the second one also catches a service in transition, and a service coming up is not a finding.\n\nDecision rule: Automatic and stopped is a finding, Manual and stopped is not. If the same Automatic service is stopped on several hosts at once, suspect a shared dependency before you restart anything by hand."
+        },
+        {
+          "h": "Run it once across every server with Invoke-Command",
+          "body": "`Invoke-Command` runs a block on remote hosts over WinRM (TCP 5985, or 5986 for HTTPS) and returns rows with a `PSComputerName` property added, which is how you know which host each finding came from:\n\n```console\nPS C:\\> Invoke-Command -ComputerName (Get-Content C:\\ops\\servers.txt) -ScriptBlock {\n>>   Get-CimInstance Win32_Service |\n>>     Where-Object { $_.StartMode -eq 'Auto' -and $_.State -eq 'Stopped' } |\n>>     Select-Object Name, State, StartMode\n>> } -ErrorAction Continue |\n>>   Select-Object PSComputerName, Name, State, StartMode |\n>>   Export-Csv C:\\ops\\stopped-services.csv -NoTypeInformation\n\nPS C:\\> Import-Csv C:\\ops\\stopped-services.csv | Format-Table\n\nPSComputerName Name    State   StartMode\n-------------- ----    -----   --------\ndc02           W32Time Stopped Auto\nfs01           Spooler Stopped Auto\n```\n\nIf a host answers \"WinRM cannot complete the operation\", that host is not a clean row. Fix the connection, enable WinRM on the target with change approval, or mark the host unchecked. An unreachable server is not a healthy server, and `-ErrorAction SilentlyContinue` hides exactly that difference."
+        },
+        {
+          "h": "Schedule it and keep the proof it ran",
+          "body": "`Export-Csv` overwrites the file, so there are never two header rows, and one appended line records every run, including runs that found nothing:\n\n```powershell\n$servers = Get-Content 'C:\\ops\\servers.txt'\n$rows = Invoke-Command -ComputerName $servers -ScriptBlock {\n    Get-CimInstance Win32_Service |\n      Where-Object { $_.StartMode -eq 'Auto' -and $_.State -eq 'Stopped' } |\n      Select-Object Name, State, StartMode\n} -ErrorAction SilentlyContinue -ErrorVariable connErr |\n  Select-Object PSComputerName, Name, State, StartMode\n$rows | Export-Csv 'C:\\ops\\stopped-services.csv' -NoTypeInformation\n\"$(Get-Date -Format s) rows=$($rows.Count) unreachable=$($connErr.Count)\" |\n  Add-Content 'C:\\ops\\check.log'\n```\n\n`-ErrorVariable` is what makes `SilentlyContinue` safe here: connection failures are not printed, but they are counted in the log line, so an unreachable host never disappears.\n\nRegister it once as SYSTEM, so a logged-off console does not matter:\n\n```powershell\n$action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -File C:\\ops\\Check-Services.ps1'\n$trigger = New-ScheduledTaskTrigger -Daily -At 6:00AM\n$principal = New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\\SYSTEM' -LogonType ServiceAccount -RunLevel Highest\nRegister-ScheduledTask -TaskName 'Ops-CheckServices' -Action $action -Trigger $trigger -Principal $principal -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable)\n```\n\n`LastTaskResult` is the field that matters, and it reports the task, not the servers:\n\n```console\nPS C:\\> Get-ScheduledTaskInfo -TaskName 'Ops-CheckServices' | Select-Object LastRunTime, LastTaskResult\n\nLastRunTime           LastTaskResult\n-----------           -------------\n11/24/2025 6:00:03 AM             0\n```\n\nDecision rule: result 0 with rows means the finding is real. Result 0 with an empty file means nothing matched. Any nonzero result means you say \"the check did not run\", never \"the servers are fine\"."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Your note is six lines: task name, run time, `LastTaskResult`, CSV path, row count, and the rows with host and service.\n\nClosing note for this morning: \"Ops-CheckServices ran 06:00, result 0, two rows in C:\\ops\\stopped-services.csv: fs01 Spooler (Auto/Stopped), dc02 W32Time (Auto/Stopped). Spooler restarted; W32Time left for investigation because it is a domain controller.\"\n\nEscalation criterion: escalate to L2 when an Automatic service is stopped on a domain controller, a database host, or more than two hosts at once, or when it stops again within 24 hours of a restart. Restarting once is L1 work. A service that stops twice is a fault nobody has found yet."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From one console to a check that proves it ran",
+        "caption": "Six steps, and the last one is the one that gets skipped. A check that cannot show LastTaskResult cannot be trusted on a morning call.",
+        "data": {
+          "steps": [
+            {
+              "label": "Get the object",
+              "detail": "Get-CimInstance Win32_Service"
+            },
+            {
+              "label": "Where-Object filter",
+              "detail": "StartMode Auto, State Stopped"
+            },
+            {
+              "label": "Add the host name",
+              "detail": "Invoke-Command adds PSComputerName"
+            },
+            {
+              "label": "Export the CSV",
+              "detail": "one row per finding, overwritten"
+            },
+            {
+              "label": "Schedule as SYSTEM",
+              "detail": "daily 06:00, StartWhenAvailable"
+            },
+            {
+              "label": "Read LastTaskResult",
+              "detail": "0 means ran, nonzero is broken"
+            }
+          ],
+          "footer": "A check that never proves it ran is a check nobody can trust."
+        }
+      },
+      "video": {
+        "title": "Working with the PowerShell Pipeline",
+        "channel": "TechThoughts",
+        "url": "https://www.youtube.com/watch?v=QKmyf6c83Rs",
+        "start": 534,
+        "length": "15:17",
+        "why": "From the Where-Object chapter onward it filters live objects on screen, which is the part of the pipeline that reads badly in prose."
+      },
+      "commands": [
+        {
+          "cmd": "Get-CimInstance Win32_Service | Where-Object { $_.StartMode -eq 'Auto' -and $_.State -eq 'Stopped' } | Select-Object Name, State, StartMode",
+          "what": "the actual finding: automatic services that are not running"
+        },
+        {
+          "cmd": "Invoke-Command -ComputerName (Get-Content C:\\ops\\servers.txt) -ScriptBlock { Get-Service | Where-Object Status -eq 'Stopped' }",
+          "what": "one query across the estate, with PSComputerName on every row"
+        },
+        {
+          "cmd": "Get-ScheduledTaskInfo -TaskName 'Ops-CheckServices' | Select-Object LastRunTime, LastTaskResult",
+          "what": "proof the scheduled check ran, and whether it finished"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='System'; Id=7036; StartTime=(Get-Date).AddHours(-12)} | Where-Object { $_.Message -match 'Spooler' }",
+          "what": "when the service manager recorded the stop, if the log still holds it"
+        }
+      ],
+      "pitfalls": [
+        "Filtering on Status -eq 'Stopped' alone: a healthy server has dozens of stopped Manual services, so the one real finding is buried and the shift stops reading the file.",
+        "Piping to Format-Table before Export-Csv: Format-Table hands on display objects, so the CSV holds formatting characters instead of properties.",
+        "Registering the task for the logged-on user without -RunLevel Highest: it silently never runs at 06:00 on a weekend, and the empty CSV reads as a clean estate."
+      ],
+      "takeaways": [
+        "PowerShell returns objects; Get-Member is how you find the property worth filtering on.",
+        "Automatic and stopped is a finding, Manual and stopped is normal.",
+        "LastTaskResult tells you whether the check ran; the CSV tells you what it found. Never confuse the two."
+      ],
+      "drill": {
+        "prompt": "On your own Windows machine or lab VM, run the Win32_Service filter and export it to C:\\ops\\drill.csv. Then register a one-time task that runs the same script three minutes from now as your own account, check Get-ScheduledTaskInfo, and delete the task.",
+        "minutes": 10,
+        "checklist": [
+          "The Where-Object query returns only Automatic services that are Stopped",
+          "The CSV opens with one header row and one row per finding",
+          "Get-ScheduledTaskInfo shows a LastRunTime inside the last 15 minutes and LastTaskResult 0",
+          "You can state what a nonzero LastTaskResult would have meant for the call"
+        ]
+      },
+      "sheetTopics": [
+        "Windows Automation"
+      ]
+    },
+    {
+      "id": "l8-5",
+      "moduleId": "m8",
+      "seq": 5,
+      "title": "Logs, regex and indicators: re, pandas, hashlib",
+      "subtitle": "Extract the fields, count the sources, hash the file.",
+      "minutes": 19,
+      "level": "Diagnosing",
+      "objectives": [
+        "Pull named fields out of a log line with one compiled regular expression",
+        "Count events per source with Counter, then answer a two-key question with pandas",
+        "Hash an evidence file in chunks and cross-check the digest with a second tool",
+        "Decide which indicators are durable enough to hand to a blocklist"
+      ],
+      "ticket": {
+        "from": "Service Desk — security queue",
+        "subject": "Hundreds of failed logins on the web server overnight",
+        "body": "The overnight report shows a large number of failed SSH logins on web01. We ran grep -c on auth.log and got 2,141 lines. A second host reported the same pattern this morning. We do not know whether it is one source or many, or whether any login succeeded.",
+        "impact": "Two internet-facing hosts are being tried, and nobody can say whether the attempts are one actor or a hundred."
+      },
+      "sections": [
+        {
+          "h": "Twelve thousand lines and nobody could say how many sources",
+          "body": "At 09:20 a report arrived: web01 had hundreds of failed SSH logins overnight. The analyst ran `grep -c 'Failed password' /var/log/auth.log`, got 2,141, wrote \"brute force, single host\" in the ticket, and closed it. At 11:05 a second host reported the same thing, then a third. The question nobody could answer was how many source addresses were involved and whether the set was the same on all three hosts.\n\n`grep` answers \"does this string appear\". The question on the call was \"group by source, count per source, across three files\". That is a parsing job in three parts: pull the fields out, count them, and hash the file so the next person can prove they read the same bytes."
+        },
+        {
+          "h": "Name the fields in the pattern, not the parentheses",
+          "body": "Sample lines from `auth.log` look like this. The third one is a different message shape, which matters:\n\n```text\n2025-11-24T03:04:11.8821 sshd[41213]: Failed password for invalid user admin from 203.0.113.44 port 51422 ssh2\n2025-11-24T03:04:12.1140 sshd[41213]: Failed password for root from 203.0.113.44 port 51430 ssh2\n2025-11-24T03:04:19.0032 sshd[41219]: Invalid user test from 198.51.100.23\n```\n\nOne compiled pattern with **named groups** — `(?P<ip>...)` names the field, so you never count parentheses again:\n\n```python\nimport re, sys, csv\nfrom collections import Counter\n\nPATTERN = re.compile(\n    r'^(?P<ts>\\S+) sshd\\[(?P<pid>\\d+)\\]: '\n    r'Failed password for (?:invalid user )?(?P<user>\\S+) '\n    r'from (?P<ip>\\d{1,3}(?:\\.\\d{1,3}){3}) port (?P<port>\\d+)'\n)\n\nfails, unmatched = Counter(), 0\nwith open(sys.argv[1], encoding='utf-8', errors='replace') as fh, \\\n     open('/evidence/fails.csv', 'w', newline='', encoding='utf-8') as out:\n    rows = csv.writer(out)\n    for line in fh:\n        m = PATTERN.match(line)\n        if not m:\n            unmatched += 1\n            continue\n        g = m.groupdict()\n        fails[g['ip']] += 1\n        rows.writerow([g['ts'], g['pid'], g['user'], g['ip'], g['port']])\n\nfor ip, n in fails.most_common(5):\n    print(f'{ip:<16} {n}')\nprint('unmatched lines:', unmatched)\n```\n\n```console\n$ python3 count_fails.py /evidence/auth.log\n203.0.113.44     812\n198.51.100.23    604\n192.0.2.77       488\nunmatched lines: 3\n```\n\n`(?:...)` is a non-capturing group, used for the optional `invalid user` prefix so it does not become a field. `match` anchors at the start of the line, so a line without a timestamp is counted as unmatched instead of half-parsed. Report that number: it tells the next analyst what was left out."
+        },
+        {
+          "h": "Count with Counter, then ask a second question with pandas",
+          "body": "`Counter` answers \"how many per address\". The next call asks \"which account was tried\", and that is a two-key group: source plus user. Write the rows to a CSV from the same loop, then let pandas do the grouping:\n\n```python\nimport pandas as pd\ndf = pd.read_csv('/evidence/fails.csv', header=None, names=['ts', 'pid', 'user', 'ip', 'port'])\nprint(df.groupby(['ip', 'user']).size().sort_values(ascending=False).head(5))\nprint(df['ip'].nunique(), 'sources between', df['ts'].min(), 'and', df['ts'].max())\n```\n\n```console\nip            user\n203.0.113.44  root     402\n203.0.113.44  admin    288\n203.0.113.44  oracle   122\n198.51.100.23 root     377\n198.51.100.23 test     227\ndtype: int64\n4 sources between 2025-11-24T03:04:11.8821 and 2025-11-24T04:52:38.5560\n```\n\n`header=None, names=[...]` is not optional. The CSV has no header row, and without those arguments pandas takes the first event as the column names, so every count is short by one and nobody notices.\n\nDecision rule: if the count per source is over 50 and spread across more than two sources, it is a distributed attempt and the ticket is not \"one noisy client\". If one source tried one account three times, it is a typo and it does not need a ticket."
+        },
+        {
+          "h": "Hash the file before anyone believes the copy",
+          "body": "An evidence file that moved between three hosts is not evidence until two people can hash it and get the same answer. `hashlib` reads in chunks, so a 4 GB log does not have to fit in memory:\n\n```python\nimport hashlib, sys\nh = hashlib.sha256()\nwith open(sys.argv[1], 'rb') as fh:\n    for chunk in iter(lambda: fh.read(1024 * 1024), b''):\n        h.update(chunk)\nprint(h.hexdigest(), sys.argv[1])\n```\n\n```console\n$ python3 sha_file.py /evidence/auth.log\nc29f78d2426f73f8d282049240e9eac066f27aca9fcc4cb5fa84aa3d7f3e2655  /evidence/auth.log\n$ sha256sum /evidence/auth.log\nc29f78d2426f73f8d282049240e9eac066f27aca9fcc4cb5fa84aa3d7f3e2655  /evidence/auth.log\n```\n\nTwo tools, one digest. On Windows the cross-check is `Get-FileHash -Algorithm SHA256 .\\auth.log`. A hash proves the bytes are identical to another copy; it proves nothing about whether the content is malicious, so never write \"hash confirms malware\" in a ticket."
+        },
+        {
+          "h": "Indicators are durable or they are decoration",
+          "body": "An **indicator** is a value you can search for elsewhere: a file hash, a domain, a URI path, an IP address. Hash is the strongest, because it changes when one byte changes. An IP address is the weakest: hosting ranges, VPN exits and cloud addresses are reassigned constantly, and one is probably your own NAT egress.\n\nDefang what you paste into a ticket — `203.0.113[.]44` — and deduplicate first. A list of 400 addresses that is really 60 repeated four times wastes an hour.\n\nThis work happens in the lab: sample logs on your own machine, no scanning of networks you do not own, and no live malware. Written authorization from the system owner is required before you collect logs from a host you do not administer or search for an indicator anywhere outside the lab.\n\nDecision rule: a hash that matches the vendor's published value is a fact you can escalate on. An IP address that appears in the log is a fact about the log only. Check whether it is a scanner you pay for, a partner's egress, or your own address before it goes anywhere near a blocklist."
+        },
+        {
+          "h": "What you hand over",
+          "body": "One page: file path and SHA-256, time range, pattern used, counts per source, unmatched line count, and what you did not parse.\n\nClosing note: \"auth.log from web01, SHA-256 c29f78d2…2655, 03:04 to 04:52, 2,141 failed passwords from 4 sources. Top: 203.0.113.44 with 812 attempts across root, admin and oracle. Three lines did not match the pattern. No successful logon for those accounts in the window.\"\n\nEscalation criterion: escalate when a source address has both failed and successful authentications for the same account, or when the same source appears on hosts in different subnets inside the window. One noisy client is not an incident. The same client succeeding is."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From a log file to a number you can defend",
+        "caption": "Five steps. The unmatched count and the hash are what turn a count into evidence someone else can reproduce.",
+        "data": {
+          "steps": [
+            {
+              "label": "Read line by line",
+              "detail": "open(), no read() of 900 MB"
+            },
+            {
+              "label": "Extract named fields",
+              "detail": "ts, user, ip from one pattern"
+            },
+            {
+              "label": "Count per key",
+              "detail": "Counter, then pandas groupby"
+            },
+            {
+              "label": "Validate the indicator",
+              "detail": "dedupe, defang, check owner"
+            },
+            {
+              "label": "Hash the evidence",
+              "detail": "sha256 chunked, two tools"
+            }
+          ],
+          "footer": "Unmatched lines are a number you report, not a detail you hide."
+        }
+      },
+      "video": {
+        "title": "31. Regular Expressions in Python | re module for regex | Advanced Python Tutorial | Amit Thinks",
+        "channel": "Amit Thinks",
+        "url": "https://www.youtube.com/watch?v=i-iJNXmlGJc",
+        "start": 0,
+        "length": "11:02",
+        "why": "Runs match, search, findall and sub in a live interpreter, so the calls this lesson uses are shown executing rather than described."
+      },
+      "commands": [
+        {
+          "cmd": "grep -c 'Failed password' /var/log/auth.log",
+          "what": "the count that opened the ticket, and proof it is not the answer"
+        },
+        {
+          "cmd": "python3 count_fails.py /var/log/auth.log",
+          "what": "extract and group by source address in one pass"
+        },
+        {
+          "cmd": "sha256sum /var/log/auth.log",
+          "what": "hash the evidence before and after you copy it"
+        },
+        {
+          "cmd": "awk '{for(i=1;i<=NF;i++) if($i==\"from\") print $(i+1)}' /var/log/auth.log | sort | uniq -c | sort -rn | head",
+          "what": "the shell version of the same question, when Python is not installed"
+        }
+      ],
+      "pitfalls": [
+        "A greedy `.*` between fields: on a line with no \"from\" it swallows the rest of the record and the user field becomes a sentence.",
+        "Reading a 900 MB log with read() and splitlines(): the jump host runs out of memory halfway and leaves a partial CSV that looks complete.",
+        "pd.read_csv without header=None on a file your own script wrote: the first event becomes the column names and every count is short by one."
+      ],
+      "takeaways": [
+        "One compiled pattern with named groups beats four greps and a spreadsheet.",
+        "The unmatched line count is part of the answer, not an embarrassment.",
+        "A hash proves two files are identical; it says nothing about whether either one is malicious."
+      ],
+      "drill": {
+        "prompt": "Take a copy of auth.log (or the sample lines from this lesson), write the named-group parser, and print the top five sources plus the unmatched count. Then hash the file with hashlib and again with sha256sum, and put both digests in a four-line note with the time range.",
+        "minutes": 10,
+        "checklist": [
+          "The pattern has at least three named groups and the script prints them by name",
+          "The output shows a count per source address and an unmatched line count",
+          "The two digests are identical and the full 64 characters are recorded",
+          "The note names the time range covered by the file"
+        ]
+      },
+      "sheetTopics": [
+        "Log Processing",
+        "Programming",
+        "Threat Intelligence",
+        "re",
+        "pandas",
+        "hashlib"
+      ]
+    },
+    {
+      "id": "l8-6",
+      "moduleId": "m8",
+      "seq": 6,
+      "title": "Detection, alerting and playbooks: the four capstones",
+      "subtitle": "YARA, alert routing, a written playbook, and the projects that prove it.",
+      "minutes": 20,
+      "level": "Complex",
+      "objectives": [
+        "Write a YARA rule whose condition limits noise instead of matching a filename",
+        "Route an alert to an owned queue by severity with a dedupe window",
+        "Write a playbook whose first actions are commands, not adjectives",
+        "Tell a refused TCP connection from a filtered one on a monitoring call"
+      ],
+      "ticket": {
+        "from": "NOC — overnight security queue",
+        "subject": "Suspicious binary found in Temp, escalated with no next step",
+        "body": "An alert fired at 02:14 for a binary written to C:\\Windows\\Temp on fs01. The analyst on shift opened the path, found the file had already been removed, and escalated at 02:31 with 'possible malware, please advise'. No hash was recorded and no other host was checked. The queue has no written steps for this alert type.",
+        "impact": "A possible execution on a file server is unresolved after six hours, and the same alert will be handled differently by whoever is on shift tonight."
+      },
+      "sections": [
+        {
+          "h": "The alert fired at 02:14 and the queue had no next step",
+          "body": "An alert came in for a binary written to `C:\\Windows\\Temp` on fs01. The analyst on shift opened the path, found the file gone, searched the file name on the web, and escalated at 02:31 with \"possible malware, please advise\". L2 spent an hour redoing work L1 could have done: hashing what was left, running the rules the team owned, and checking other hosts for the same hash.\n\nNone of that hour was analysis. It was the cost of an alert with no written next step and no owner. **Detection** is the rule that fires. **Response** is the ordered set of decisions that starts the moment it does. A detection without a playbook produces a ticket, not an outcome."
+        },
+        {
+          "h": "A YARA rule is strings plus a condition that limits noise",
+          "body": "**YARA** matches patterns in files. A rule has three blocks: `meta` (who wrote it, why), `strings` (what to look for), and `condition` (how many strings must appear, in what relation). The condition controls false positives.\n\n```yara\nrule win_psexec_service_binary\n{\n    meta:\n        author = \"l1-academy\"\n        description = \"PsExec service binary names in any path\"\n        date = \"2025-11-24\"\n    strings:\n        $svc = \"PSEXESVC\" ascii wide\n        $cli = \"psexec\" nocase ascii\n    condition:\n        uint16(0) == 0x5A4D and 2 of them\n}\n```\n\n`uint16(0) == 0x5A4D` requires the file to start with `MZ`, so a text file containing the word is not a hit. `ascii wide` matches both encodings; `nocase` ignores case.\n\n```console\n$ yara -r -w rules/win_psexec_service_binary.yar /evidence/fs01/\nwin_psexec_service_binary /evidence/fs01/Windows/Temp/PSEXESVC.exe\nwin_psexec_service_binary /evidence/fs01/Tools/PSTools/psexec.exe\n```\n\nTwo hits, one ticket worth writing. PsExec is a legitimate admin tool, so the rule found a tool, not an intruder. Path and parent process decide, which is why the playbook asks for both.\n\nYARA is lab work without written authorization: scan copies in an isolated analysis VM, never a live share without the owner's approval, and never move a sample to a production host."
+        },
+        {
+          "h": "Route by rule and severity, not by name",
+          "body": "An alert addressed to a person waits for that person. One addressed to a queue with an owner and a backup gets worked by the next shift.\n\n| Priority | Condition | Queue | Pages |\n| --- | --- | --- | --- |\n| P1 | confirmed execution, hash on the blocklist | IR on-call | yes, 24x7 |\n| P2 | rule hit on a server, path outside Tools | Security queue | no |\n| P3 | known admin tool, hash matches vendor build | Security queue, weekly | no |\n\n**Dedupe** on rule, host and hash for 24 hours. Without it, a binary rescanned every hour becomes 24 tickets and the queue learns to ignore the rule name. An alert without a hash cannot be deduplicated or searched, which is why the 02:14 ticket stalled."
+        },
+        {
+          "h": "A playbook is five decisions written before the call",
+          "body": "A playbook is not a paragraph of advice. It is five decisions with an owner:\n\n1. **Trigger** — the exact alert name and severity that starts it.\n2. **Scope** — which hosts, accounts and time window are in play.\n3. **First 15 minutes** — five numbered actions, each with a command.\n4. **Containment** — the options, and who must approve each one.\n5. **Closure and escalation** — the evidence that closes it, and the line that escalates it.\n\nStep 3 is where most drafts fail: they say \"investigate the binary\". Write the commands — hash the file, search the hash across the fleet, list the parent, check scheduled tasks in the window. A playbook a tired analyst can follow at 03:00 without calling anyone is finished; one that needs interpretation is a wish.\n\nThe module ends with four capstones that each produce an artifact: the log parser and report, the scheduled Windows check with its CSV, a YARA rule with a written hunt result, and the playbook with a dated drill. A playbook nobody has walked through is a document, not a control."
+        },
+        {
+          "h": "Probe the thing before you believe the graph",
+          "body": "Many \"host down\" escalations at L1 are a monitoring gap, not an outage. A twenty-line probe tells you which one you have, and it runs from the jump host:\n\n```python\nimport socket\nfor host, port in [('dc01', 445), ('fs01', 445), ('web01', 443), ('db01', 1433)]:\n    try:\n        with socket.create_connection((host, port), timeout=3):\n            print(f'{host}:{port}  open')\n    except socket.timeout:\n        print(f'{host}:{port}  timeout')\n    except OSError as e:\n        print(f'{host}:{port}  error {e.errno}')\n```\n\n```console\n$ python3 probe.py\ndc01:445  open\nfs01:445  open\nweb01:443  timeout\ndb01:1433  error 111\n```\n\n`error 111` is `ECONNREFUSED` on Linux (`10061` on Windows): the host answered TCP and nothing is listening on that port. `timeout` means the packets went nowhere — a firewall, a routing problem, or a dead host. Three different tickets, twelve seconds.\n\nDecision rule: refused means the host is alive and the service is not. Timeout means you cannot tell, so the next check is `ping` and then the firewall rule, not a service restart."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Two notes, because a detection and a response are handed over differently.\n\nDetection note: rule name, the noise-limiting condition, where it ran, how many files matched, and the paths.\n\nResponse note: alert time, host, path, hash, what you ran, what you ruled out, and the escalation line. Closing note: \"fs01 PSEXESVC.exe in Windows/Temp at 02:14, hash 221c2a27…c9eb, file removed before collection. Rule hit twice on the image, second hit is the admin copy in Tools/PSTools. No scheduled task created in the window. Playbook step 3 incomplete at 02:31; playbook updated.\"\n\nEscalation criterion: escalate when the hash appears on a host outside the admin tool path and a scheduled task or service was created within the same hour. That is execution with persistence, and it is not an L1 close."
+        }
+      ],
+      "diagram": {
+        "type": "topology",
+        "title": "Where one detection becomes a ticket",
+        "caption": "The P1 path skips the queue on purpose. Everything else needs an owner, a dedupe window and a hash before it can be worked.",
+        "data": {
+          "nodes": [
+            {
+              "id": "bin",
+              "label": "Binary on fs01",
+              "tier": 0,
+              "type": "host"
+            },
+            {
+              "id": "yara",
+              "label": "YARA scan",
+              "tier": 1,
+              "type": "server"
+            },
+            {
+              "id": "siem",
+              "label": "SIEM log store",
+              "tier": 1,
+              "type": "server"
+            },
+            {
+              "id": "route",
+              "label": "Alert routing",
+              "tier": 2,
+              "type": "cloud"
+            },
+            {
+              "id": "queue",
+              "label": "Security queue",
+              "tier": 2,
+              "type": "server"
+            },
+            {
+              "id": "oncall",
+              "label": "On-call analyst",
+              "tier": 3,
+              "type": "user"
+            }
+          ],
+          "links": [
+            {
+              "from": "bin",
+              "to": "yara",
+              "label": "hash + path",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "yara",
+              "to": "siem",
+              "label": "rule hit",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "siem",
+              "to": "route",
+              "label": "severity map",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "route",
+              "to": "queue",
+              "label": "P2 and P3",
+              "dashed": false,
+              "tone": "warn"
+            },
+            {
+              "from": "route",
+              "to": "oncall",
+              "label": "P1 page",
+              "dashed": false,
+              "tone": "bad"
+            },
+            {
+              "from": "queue",
+              "to": "oncall",
+              "label": "playbook step 1",
+              "dashed": true,
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Malware Analysis Bootcamp - Creating YARA Rules",
+        "channel": "HackerSploit",
+        "url": "https://www.youtube.com/watch?v=35Exd9GrR5I",
+        "start": 0,
+        "length": "13:36",
+        "why": "Builds a rule from the metadata and strings blocks into the condition against a sample, which is the part of YARA that reads badly on paper."
+      },
+      "commands": [
+        {
+          "cmd": "yara -r -w rules/win_psexec_service_binary.yar /evidence/fs01/",
+          "what": "run the team rule set against a collected image, recursively"
+        },
+        {
+          "cmd": "yara -s rules/win_psexec_service_binary.yar /evidence/fs01/Windows/Temp/PSEXESVC.exe",
+          "what": "show which strings matched, which is what the ticket needs"
+        },
+        {
+          "cmd": "Get-FileHash -Algorithm SHA256 .\\PSEXESVC.exe",
+          "what": "hash the sample on Windows before it leaves the host"
+        },
+        {
+          "cmd": "python3 -c \"import socket; s=socket.create_connection(('fs01',445),3); print('open'); s.close()\"",
+          "what": "prove the service is listening before you blame the alert"
+        }
+      ],
+      "pitfalls": [
+        "A rule that matches the tool name only: PsExec is installed across the estate by the admin team, the rule fires weekly, someone mutes it, and the one real Temp execution goes with it.",
+        "Routing an alert to a named engineer: on the night that engineer is on leave the ticket sits unassigned until morning.",
+        "A playbook that says 'investigate the binary': no command, no path, no owner, so the next analyst copies the previous ticket's wording and the queue learns nothing."
+      ],
+      "takeaways": [
+        "The YARA condition is the detection; the strings are only the search terms.",
+        "An alert needs a rule name, a host and a hash before it can be routed, deduplicated or escalated.",
+        "Refused means the service is down; timeout means you do not know yet. They are different tickets."
+      ],
+      "drill": {
+        "prompt": "In an isolated lab VM with no network, write one YARA rule for a benign file you choose, include a condition that limits matches, and run yara -r against a folder. Write the four-line detection note for the result, then list the three playbook steps you would need at 03:00. Do not scan any host you do not own.",
+        "minutes": 10,
+        "checklist": [
+          "The rule has meta, strings and a condition that is not a bare string list",
+          "The scan output names the rule and the matching file path",
+          "The detection note records the rule name, the condition, the match count and the path",
+          "Three playbook steps are written as commands with an owner"
+        ]
+      },
+      "sheetTopics": [
+        "Threat Hunting",
+        "Detection",
+        "Monitoring",
+        "Response",
+        "socket"
+      ]
+    }
+  ]
+}

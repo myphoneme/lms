@@ -1,0 +1,419 @@
+{
+  "moduleId": "m7",
+  "lessons": [
+    {
+      "id": "l7-1",
+      "moduleId": "m7",
+      "seq": 1,
+      "title": "Identification and classification: is this an incident?",
+      "subtitle": "Separate a nuisance from a breach, and set severity without drama.",
+      "minutes": 15,
+      "level": "Core",
+      "objectives": [
+        "Decide whether an alert is an event or an incident, and name the fact that settled it",
+        "Read failed and successful logon events and tell a stale credential from a working guess",
+        "Assign a severity from functional impact, information impact, and recovery effort",
+        "Write an identification note that lets L2 reconstruct your reasoning without calling you"
+      ],
+      "ticket": {
+        "from": "Service Desk — queue 4, day shift",
+        "subject": "User says her mailbox was hacked, please advise urgent",
+        "body": "The user called at 08:05 saying a colleague received mail from her account at 23:40 that she did not write, and that Outlook asked her to sign in again this morning. She changed her password from her phone before calling. Her manager wants to know whether the account should be disabled and whether anyone else is affected. Nobody has opened the sign-in logs yet, and the ticket is already flagged urgent because the manager said the word breach.",
+        "impact": "One mailbox is in question, an invoice run that uses that address is paused, and two other users on the same floor are asking whether they were hit."
+      },
+      "sections": [
+        {
+          "h": "The 03:10 page was a stale password, and it cost three engineers an hour",
+          "body": "The alert fired at 03:10: 41 failed logons for `svc-backup` from 10.30.4.88 in four minutes. The on-call analyst paged the security lead, who woke the backup engineer, and by 04:20 three people had proved that a scheduled task still held the password rotated at 22:00.\n\nThe same queue held a ticket from 08:05: a user reporting that a colleague got mail from her account at 23:40 that she did not write. It was picked up at 11:30, because the night shift spent the morning on the backup account.\n\nOnly one of those was an incident, and the queue sorted them backwards. **Identification** is the work of deciding which one you are holding. **Classification** is the answer to how bad it is, who has to know, and how fast. Both come before containment, because containment costs money and destroys data you will want later."
+        },
+        {
+          "h": "An event is something that happened; an incident is something that is harming you",
+          "body": "An **event** is an observable occurrence: a logon, a blocked connection, a scheduled task that ran. An **incident** is an event, or a group of them, that actually or imminently harms confidentiality, integrity, or availability. NIST SP 800-61 draws that line. The 2025 revision reorganized the lifecycle around the CSF 2.0 functions and did not move the line.\n\nThree tests turn it into something you can run at 03:10.\n\n1. **Is there an action, or only a name?** A rule titled `Possible Cobalt Strike` that fired on a blocked outbound connection is a signature match. A process on a host that made that connection is an action.\n2. **Does it touch something that holds value?** A shared `billing@` mailbox or a domain controller is not a test VM that has been powered off since March.\n3. **Is it still happening?** An attempt that ended is evidence. An attempt in progress is an incident with a clock on it.\n\nTwo yes answers means incident. Three no answers means event: record it, close it, keep the row so the pattern is visible next month. \"Not an incident\" never means \"no work\" — the user still gets an answer."
+        },
+        {
+          "h": "The logon log answers test one in one command",
+          "body": "Windows Security event 4625 is a failed logon and 4624 is a successful one. The fields that matter are the target account, the source address, and on the success side the logon type.\n\n```console\nPS C:\\> Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 4 |\n>>   Select-Object TimeCreated,\n>>     @{n='Account';e={$_.Properties[5].Value}},\n>>     @{n='Source';e={$_.Properties[19].Value}} | Format-Table\n\nTimeCreated            Account        Source\n-----------            -------        ------\n11/18/2026 2:41:07 AM  svc-backup     10.30.4.88\n11/18/2026 2:41:09 AM  svc-backup     10.30.4.88\n11/18/2026 2:41:12 AM  svc-backup     10.30.4.88\n11/18/2026 2:41:14 AM  administrator  10.30.4.88\n```\n\nThe account column is `TargetUserName` and the source column is `IpAddress`. The property order for 4625 is fixed, so the indexes work. Read the last line first: a service account failing from its own subnet and then switching to `administrator` is a script working through a list, not a user with a stale password.\n\n**Decision rule:** if no success follows those failures from that source within the hour, classify it as an event and fix the credential. If a success follows, stop reading logs and open an incident — that account is compromised until someone proves otherwise."
+        },
+        {
+          "h": "Severity is three facts, not the volume of the caller",
+          "body": "NIST SP 800-61 builds severity from functional impact (what stopped working), information impact (what was or may have been read, changed, or taken), and recoverability (how much work restores service). Score all three, then pick a number.\n\n| Sev | Test | Who is called |\n| --- | --- | --- |\n| 1 | Privileged account confirmed compromised, data confirmed leaving, or a production service down | Security lead and duty manager now, by phone |\n| 2 | Two or more hosts or accounts, or one host showing lateral movement | L2 IR within 15 minutes, security lead informed |\n| 3 | One host or one account, contained, no spread | L1 owns it, IR ticket, L2 review next business day |\n| 4 | Attempt blocked, nothing touched | Document and close |\n\nSeverity is provisional: you will move tickets between rows as facts arrive. Containment is not provisional: disabling an account or isolating a host stops work and starts a restore clock. Take the cheapest reversible step first — a password reset and a session revoke — and leave disabling to the incident owner.\n\n**Decision rule:** a Sev 1 or Sev 2 is decided by a fact, never by a request. \"The manager wants this treated as critical\" is not a fact. \"The account is in Domain Admins and signed in from 10.30.4.88\" is."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Write the identification note in the ticket, not in chat. Five lines:\n\n```text\nWhat:     4 x 4625 for svc-backup, then a 4624 success from 10.30.4.88 at 03:14\nScope:    one service account, no other account seen from that address\nEvidence: exported to \\\\fs01\\ir\\INC0048211\\logons.evtx\nSev:      2 - backup account brute-forced, no data confirmed taken\nNext:     password reset 03:31, sessions revoked, L2 IR paged 03:34\n```\n\nWrite timestamps in UTC and say which clock produced them. If you cannot answer what you saw, where it is stored, and who knows, you are not ready to hand over.\n\nDo not open the mailbox, the share, or the host to \"take a quick look\" unless the incident owner gives you written authorization naming what you may access. It also protects you in a later review.\n\n**Closing note:** the ticket closes when the note names the evidence, the severity, and the next owner. It does not close when the user stops calling.\n\n**Escalate to Sev 2 and page L2 IR** the moment the same indicator appears on a second host or account, or when the account holds privileged rights. Below that line, L1 can close it."
+        }
+      ],
+      "diagram": {
+        "type": "tree",
+        "title": "From queue item to severity",
+        "caption": "Three questions, asked in order. The first branch that answers yes sets the floor for severity; the last one sets the ceiling.",
+        "data": {
+          "root": "Item lands in the queue",
+          "branches": [
+            {
+              "label": "Real action on a host?",
+              "result": "Incident - scope it",
+              "tone": "warn"
+            },
+            {
+              "label": "Only a blocked signature?",
+              "result": "Event - log and close",
+              "tone": "ok"
+            },
+            {
+              "label": "Second host or account?",
+              "result": "Sev 2, page L2 IR",
+              "tone": "bad"
+            },
+            {
+              "label": "Privileged account?",
+              "result": "Sev 2, page L2 IR",
+              "tone": "bad"
+            },
+            {
+              "label": "Data confirmed leaving?",
+              "result": "Sev 1, call lead now",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Incident Triage: Severity vs Priority, Timeline & Escalation (Hands-On Lab) | CySA+ CS0-004",
+        "channel": "DevOps Simplified",
+        "url": "https://www.youtube.com/watch?v=7ryrnVMkGmA",
+        "start": 36,
+        "length": "4:36",
+        "why": "Runs a real alert export through a triage decision, which is the same scoring you do on paper, and shows why severity and priority are separate fields."
+      },
+      "commands": [
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 20",
+          "what": "Failed logons with the target account and source address"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 20",
+          "what": "Successful logons; the logon type tells remote from local"
+        },
+        {
+          "cmd": "Get-MgAuditLogSignIn -Filter \"userPrincipalName eq 'a.okafor@example.com'\" -Top 20",
+          "what": "Entra ID sign-ins with IP, app, and MFA result, when the account is cloud-joined"
+        },
+        {
+          "cmd": "netstat -ano | findstr :3389",
+          "what": "Which address is connected to Remote Desktop on this host right now"
+        },
+        {
+          "cmd": "whoami /groups | findstr /i administrators",
+          "what": "Whether the account you are holding the ticket for is privileged"
+        },
+        {
+          "cmd": "Search-UnifiedAuditLog -Operations New-InboxRule -StartDate (Get-Date).AddDays(-3) -EndDate (Get-Date)",
+          "what": "Mailbox rules created recently, the usual trace of a business email compromise"
+        }
+      ],
+      "pitfalls": [
+        "Treating the rule name as the finding. A rule called \"Possible Cobalt Strike\" fires on a blocked connection, and escalating it without checking the host spends someone else's night.",
+        "Disabling the account first because it feels decisive. It locks the user out of the recovery path and destroys the sessions you needed to inspect; reset the password and revoke sessions instead.",
+        "Marking a ticket Sev 4 to clear the queue. The classification is the only record that the attempt happened, and a later review will ask who saw it and what they did."
+      ],
+      "takeaways": [
+        "An incident is an event that harms confidentiality, integrity, or availability; a signature match is an event until a host proves otherwise.",
+        "Failed logons followed by a success from the same address are a compromise, not a password problem.",
+        "Severity comes from impact and recoverability, and L1 can move it as facts arrive."
+      ],
+      "drill": {
+        "prompt": "On your own Windows machine, check whether the account you use every day is privileged, and list every process listening on a port. Then write the five-line identification note for a made-up ticket in which that account failed 30 logons from 10.30.4.88 and succeeded once.",
+        "minutes": 8,
+        "checklist": [
+          "whoami /groups output is pasted, and you state in one sentence whether the account is local admin",
+          "You can name at least one listening port and the process that owns it",
+          "The note states a severity and points at one fact, not at how the manager sounded",
+          "The note names where the evidence would be stored and says UTC"
+        ]
+      },
+      "sheetTopics": [
+        "Identification",
+        "Classification"
+      ]
+    },
+    {
+      "id": "l7-2",
+      "moduleId": "m7",
+      "seq": 2,
+      "title": "Investigation and evidence: chain of custody for people who are not examiners",
+      "subtitle": "What to capture, what to stop touching, and how to record it.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Preserve a live system in volatility order without destroying what you came to capture",
+        "Image a disk through a write blocker and prove the copy matches the source",
+        "Record each handoff so the exhibit survives a question six months later",
+        "Recognize the point where the case leaves L1 and goes to an examiner"
+      ],
+      "ticket": {
+        "from": "Service Desk — endpoint queue",
+        "subject": "Finance wants to know why an invoice payment went to a new account",
+        "body": "A payment of 41,000 went to an account that was not the supplier's usual one, after an email thread that looked normal. The user says her laptop was \"fixed\" three weeks ago because Word was slow, and the desk reimaged it. Finance needs to know whether her mailbox was accessed and when the bank details were changed. The laptop is back in service and has been used every day since.",
+        "impact": "The payment may be lost, the client is asking for a timeline this week, and the only host that could explain the change has been in daily use for three weeks."
+      },
+      "sections": [
+        {
+          "h": "The laptop was wiped before anyone took a copy",
+          "body": "The user reported an invoice attachment that asked her to enable a macro. The desk remoted in, found Word slow, and reimaged the machine that afternoon. That is the standard fix.\n\nThree weeks later a payment left for an account nobody recognized, and the only machine that could have shown how the mailbox rule was created had been wiped and returned to stock.\n\nNobody broke a rule. The desk did what it does every day. The failure was that nobody treated the laptop as evidence before treating it as a broken workstation. **Evidence collection** is capturing the state of a system before you change it. **Chain of custody** is the record that proves the copy you hold is the copy you took, and who held it in between.\n\nYour job on the first call is to preserve and to record. The examiner's job starts when you hand over."
+        },
+        {
+          "h": "Touching the machine changes it, so decide before you click",
+          "body": "Every action on a live system writes to it. Logging in creates a profile and a logon record, mounts the user's drive, starts scheduled tasks, and may sync OneDrive. Opening Event Viewer writes to the log you are reading, and even a clean shutdown updates timestamps and clears memory.\n\nPick the least destructive action that answers the question, then write down what you did and when. The sequence is fixed:\n\n- **Get written authorization.** The incident owner, HR, or the client names the host, the scope, and who may access it. Without that in writing, document and escalate. You do not image a colleague's laptop on a hunch, and any practice run happens on a lab machine you own.\n- **Record the scene.** Time in UTC, hostname, serial number, and who is in the room.\n- **Isolate the network.** Pull the cable or disable the switch port. Keep the power on: memory holds the running process, the open connections, and often the key material.\n- **Capture volatile state, then disk.** If the machine is already off, leave it off. Booting it changes hundreds of files before you have looked at one.\n\n**Decision rule:** if the host is on and connected, pull the cable, not the cord. If it is off, do not press the button to see whether it still works."
+        },
+        {
+          "h": "Hash before you move, and hash again after",
+          "body": "An image is evidence only if someone can show it matches the original. Hash the source, hash the copy, compare. On Linux, with the disk attached read-only through a write blocker:\n\n```console\n$ sudo dd if=/dev/sda of=/mnt/evidence/ws-0142-sda.img bs=4M conv=noerror,sync status=progress\n12582912000 bytes (13 GB, 12 GiB) copied, 204 s, 61.7 MB/s\n3143+0 records in\n3143+0 records out\n13182779392 bytes (13 GB, 12 GiB) copied, 214.402 s, 61.5 MB/s\n\n$ sha256sum /dev/sda /mnt/evidence/ws-0142-sda.img\n3f8a1c0d94b2e7f6a5c1d0e8b7a2946c5d3e1f0a9b8c7d6e5f4a3b2c1d0e9f8a  /dev/sda\n3f8a1c0d94b2e7f6a5c1d0e8b7a2946c5d3e1f0a9b8c7d6e5f4a3b2c1d0e9f8a  /mnt/evidence/ws-0142-sda.img\n```\n\n`conv=noerror,sync` keeps `dd` going past a bad sector and pads the output so every offset still lines up with the original. Without it, one bad block shifts every byte after it. A write blocker stops the operating system from writing to the source while you read it. If the disk is failing, stop: that imaging job belongs to the examiner.\n\nThe same check on Windows, which also runs on a memory capture:\n\n```console\nPS C:\\evidence> Get-FileHash -Algorithm SHA256 .\\ws-0142-memory.raw | Format-List\n\nAlgorithm : SHA256\nHash      : 4d2b7e19c8f3a6051b9e4d7c2a8f6b3e0d9c5a1f7e2b8d4c6a0f3e9b1d7c5a28\nPath      : C:\\evidence\\ws-0142-memory.raw\n```\n\nMemory is captured with a tool built for it, such as WinPmem or Magnet RAM Capture, run from removable media and written to external storage. Record the tool name and version."
+        },
+        {
+          "h": "The form is the evidence; the file is only a file",
+          "body": "A hash proves the bytes did not change. It does not prove who held them. The chain-of-custody form does, with one line per transfer:\n\n| Field | Example |\n| --- | --- |\n| Exhibit | INC0048211-E01 |\n| Description | SATA SSD, serial S4EVNX0R512309, from ws-0142 |\n| Collected by, at | R. Menon, 2026-11-18 09:12 UTC |\n| Hash at collection | 3f8a1c0d...9f8a, SHA-256 |\n| Stored at | Evidence locker B, shelf 3, sealed bag 118 |\n| Transferred to, at | K. Alvarez (L2 IR), 2026-11-18 14:40 UTC |\n\nWrite in the ticket system, never leave an unsealed exhibit unattended, and never make a second copy without logging it. A copy that exists off the record is worse than no copy: the first question in any review is why it exists.\n\n**Decision rule:** if you cannot say who held the item between 09:12 and 14:40, the item is not evidence. Say so in the note and let the examiner decide, rather than filling the gap from memory."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Take the user's statement before you touch the machine: what they clicked, when, and what they saw. Their memory is the most volatile evidence in the building, and it disappears the moment they start worrying about blame.\n\n```text\nHost:     ws-0142, Dell Latitude, serial 7H2K3L4, user a.okafor\nArrival:  powered on, VLAN 30, Word and Outlook open, no external media\nAction:   switch port Gi1/0/14 disabled 09:05 UTC; memory captured 09:12\n          (WinPmem, version recorded on E01 form); disk removed 09:40\nDisk:     write-blocked, imaged by L2 at 14:40, hash verified against source\nChain:    INC0048211-E01, sealed bag 118, locker B shelf 3\nOpen:     inbox rule forwarding to an external address, created 11/17 21:48 UTC\n```\n\n**Closing note:** an L1 handover is complete when the exhibit is sealed, hashed, logged, and named in one place, and the user's statement is attached. A photograph of the screen is not a capture, and a file on your desktop is not an exhibit.\n\n**Escalate to L2 IR or the examiner** as soon as the case may reach HR, a client contract, or law enforcement, or when the disk holds data you are not authorized to read. A second unrecorded copy can void the first."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "First responder sequence",
+        "caption": "Each step is recorded before the next one starts. The only step you can skip is none of them, and the only one that destroys evidence is a reboot.",
+        "data": {
+          "steps": [
+            {
+              "label": "Authorize and record",
+              "detail": "owner, scope, time, room"
+            },
+            {
+              "label": "Isolate the network",
+              "detail": "pull cable, keep power"
+            },
+            {
+              "label": "Capture volatile state",
+              "detail": "memory, connections, users"
+            },
+            {
+              "label": "Image and hash",
+              "detail": "write blocker, hash both"
+            },
+            {
+              "label": "Seal, log, hand over",
+              "detail": "one signed line per move"
+            }
+          ],
+          "footer": "Power off between step 2 and step 3 and steps 3 and 4 become impossible."
+        }
+      },
+      "video": {
+        "title": "Evidence Acquisition",
+        "channel": "Practical Forensics",
+        "url": "https://www.youtube.com/watch?v=taSB4-qgS2A",
+        "start": 0,
+        "length": "9:59",
+        "why": "Walks the first ten minutes of a live acquisition in order, including isolating without powering down and verifying the copy with a hash, which the text can only list."
+      },
+      "commands": [
+        {
+          "cmd": "lsblk -o NAME,SIZE,SERIAL,MODEL",
+          "what": "Serial and model for the exhibit description, before the disk leaves the host"
+        },
+        {
+          "cmd": "sudo dd if=/dev/sda of=/mnt/evidence/ws-0142-sda.img bs=4M conv=noerror,sync status=progress",
+          "what": "Byte-for-byte image that survives bad sectors without shifting offsets"
+        },
+        {
+          "cmd": "sha256sum /dev/sda /mnt/evidence/ws-0142-sda.img",
+          "what": "Proves the copy matches the source; the two lines must be identical"
+        },
+        {
+          "cmd": "Get-FileHash -Algorithm SHA256 .\\ws-0142-memory.raw",
+          "what": "Hash of a memory capture, for the exhibit form"
+        },
+        {
+          "cmd": "ss -tunap",
+          "what": "Open connections and owning processes, captured before the cable comes out"
+        },
+        {
+          "cmd": "Get-Date -Format o",
+          "what": "ISO 8601 timestamp with the UTC offset, for the chain-of-custody line"
+        }
+      ],
+      "pitfalls": [
+        "Reimaging the machine to \"clean it up\" before capture. It is the fastest way to destroy the only record of how the intruder got in, and it cannot be undone.",
+        "Powering off to preserve the disk. A powered-off host loses memory, and memory is where the running process and the session keys were.",
+        "Copying the image to a desktop and emailing it to L2. The exhibit now exists in three places with no hash on two of them, and the chain is broken."
+      ],
+      "takeaways": [
+        "Preserve first, examine later: the cheapest action that answers the question is the one to take.",
+        "Pull the cable, keep the power, and never reboot a host you have been asked to preserve.",
+        "A hash proves the bytes; the form proves the people. A case needs both."
+      ],
+      "drill": {
+        "prompt": "Create a small file on your own machine, hash it with Get-FileHash, copy it to another folder or a USB stick, and hash the copy. Then write the four-line chain-of-custody entry for the transfer, including a UTC time.",
+        "minutes": 8,
+        "checklist": [
+          "Both hashes are pasted and identical",
+          "The entry names the file, the serial of the media if you used one, and the UTC time",
+          "You wrote one sentence on what you would have had to do differently if the file were a live disk",
+          "No real customer or colleague data appears in the file you hashed"
+        ]
+      },
+      "sheetTopics": [
+        "Investigation",
+        "Evidence Collection"
+      ]
+    },
+    {
+      "id": "l7-3",
+      "moduleId": "m7",
+      "seq": 3,
+      "title": "Digital forensics: disk, memory and log artefacts",
+      "subtitle": "Order of volatility, and the three artefacts that answer most questions.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Order capture by volatility and say what a power-off costs at each layer",
+        "Read logon events by type and tell a console logon from RDP from a service start",
+        "Resolve a process to its parent and explain what that proves",
+        "Build a UTC timeline from three artifacts and mark which source supports each line"
+      ],
+      "ticket": {
+        "from": "Service Desk — client escalation, INC0048211",
+        "subject": "Client wants the exact time of the intrusion and our three systems disagree",
+        "body": "The client's security team has the EDR console, our firewall logs, and a file listing from the host, and none of them agree on when the attacker started. EDR shows a PowerShell process at 02:02. The file listing shows the script written at 21:02 the previous evening. The firewall shows the outbound connection at 02:04. The client is asking which one is right and wants a timeline to the minute.",
+        "impact": "The client's report is due tomorrow, and the account team cannot answer whether the intrusion happened before or after the patching window."
+      },
+      "sections": [
+        {
+          "h": "Three systems, one question, three different answers",
+          "body": "The EDR console showed `powershell.exe` starting at 02:02 on ws-0142. The file listing showed the script written at 21:02 the previous evening. The firewall showed the outbound connection at 02:04. One story, three clocks, and a client asking when the attacker got in.\n\nThe gap was the time zone: the EDR console shows UTC, the file listing showed local time at UTC+5:30, and the firewall logged UTC. Nobody lied and nobody converted anything.\n\n**Digital forensics** is the work of answering what happened on a system from the traces it left behind. The first requirement is not a tool. Every timestamp carries its source and its zone, and every line says which artifact supports it. This lesson covers the three artifacts that answer most questions on this floor, and the order in which to take them."
+        },
+        {
+          "h": "Volatility sets the order; importance does not",
+          "body": "RFC 3227 sorts evidence by how long it survives: registers and cache, memory, network and kernel state, disk, remote logs, backups. The stack in the diagram is that list, most fragile at the top, and it is a capture order rather than a ranking of importance.\n\nMemory is the layer people skip, and it answers what logs cannot: which process opened the connection, what its command line was, what was decrypted in that session, and often the key material itself. Power the host down and that row is gone, along with the process tree you could have read with one command.\n\nDisk survives a reboot. It does not remember what was running, so it cannot tell you whether a file was opened by a user or by a script with the user's token.\n\nRemote logs sit near the bottom of the list and are the fastest to collect, because you never touch the host: pull the firewall, the domain controller, and the EDR records from your desk first. If the host is wiped, those copies still describe the same minutes.\n\n**Decision rule:** if the host is running and you cannot capture memory, do not reboot it to clear the problem. Ask for the capture first, and write down why if you are refused."
+        },
+        {
+          "h": "The logon record names the account, the type, and the address",
+          "body": "Event 4624 is a successful logon, and the `LogonType` field is what makes it readable. Type 2 is someone at the console, 3 is a network logon such as a share or a remote service, 5 is a service starting under its own account, 10 is Remote Desktop, and 11 is a cached credential on a domain-joined laptop that cannot see a domain controller.\n\n```console\nPS C:\\> Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624;\n>>   StartTime='2026-11-18 01:45'; EndTime='2026-11-18 02:20'} |\n>>   Select-Object TimeCreated,\n>>     @{n='User';e={$_.Properties[5].Value}},\n>>     @{n='Type';e={$_.Properties[8].Value}},\n>>     @{n='From';e={$_.Properties[18].Value}} | Format-Table -AutoSize\n\nTimeCreated             User        Type From\n-----------             ----        ---- ----\n11/18/2026 2:02:11 AM   a.okafor      10 10.30.7.21\n11/18/2026 2:02:44 AM   a.okafor       3 10.30.7.21\n11/18/2026 2:03:09 AM   svc-backup     5 -\n```\n\nA type 10 followed by a type 3 from the same address is somebody on Remote Desktop who then reached a share. At 02:02 that pattern is the finding. The type 5 line is a service starting, and it is only noise when the service name matches the account.\n\nRead 4625 and 4624 as a pair, and quote timestamps as logged rather than as your console redraws them."
+        },
+        {
+          "h": "The process tree and file times answer what the logon cannot",
+          "body": "4624 says who got in. It does not say what ran. Event 4688 gives process creation and the parent process ID, but only when `Audit Process Creation` is enabled under Advanced Audit Policy, Detailed Tracking, and command line capture is turned on under Administrative Templates, System, Audit Process Creation. On a default build 4688 may be missing entirely. That is a fact for the report, not a dead end.\n\n```console\nPS C:\\> Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" |\n>>   Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine | Format-List\n\nProcessId       : 6120\nParentProcessId : 4488\nCreationDate    : 11/18/2026 02:02:07\nCommandLine     : powershell.exe -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoA\n```\n\n`ParentProcessId` 4488 resolves to `winword.exe`. A word processor that started PowerShell with an encoded command is the intrusion in one line. Record the encoded string and hand it to L2.\n\nFile times supply the when. NTFS keeps four timestamps on each file, and a second set in the file name entry, so an MFT parser can show a change that a file listing hides. On Linux, `stat` prints the three times with nanoseconds, and access time may not update at all unless the mount options say so.\n\n**Decision rule:** when memory and disk disagree, memory tells you what ran and disk tells you what persisted. Report both, and name which source you trust for which claim."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The deliverable is one table in UTC with a source column, not a paragraph of narrative:\n\n```text\n15:32 UTC   script written to C:\\Users\\a.okafor\\AppData\\Roaming\\...  (disk, local 21:02 UTC+5:30)\n02:02:07    powershell -enc started by winword.exe, PID 6120          (memory)\n02:02:11    RDP logon a.okafor from 10.30.7.21, type 10                (Security 4624)\n02:04:02    outbound TCP 443 to 203.0.113.44                          (firewall, UTC)\n```\n\nThe 21:02 that started this ticket is the same event as 15:32 UTC. Saying so, once, ends the argument about which system is wrong.\n\n**Closing note:** a timeline line is only worth writing when it names the artifact, the time in UTC, and what the artifact proves. Lines with no source are how a report gets pulled apart in a client meeting.\n\n**Escalate to L2 IR or a forensic examiner** when the answer needs a disk image, when the host holds other users' data, or when the case may go to law enforcement. L1 reads logs and builds a timeline; L1 does not acquire evidence from a disk it has no written authorization to read."
+        }
+      ],
+      "diagram": {
+        "type": "layers",
+        "title": "Order of volatility, top to bottom",
+        "caption": "The top rows vanish first and are the least likely to be captured. The bottom rows survive longest and take the longest to retrieve, which is why remote logs are pulled from a desk while memory is still available.",
+        "data": {
+          "layers": [
+            {
+              "n": "1",
+              "name": "Registers and cache",
+              "fn": "gone in seconds; almost never captured",
+              "example": "CPU state, pipeline"
+            },
+            {
+              "n": "2",
+              "name": "Memory",
+              "fn": "processes, keys, live sessions",
+              "example": "process list, netstat"
+            },
+            {
+              "n": "3",
+              "name": "Network and kernel",
+              "fn": "connections, ARP, routing table",
+              "example": "ss -tunap, arp -a"
+            },
+            {
+              "n": "4",
+              "name": "Disk and swap",
+              "fn": "files, deleted data, event logs",
+              "example": "MFT, ext4 journal"
+            },
+            {
+              "n": "5",
+              "name": "Remote logs",
+              "fn": "the same minutes seen elsewhere",
+              "example": "SIEM, DC, firewall"
+            },
+            {
+              "n": "6",
+              "name": "Backups",
+              "fn": "weeks old, slow to retrieve",
+              "example": "tape, snapshots"
+            }
+          ],
+          "footer": "Capture downward. The rows you skip are the rows you cannot get back.",
+          "highlight": 1
+        }
+      },
+      "video": {
+        "title": "Episode 6: Order of Volatility",
+        "channel": "SANS Digital Forensics and Incident Response",
+        "url": "https://www.youtube.com/watch?v=VBbUQCqKxm4",
+        "start": 0,
+        "length": "3:04",
+        "why": "A SANS instructor walks the volatility order in under four minutes, which fixes the sequence in your head before you are standing at a powered-on host."
+      },
+      "commands": [
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 50",
+          "what": "Successful logons; Properties[8] is the logon type"
+        },
+        {
+          "cmd": "wevtutil qe Security /q:\"*[System[(EventID=4688)]]\" /c:5 /rd:true /f:text",
+          "what": "Recent process creation with parent, when audit policy records it"
+        },
+        {
+          "cmd": "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CreationDate",
+          "what": "Live process tree, if you get to the host before it is powered off"
+        },
+        {
+          "cmd": "stat /home/a.okafor/payload.sh",
+          "what": "Linux access, modify, and change times with nanosecond precision"
+        },
+        {
+          "cmd": "last -F -f /var/log/wtmp",
+          "what": "Logon and reboot history with full timestamps, on a Linux host"
+        },
+        {
+          "cmd": "w32tm /query /status",
+          "what": "Whether the host clock was synchronized, which decides whether its timestamps can be trusted"
+        }
+      ],
+      "pitfalls": [
+        "Rebooting to \"get a clean look\". Memory is gone, the process tree is gone, and the disk now shows a shutdown event that will be read as the start of your investigation.",
+        "Mixing local and UTC times in one timeline. The first line the client checks will be the one where the two clocks disagree by five and a half hours.",
+        "Reading 4688 as proof of what ran on a host where process auditing was never enabled. An empty result means the policy was off, not that nothing happened."
+      ],
+      "takeaways": [
+        "Volatility is the capture order, and memory is the layer that answers what was running.",
+        "Logon type 10 followed by type 3 from one address is remote access that reached a share.",
+        "A timeline line needs a UTC time, an artifact, and the claim that artifact supports."
+      ],
+      "drill": {
+        "prompt": "On your own machine, capture a five-line timeline: current UTC time, your time zone offset, the start time of your two oldest running processes, the last boot time, and one entry from the System event log. Convert everything to UTC and mark the source of each line.",
+        "minutes": 9,
+        "checklist": [
+          "Every line carries a source and a UTC time",
+          "The time zone offset is stated, and you can say whether the host clock is synchronized",
+          "At least one line came from an event log rather than from a command that reads live state",
+          "You can name one artifact you did not capture, and why"
+        ]
+      },
+      "sheetTopics": [
+        "Digital Forensics"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,351 @@
+{
+  "moduleId": "m4",
+  "quiz": {
+    "id": "q4",
+    "moduleId": "m4",
+    "title": "Security fundamentals — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q4-1",
+        "q": "An account signs in with a valid password and an approved MFA prompt, then gets `Access denied` when opening the finance share on files01. Both facts are true at the same time. Which control is failing?",
+        "options": [
+          "Authentication, because the user cannot reach the share",
+          "Authorization, because the account is identified but not permitted",
+          "Accounting, because no log entry was written for the share",
+          "Confidentiality, because finance data is exposed to this user"
+        ],
+        "answer": 1,
+        "explain": "The password and the MFA prompt proved who the user is, so authentication worked; authorization decides what that identity may open, and the share permissions are where the denial came from. Authentication is the tempting answer because the error appears when the user connects, but a failed sign-in never gets as far as opening the share.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-2",
+        "q": "A vendor publishes a 4 GB install image with a SHA-256 value. You hash the download on your laptop and the values match. What does that prove?",
+        "options": [
+          "The file is free of malware, because malware would change the hash",
+          "The file was encrypted in transit and cannot be read by anyone else",
+          "The bytes you have are the bytes the vendor published",
+          "The file has not been modified since the vendor created it"
+        ],
+        "answer": 2,
+        "explain": "A hash is a one-way fingerprint of the bytes, so a match proves your copy is identical to the copy the vendor described. It says nothing about malware, and it cannot prove the file was never altered before the vendor published that value.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-3",
+        "q": "In a TLS connection to https://portal.example.com, what does the server certificate actually prove?",
+        "options": [
+          "The server holds the private key for the name portal.example.com, and a trusted CA vouched for that binding",
+          "The web application behind the certificate is free of vulnerabilities",
+          "The tunnel keeps the data safe even if the server itself has been compromised",
+          "The certificate authority has verified that the owner is a legitimate business"
+        ],
+        "answer": 0,
+        "explain": "The certificate binds a public key to a name and is signed by a CA the client trusts, and the handshake proves the server holds the matching private key. A padlock says nothing about whether the site is honest or patched, which is why the second option is the trap.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-4",
+        "q": "A search page writes the query string straight into its results header, and a crafted link runs script in the victim's browser. Which change removes the flaw?",
+        "options": [
+          "Validate the query string against a list of allowed words when it arrives",
+          "Switch the page from HTTP to HTTPS",
+          "Add a WAF rule that blocks the literal string `<script>`",
+          "Encode the value at the point where it is written into the page, and add a Content-Security-Policy"
+        ],
+        "answer": 3,
+        "explain": "XSS is an output problem: the browser must receive the query as text, so encoding at the sink plus CSP stops execution. Blocking the literal `<script>` fails against `<img src=x onerror=alert(1)>`, and input validation alone is bypassed by encoding tricks.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-5",
+        "q": "An application service account needs to read one folder on a file server, and nothing else. Which grant is the smallest one that meets the requirement?",
+        "options": [
+          "Read on that folder only, granted to that account",
+          "Modify on the parent share, granted to the server administrators group",
+          "Domain Admin, so future permission problems do not block the application",
+          "Read on the whole volume, because the folder may move later"
+        ],
+        "answer": 0,
+        "explain": "Least privilege grants the account only the access it needs, on the object it needs, so write access and broader scope are unnecessary risk. Domain Admin is the tempting shortcut that turns one compromised service account into a domain-wide incident.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-6",
+        "q": "Workstations sit in VLAN 30 and servers in VLAN 40. A firewall rule allows only TCP 443 from VLAN 30 to one server and denies the rest. What does that rule buy you?",
+        "options": [
+          "It encrypts workstation traffic to that server",
+          "It limits how far an infected workstation can spread and which services it can reach",
+          "It stops users from opening malicious email attachments",
+          "It removes the need to patch that server"
+        ],
+        "answer": 1,
+        "explain": "Segmentation removes paths, so one infected laptop cannot reach every server on every port. It does not encrypt anything, and it cannot stop a user from opening an attachment on the machine they already control.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-7",
+        "q": "At 02:10 a user receives 14 MFA push prompts in four minutes and approves the last one by mistake. The password was not reused on any other site. What is the correct first action?",
+        "options": [
+          "Advise the user to deny any further prompts and carry on with the shift, then review the log later",
+          "Disable the user's MFA method and leave the account enabled",
+          "Wait for the identity team's morning report before changing anything",
+          "Revoke active sessions, reset the password, and escalate to identity with the prompt times"
+        ],
+        "answer": 3,
+        "explain": "The attacker already has the password, and the approved prompt may have created a live session, so that session has to be killed and the credential replaced first. Telling the user to deny future prompts is the tempting answer, but it leaves the access the attacker already holds.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-8",
+        "q": "A scanner reports a critical vulnerability on web01, which is internet-facing. The application owner says the fix has to wait for next month's change window. What does L1 do?",
+        "options": [
+          "Record the exposure and evidence, check for a signed exception with an expiry, and escalate for a risk decision",
+          "Apply the patch tonight without a change record, because the host is internet-facing",
+          "Close the finding as accepted risk, because the owner has already decided",
+          "Escalate the finding to L3 and take no further action, because a critical finding on an internet-facing host is above L1"
+        ],
+        "answer": 0,
+        "explain": "A deferral is only a decision when it is a signed exception with an approver and an expiry, and an internet-facing critical finding goes to the vulnerability and change owners with evidence attached. Deferring to L3 is the tempting habit, but the desk can assemble the evidence that forces the decision.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-9",
+        "q": "At 02:14 every spreadsheet on the finance share is renamed to `.locked` inside the same second, and a `READ-ME.txt` appears one second after that. Which properties has this incident already broken?",
+        "options": [
+          "Availability only, because the files cannot be opened",
+          "Integrity and availability, because the contents were replaced and the files cannot be opened by the finance team",
+          "Confidentiality, integrity, and availability, because the files were read, replaced, and left unusable",
+          "Integrity only, because the file names changed"
+        ],
+        "answer": 2,
+        "explain": "The share is unusable (availability), the contents were replaced (integrity), and the process had to read each file before it could encrypt it (confidentiality). Availability is the tempting label because it is the only symptom the caller can see, but the restore decision depends on the other two.",
+        "tag": "security"
+      },
+      {
+        "id": "q4-10",
+        "q": "EDR flags WINWORD.EXE on ws-042 launching powershell.exe with `-enc` and a long base64 string, which then connects to 10.20.9.15:443. The user says the document was an invoice from a customer, and the alert is one hour old. What is the correct L1 action?",
+        "options": [
+          "Close the alert as a false positive, because Word launches other programs during normal document use",
+          "Delete the document and run a full antivirus scan, then mark the alert resolved",
+          "Isolate the host, preserve the process tree and command line, and escalate to incident response",
+          "Ask the user to reboot and reopen the invoice, so the behavior can be reproduced"
+        ],
+        "answer": 2,
+        "explain": "An Office process spawning encoded PowerShell and then reaching an internal host is the signature of a malicious document, so isolation stops spread while the evidence is captured intact. Deleting the file is the tempting quick clean, but it destroys the command line and the document the incident team needs.",
+        "tag": "ir"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a16",
+      "day": 16,
+      "moduleId": "m4",
+      "title": "Prove what changed before you call it a breach",
+      "level": 2,
+      "minutes": 30,
+      "scenario": "It is 08:10 on Monday and three tickets are open. The HR share on files01 now lets all staff read salary files. The customer portal has been down since 07:40. The nightly invoice file no longer matches the copy finance approved on Friday. The shift lead wants all three marked security incident and sent to L3. Your job is to separate evidence from noise before that happens.",
+      "task": "1. Build a synthetic invoice on your own laptop. Nothing here is customer data.\n\n```\nmkdir -p ~/m4/day16 && cd ~/m4/day16\nprintf 'invoice,amount\\nINV-1001,240.00\\nINV-1002,118.50\\n' > invoice-mon.csv\ncp invoice-mon.csv invoice-mon.orig\ndate -u +%Y-%m-%dT%H:%M:%SZ\nsha256sum invoice-mon.csv\n```\n\nOn macOS use `shasum -a 256 invoice-mon.csv`. On Windows use `certutil -hashfile invoice-mon.csv SHA256`.\n\n2. Change the file the way an unapproved edit would, and hash again.\n\n```\nprintf 'INV-1003,9100.00\\n' >> invoice-mon.csv\nsha256sum invoice-mon.csv\n```\n\n3. Restore the approved copy and hash a third time. A digest that returns to the baseline value proves the bytes are back; it does not prove who changed them or when.\n\n```\ncp invoice-mon.orig invoice-mon.csv\nsha256sum invoice-mon.csv\n```\n\n4. Read the metadata that answers the who and when question.\n\n```\nls -l invoice-mon.csv\nstat -c '%U %G %a %y' invoice-mon.csv\n```\n\nOn macOS use `stat -f '%Su %Sg %Lp %Sm' invoice-mon.csv`. On Windows use `icacls invoice-mon.csv`.\n\n5. Classify each of the three tickets as confidentiality, integrity, or availability, and write one line of business impact for each. The portal outage is availability until you have evidence of a cause.\n\n6. Decide for each ticket: close at L1 with the check you performed, or escalate to a named team. Sending all three to L3 is the behavior this drill is designed to stop. If a change looks malicious, capture the ACL and the timestamps before anyone repairs it; a repair destroys the evidence the incident team needs.\n\n7. Write the triage note. It needs the UTC time, the two digests that differ, the digest that matches the baseline again, the CIA label per ticket, and one escalation criterion per ticket.\n\nSafety: use only the synthetic file you create. Never hash, copy, or upload a real customer file to a personal machine or a public site; a hash of a small, guessable file can be brute-forced.",
+      "deliverable": "One note that gives each of the three tickets a CIA label, a one-line impact, the measured hash evidence for the invoice file, and a close-or-escalate decision with a named team.",
+      "tools": [
+        "sha256sum",
+        "shasum",
+        "certutil",
+        "stat",
+        "icacls",
+        "date"
+      ],
+      "rubric": [
+        {
+          "criterion": "Integrity evidence is measured, not described",
+          "weight": 40,
+          "lookFor": "quotes two SHA-256 values that differ after the edit and shows the digest returning to the original value after the restore; a paragraph explaining what hashing is does not score"
+        },
+        {
+          "criterion": "Classification with business impact",
+          "weight": 30,
+          "lookFor": "each ticket is labeled confidentiality, integrity, or availability with one sentence naming who is blocked or exposed, and the portal outage is not defaulted to a security incident"
+        },
+        {
+          "criterion": "Routing decision per ticket",
+          "weight": 30,
+          "lookFor": "each ticket states close at L1 or escalate, and every escalation names a team and the evidence that travels with it; 'send all three to L3' scores nothing"
+        }
+      ],
+      "hints": [
+        "`printf` writes exactly the bytes you give it. Use it instead of a text editor so a stray trailing newline does not change the digest for a reason you cannot explain.",
+        "A matching digest proves the bytes are identical. Attribution needs a log or a filesystem timestamp, so the note must name the second source for the who and when.",
+        "Availability is one leg of the triad. A portal outage is an availability incident; it becomes a security incident only when you can point to a cause such as tampering, ransomware, or an account compromise."
+      ]
+    },
+    {
+      "id": "a17",
+      "day": 17,
+      "moduleId": "m4",
+      "title": "Take the extra privilege away, on paper first",
+      "level": 2,
+      "minutes": 35,
+      "scenario": "app01 runs the payments API for a customer on 10.20.4.0/24. The vendor support account svc-vendor is in the local administrators group. Three shift engineers share the password for the local account helpdesk2. A contractor's VPN account is active and has no MFA. The quarterly access review is due Friday and L2 has asked you to prepare the evidence.",
+      "task": "1. Enumerate privilege read-only on your own lab VM. Do not run this against app01.\n\n```\nhostname; id\ngetent group sudo\ngetent group adm\ngetent passwd | awk -F: '$3>=1000 && $3<65534 {print $1, $3, $7}'\nsudo -l -U \"$USER\"\n```\n\nOn Windows use:\n\n```\nnet localgroup administrators\nGet-LocalUser | Select-Object Name,Enabled,LastLogon\nwhoami /priv\n```\n\n2. Build a synthetic sign-in export and find the accounts that succeeded without MFA.\n\n```\nprintf 'user,mfa,result,src_ip\\nana,true,success,10.20.30.11\\nraj,false,success,10.20.30.12\\nsvc-vendor,false,success,10.20.9.15\\nhelpdesk2,false,success,10.20.30.13\\nlee,true,success,10.20.30.14\\n' > signins.csv\nawk -F, 'NR>1 && $2 ~ /false/ && $3 ~ /success/ {print $1, $4}' signins.csv\nwc -l signins.csv\n```\n\nOn Windows use `Import-Csv signins.csv | Where-Object { $_.mfa -eq 'false' -and $_.result -eq 'success' }`.\n\n3. Check the password and lockout policy that applies to those accounts.\n\n```\nsudo grep -E '^(PASS_MAX_DAYS|PASS_MIN_LEN)' /etc/login.defs\nsudo grep -E 'pam_pwquality|pam_unix' /etc/pam.d/common-password\n```\n\nOn Windows use `net accounts`.\n\n4. Find out whether the privileged account ever logs in interactively.\n\n```\nlast -n 5 svc-vendor\nsudo lastlog -u svc-vendor\n```\n\n5. Rank three findings by exposure times impact, and state the number you used for each. A vendor account that can log in interactively with local admin rights is a different finding from a stale account that has never logged in.\n\n6. Write the change request for the top finding. It needs the exact command, the rollback, the approver role, and the window. Do not execute it on a shared host.\n\n```\nsudo deluser svc-vendor sudo\nsudo usermod -L helpdesk2\n```\n\n`deluser` is the Debian and Ubuntu command; on RHEL and Rocky use `sudo gpasswd -d svc-vendor sudo`.\n\n7. Separate what L1 closes (the evidence pack, the MFA gap count, the report) from what the identity team must do (enforce MFA, replace the shared account, remove the vendor access). State that a group change only reaches an application when a new token is issued, so the user signs out and back in.\n\nSafety: enumeration only. Do not remove a vendor account, lock a shared account, or change a group on a host you do not own; the change request is the deliverable, not an executed change.",
+      "deliverable": "A three-row finding table with account, privilege, exposure, and owner, plus one exact removal command with its rollback and the approver who must sign it.",
+      "tools": [
+        "getent",
+        "id",
+        "sudo -l",
+        "last",
+        "lastlog",
+        "awk",
+        "net",
+        "Get-LocalUser"
+      ],
+      "rubric": [
+        {
+          "criterion": "Privilege enumerated with evidence",
+          "weight": 35,
+          "lookFor": "names the account and the group or privilege exactly as the output shows it, for example the sudo line from `getent group sudo` or the Administrators row from `net localgroup`, and quotes that line"
+        },
+        {
+          "criterion": "MFA and shared-account gaps quantified",
+          "weight": 35,
+          "lookFor": "uses the CSV numbers, such as 3 of 5 successful sign-ins with mfa=false, and names helpdesk2 as a shared account whose actions cannot be attributed to one person"
+        },
+        {
+          "criterion": "Change request is safe and approvable",
+          "weight": 30,
+          "lookFor": "gives the exact command, a rollback command that restores the access, the approver role, and an explicit statement that L1 does not execute the change without that approval"
+        }
+      ],
+      "hints": [
+        "`getent group sudo` reads the same source the system uses, so it catches group memberships from LDAP that `cat /etc/group` will miss.",
+        "`awk -F,` splits on commas, and the header line will match a loose filter. Keep `NR>1` so the export header is not counted as a finding.",
+        "A shared account cannot be attributed to one engineer, so removing it needs a named replacement account per person, not just a password change that everyone learns again."
+      ]
+    },
+    {
+      "id": "a18",
+      "day": 18,
+      "moduleId": "m4",
+      "title": "Read the certificate before you blame the VPN",
+      "level": 2,
+      "minutes": 40,
+      "scenario": "Since 09:00, users on the VPN get a browser warning on portal.example.com, while users in the office do not. The service desk has opened a network ticket, and the portal team says nothing changed on the server. You cannot reach the portal host from your laptop, so you rebuild the case with a lab certificate and 40 minutes before the 10:00 bridge.",
+      "task": "1. Check your OpenSSL build before you start. The date options below need OpenSSL 3.x, and the system binary on macOS is LibreSSL.\n\n```\nopenssl version\nopenssl req -help 2>&1 | grep -E 'not_before|not_after'\n```\n\nIf those two lines are missing, run the drill in a Linux VM or install OpenSSL with Homebrew.\n\n2. Build a lab certificate that expired in February 2024 and carries no SAN. This is the certificate a portal team can still serve after a migration that never finished.\n\n```\nmkdir -p ~/m4/day18 && cd ~/m4/day18\nopenssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -not_before 20240101000000Z -not_after 20240201000000Z -subj '/CN=portal.example.com' 2>/dev/null\n```\n\n3. Read the same fields the browser reads.\n\n```\nopenssl x509 -in cert.pem -noout -subject -issuer -dates -ext subjectAltName\n```\n\nExpect subject and issuer to be identical because the certificate signs itself, a notAfter date in the past, and `No extensions in certificate` on stderr because there is no SAN at all.\n\n4. Serve the certificate locally and connect to it the way a client would.\n\n```\nopenssl s_server -accept 8443 -cert cert.pem -key key.pem -www >/dev/null 2>&1 &\nSERVER_PID=$!\nsleep 1\nopenssl s_client -connect 127.0.0.1:8443 -servername portal.example.com </dev/null 2>&1 | grep -E 'verify error|Verify return code|notAfter'\nkill $SERVER_PID\n```\n\nTwo verify errors appear: 18 for the self-signed issuer and 10 for the expired date. `Verify return code` reports the one that ends the session, and that is the one the browser shows.\n\n5. Repeat against a live certificate that is valid and has a SAN, to see what good looks like. If you are offline, skip this step and say so in the note.\n\n```\nopenssl s_client -connect github.com:443 -servername github.com </dev/null 2>/dev/null | openssl x509 -noout -subject -dates -ext subjectAltName | head -n 5\n```\n\nCompare the SAN line with the name you typed. A name that is not in that list is a mismatch, even when the certificate is valid and trusted.\n\n6. Check the clock on the machine that sees the warning, because a wrong clock produces the same browser warning as an expired certificate.\n\n```\ndate -u\n```\n\nOn Windows use `w32tm /query /status`.\n\n7. Check HSTS on a site that sends it, because the header decides whether the browser ever tries HTTP again after a warning.\n\n```\ncurl -sI https://github.com | grep -i strict-transport-security\n```\n\n8. Map each failure to the field that proves it: expired (`notAfter` in the past), missing or non-matching SAN (the SAN line does not contain the host), untrusted chain (`verify error:num=18`, 20, or 21). Name which handshake fact failed: the private key, the trust chain, or the name. Then answer the ticket question. A genuinely expired certificate warns every user, so it cannot explain a VPN-only split on its own; a TLS-inspecting proxy, or an internal CA that only domain machines trust, can.\n\n9. Write the handover with the failing field and its value, the failure mode, the mechanism that explains the VPN-only split, the team, and one line on what L1 closes without the portal host.\n\nSafety: every certificate here is generated on your laptop and `s_server` binds to 127.0.0.1 only. Do not bind it to a shared network, and do not test hosts you are not authorized to test.",
+      "deliverable": "One line naming the failing field and its value, the failure mode, the most likely cause of the VPN-only split with the check that would confirm it, and the team that owns the fix.",
+      "tools": [
+        "openssl",
+        "curl",
+        "date",
+        "w32tm",
+        "s_server"
+      ],
+      "rubric": [
+        {
+          "criterion": "Certificate fields quoted from the run",
+          "weight": 40,
+          "lookFor": "quotes the actual subject, issuer, and notAfter values plus the missing-SAN or SAN line from the output; describing what a certificate contains does not score"
+        },
+        {
+          "criterion": "Failure mode named from the verify code",
+          "weight": 35,
+          "lookFor": "names expired and untrusted chain from verify error 18 and 10 or from the notAfter date, and states which code stops the handshake; 'bad certificate' with no code does not score"
+        },
+        {
+          "criterion": "VPN-only split explained",
+          "weight": 25,
+          "lookFor": "reports the client clock result and names the mechanism that affects only VPN users, either a TLS-inspecting proxy or a CA trusted only on domain machines, then names the portal or PKI team"
+        }
+      ],
+      "hints": [
+        "`-servername` sends SNI. Without it a shared listener may return a different certificate and you will diagnose the wrong host.",
+        "Pipe `s_client` into `openssl x509` only with stderr discarded, or the handshake text is parsed as a certificate and the command fails.",
+        "Two verify errors appear here: 18 for the self-signed issuer and 10 for the date. `Verify return code` reports the one that ends the session, and that is the one a browser shows."
+      ]
+    },
+    {
+      "id": "a19",
+      "day": 19,
+      "moduleId": "m4",
+      "title": "Find the open port and the missing patch",
+      "level": 2,
+      "minutes": 45,
+      "scenario": "The EDR console shows ws-042 in VLAN 30 opening SMB connections to 40 hosts in four minutes. Two other workstations in the same VLAN accept port 445 from each other, and the server team says patching is 90 days behind. The asset owner is on leave and the VLAN has no rule between workstations.",
+      "task": "1. List what the host is listening on and which process owns each socket. Run this on your own lab VM.\n\n```\nsudo ss -tulnp\n```\n\nOn Windows use:\n\n```\nGet-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object LocalPort,OwningProcess\n```\n\n2. Check whether the host firewall is actually enabled, not just installed.\n\n```\nsudo ufw status verbose\n```\n\nOn Windows use `Get-NetFirewallProfile | Select-Object Name,Enabled`. If ufw is inactive, use `sudo nft list ruleset | head -n 40`.\n\n3. Measure patch age instead of accepting the story.\n\n```\nsudo apt list --upgradable 2>/dev/null | head -n 20\n```\n\nOn Windows use:\n\n```\nGet-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5 HotFixID,InstalledOn\n```\n\nThen check whether the host has restarted since the update. Installed, loaded, and rebooted are three different facts, and only the last one makes a kernel or library patch effective.\n\n```\nsudo needs-restarting -r; echo \"exit=$?\"\n[ -f /var/run/reboot-required ] && cat /var/run/reboot-required\n```\n\nThe first command is for RHEL and Rocky, the second for Ubuntu. On Windows, compare `Get-CimInstance Win32_OperatingSystem | Select-Object LastBootUpTime` with the newest InstalledOn date.\n\n4. Check endpoint protection state and the signature date.\n\n```\nGet-MpComputerStatus | Select-Object AMServiceEnabled,RealTimeProtectionEnabled,AntivirusSignatureLastUpdated\n```\n\nOn Linux, `systemctl status clamav-freshclam --no-pager` if the agent is installed; otherwise record that no agent is present, which is a finding.\n\n5. Test 445 from a second host you own. One port against a customer range is still an unauthorized scan.\n\n```\nTest-NetConnection -ComputerName 10.20.30.21 -Port 445\n```\n\nOn Linux use `nc -vz -w 3 10.20.30.21 445`.\n\n6. Write the segmentation rule that would have contained the spread: source VLAN 30, destination VLAN 30, TCP 445, deny, with one exception for the file server. Give it as a paste-ready line, not a paragraph.\n\n7. Decide what L1 closes (an agent that is stopped, a stale signature, a firewall profile that is off) and what escalates (the patch campaign, the VLAN ACL, host isolation). Name the team for each.\n\n8. List the evidence you would preserve first if this were real: the EDR process tree and the connection list, captured before anyone cleans the host.\n\nSafety: test only hosts you own. A single-port `Test-NetConnection` against a customer range is still an unauthorized scan.",
+      "deliverable": "A three-row table covering listener, patch age, and protection state with quoted output, plus one deny rule for TCP 445 and the team that implements it.",
+      "tools": [
+        "ss",
+        "ufw",
+        "nft",
+        "Get-NetTCPConnection",
+        "Get-NetFirewallProfile",
+        "Get-HotFix",
+        "Get-MpComputerStatus",
+        "Test-NetConnection"
+      ],
+      "rubric": [
+        {
+          "criterion": "Listener evidence with the owning process",
+          "weight": 30,
+          "lookFor": "names at least one listening port with its process or PID from the command output and states whether 445 is exposed on the host"
+        },
+        {
+          "criterion": "Patch and protection state with dates",
+          "weight": 35,
+          "lookFor": "quotes an InstalledOn date or an upgradable package count and the signature last-updated value, states the gap in days, and says whether the host has restarted since that update"
+        },
+        {
+          "criterion": "Containment rule and scope decision",
+          "weight": 35,
+          "lookFor": "gives a deny rule with source, destination, port, and one exception, and states which item L1 closes and which goes to the network or patch team"
+        }
+      ],
+      "hints": [
+        "`ss -tulnp` needs root to show the process name. Without sudo you get the socket but not the application, and the application is the part the ticket needs.",
+        "`Get-HotFix` lists updates installed through Windows Update only, so a missing entry is weak evidence on its own. Cross-check `Get-CimInstance Win32_QuickFixEngineering` or the patch inventory before you write a date.",
+        "A deny rule on TCP 445 does not cover SMB over 139 or RPC over 135, so say why 445 is the priority and what still needs a rule after it."
+      ]
+    },
+    {
+      "id": "a20",
+      "day": 20,
+      "moduleId": "m4",
+      "title": "Rank four findings and write the handover a client reads",
+      "level": 2,
+      "minutes": 55,
+      "scenario": "A penetration test of the staging portal returned four findings. F1: the login form is vulnerable to SQL injection. F2: the search page reflects input and runs script. F3: /backup/ lists files without authentication. F4: the load balancer still accepts TLS 1.1. The customer wants all four fixed by Friday, and you have one L1 engineer and 55 minutes. The staging host itself is not reachable from your laptop.",
+      "task": "1. Reproduce the injection in memory. Nothing leaves your laptop and no network call is made. The first payload is the apostrophe from the lesson; the second shows what the same defect allows inside a lab database.\n\n```\npython3 - <<'PY'\nimport sqlite3\ndb = sqlite3.connect(':memory:')\ndb.execute('create table users (id integer primary key, name text, role text)')\ndb.executemany('insert into users values (?,?,?)', [(1,'ana','user'),(2,'raj','user'),(3,'sso-admin','admin')])\n\ndef run(payload):\n    bad = \"select id, name, role from users where name = '\" + payload + \"'\"\n    try:\n        rows = db.execute(bad).fetchall()\n    except sqlite3.OperationalError as e:\n        rows = 'error: ' + str(e)\n    fixed = db.execute('select id, name, role from users where name = ?', (payload,)).fetchall()\n    print(payload, '| vulnerable:', rows, '| fixed:', fixed)\n\nrun(\"O'Brien\")\nrun(\"' OR '1'='1\")\nPY\n```\n\n2. Explain both payloads in one sentence each: why the apostrophe breaks the concatenated query, and why the quoted payload returns every row while the parameterized query returns none.\n\n3. Build the XSS demo as a local page with both sinks.\n\n```\nmkdir -p ~/m4/day20 && cd ~/m4/day20\ncat > xss.html <<'EOF'\n<!doctype html>\n<meta charset=\"utf-8\">\n<title>XSS sink demo</title>\n<input id=\"q\" placeholder=\"query\">\n<div id=\"unsafe\"></div>\n<div id=\"safe\"></div>\n<script>\nconst v = new URLSearchParams(location.search).get('q') || '';\ndocument.getElementById('unsafe').innerHTML = v;\ndocument.getElementById('safe').textContent = v;\n</script>\nEOF\npython3 -m http.server 8080\n```\n\nOpen `http://127.0.0.1:8080/xss.html?q=<img src=x onerror=alert(1)>` and note which div executes and which prints text.\n\n4. F4 is reported by the scanner, not by you. Some OpenSSL 3.x builds, including 3.6, no longer offer TLS 1.1, so `s_client -tls1_1` can fail locally with `no protocols available` and prove nothing about the load balancer. Mark F4 unverified unless the scan report or the load balancer configuration shows the accepted protocol, and state in one line what evidence would settle it.\n\n5. Score each finding with likelihood times impact, 1 to 5 on each, and state the numbers. Likelihood is what an attacker needs to reach it: an unauthenticated page on the internet is a 5, a finding behind a jump host is a 2. Rank by the product, then name one finding whose rank differs from its scanner severity because of exposure, data, or an existing control.\n\n6. Map each finding to a fix and an owner: parameterized queries for the app team, output encoding plus CSP for the app team, an authenticated and non-listable backup path for the platform team, a TLS policy change for the network team.\n\n7. Decide what L1 closes today (the evidence pack, the verification steps, the TLS configuration line, the routing) and what escalates. A finding you cannot verify is not closed.\n\n8. Write the handover in at most five lines: one per finding plus a one-line risk statement, each with evidence, score, owner, and next date.\n\nSafety: the injection and the XSS payload run only against the in-memory database and the local page you create. Sending either payload to the staging portal or any system you do not own requires written authorization.",
+      "deliverable": "One handover of at most five lines that ranks the four findings by a stated score, gives each an owner and a next action, and names what L1 closed today.",
+      "tools": [
+        "python3",
+        "sqlite3",
+        "openssl",
+        "curl",
+        "browser"
+      ],
+      "rubric": [
+        {
+          "criterion": "Reproduction and fix proven",
+          "weight": 35,
+          "lookFor": "states that the vulnerable query raised a syntax error for O'Brien and returned all three rows for the quoted payload, while the parameterized query returned an empty list both times"
+        },
+        {
+          "criterion": "Risk ranking with stated numbers",
+          "weight": 35,
+          "lookFor": "assigns a likelihood and an impact value to all four findings, shows the product for each, ranks in that order, and names one finding that moves because of exposure rather than severity; a ranking without numbers does not score"
+        },
+        {
+          "criterion": "Client-readable handover and scope",
+          "weight": 30,
+          "lookFor": "each line carries evidence, owner, and next date, and the note separates what L1 closed from what escalated without a bare request for L3 to look at the app"
+        }
+      ],
+      "hints": [
+        "The payload works because the query is built by concatenation. If the fixed query also returns rows, check that the payload was passed as a parameter and not pasted into the SQL string.",
+        "XSS needs a sink that interprets HTML. `textContent` prints the tags and `innerHTML` executes them, so the difference between the two divs is the whole finding.",
+        "Likelihood times impact is only as good as the two numbers. Say why F1 outranks F4 even though both may be called critical in the scan report."
+      ]
+    }
+  ]
+}

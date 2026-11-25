@@ -1,0 +1,137 @@
+{
+  "moduleId": "m7",
+  "items": [
+    {
+      "title": "Security Incident vs Security Event vs Security Breach",
+      "creator": "Security For You",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=bR650CCK8Jc",
+      "why": "Spends its four minutes on the one distinction the 08:05 ticket forces you to make — an event is a logged action, an incident harms confidentiality, integrity or availability, a breach triggers notification duties — so the learner can answer the manager's word 'breach' with a definition instead of a feeling. A full incident-response course covers the lifecycle but skips this vocabulary, which is where the 03:10 page actually goes wrong.",
+      "struggle": "Is 41 failed logons on a service account an incident, or just an event I should close?",
+      "topic": "Identification",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Windows Security Log Event ID 4625 - An account failed to log on",
+      "creator": "Randy Franklin Smith, Ultimate Windows Security",
+      "format": "Article",
+      "url": "https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=4625",
+      "why": "The status/substatus table separates 0xC000006A (right user, wrong password) from 0xC0000064 (no such user) and 0xC0000234 (already locked out), which is the difference between a stale scheduled task and someone working a username list. Vendor docs list the fields; this page pairs each code with the story it usually tells, which is what the 03:10 triage actually needs.",
+      "struggle": "Hundreds of 4625s for one service account — is this a brute force or just an old password in a scheduled task?",
+      "topic": "Identification",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Guidelines for Evidence Collection and Archiving",
+      "creator": "D. Brezinski and T. Killalea (IETF RFC 3227)",
+      "format": "Paper",
+      "url": "https://www.rfc-editor.org/rfc/rfc3227.html",
+      "why": "Section 2.1 gives the volatility order the lesson builds on, section 3.2 adds the rule about recording clock drift, and section 4.1 reduces chain of custody to four questions — where and when the exhibit was found, who held it, how it was stored, and when custody changed — which is exactly the handover the desk skips when it reimages the laptop. It is a short best-current-practice memo rather than a forensic textbook, and it predates every tool the learner will be shown, so nothing in it expires.",
+      "struggle": "The laptop is still on and the user wants it reimaged today — can I shut it down and copy the files first?",
+      "topic": "Evidence Collection",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Creating a forensic image",
+      "creator": "r/computerforensics",
+      "format": "Thread",
+      "url": "https://www.reddit.com/r/computerforensics/comments/1nplzan/creating_a_forensic_image/",
+      "why": "The asker names the gap every tutorial leaves: every guide starts after the drive is already connected, so how do you get it out of the laptop? The replies give the two real answers — pull the disk to a hardware write blocker, or boot Paladin from USB so the internal disk is never mounted read-write — plus the BitLocker recovery key step the lesson's dd command silently assumes.",
+      "struggle": "Every FTK tutorial starts with the drive already removed — how do I image the laptop without booting Windows and changing it?",
+      "topic": "Evidence Collection",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Where's the 4624? - Logon Events vs. Account Logons",
+      "creator": "13Cubed",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=EXsKJ9kIc6s",
+      "why": "Six minutes on why the 4624 you need is written on the workstation while the domain controller records account-logon events such as 4776 instead — the exact reason a learner pulls DC logs for the 02:02 RDP logon and finds nothing. The lesson's Get-WinEvent command only works if you know which machine was supposed to record the event.",
+      "struggle": "I searched the domain controller for 4624 and there is no logon for that user at 02:02 — are the logs missing?",
+      "topic": "Digital Forensics",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "When Time Lies: The Hidden Risk of Time Zones, DST, and Log Analysis",
+      "creator": "Bryan Simon, SANS Institute",
+      "format": "Article",
+      "url": "https://www.sans.org/blog/when-time-lies-hidden-risk-time-zones-dst-log-analysis",
+      "why": "Written for the exact ticket where EDR says 02:02 UTC, the file listing says 21:02 local and the firewall says 02:04, and it argues that the gap is a property of the records, not evidence of an attacker. A generic 'UTC versus local time' explainer stops at the conversion; this one covers DST, clock drift and how to state a timestamp so the client argument ends.",
+      "struggle": "EDR, the file listing and the firewall give three different times for the same event — which one is wrong?",
+      "topic": "Digital Forensics",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Use of VirusTotal and files with sensitive data",
+      "creator": "r/Malware",
+      "format": "Thread",
+      "url": "https://www.reddit.com/r/Malware/comments/7ylems/use_of_virustotal_and_files_with_sensitive_data/",
+      "why": "A beginner asks whether to submit the hash or the file, and the top answer explains that an uploaded sample becomes retrievable by Enterprise subscribers — the reason the lesson says hash first and never upload a client's file. It answers the question the VirusTotal upload button never asks, in the learner's own words.",
+      "struggle": "Can I upload the customer's invoice attachment to VirusTotal, or will that leak it?",
+      "topic": "Malware Analysis",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Practical Malware Analysis: The Hands-On Guide to Dissecting Malicious Software",
+      "creator": "Michael Sikorski and Andrew Honig",
+      "format": "Book",
+      "url": "https://nostarch.com/malware",
+      "why": "The book's method — set up a safe virtual environment, then work static before dynamic — is the discipline the lesson compresses into one page, and its hands-on labs walk real samples instead of screenshots. No free page takes a beginner from 'curious about the attachment' to a repeatable lab method as concretely, which is why the paid book earns its place.",
+      "struggle": "I want to see what the attachment does — can I just double-click it in a VM on my work laptop?",
+      "topic": "Malware Analysis",
+      "level": "Deep",
+      "cost": "Paid"
+    },
+    {
+      "title": "AD accounts being locked out after password change..",
+      "creator": "r/sysadmin",
+      "format": "Thread",
+      "url": "https://www.reddit.com/r/sysadmin/comments/u77v9z/ad_accounts_being_locked_out_after_password_change/",
+      "why": "The asker has the module's exact ticket — a password change followed by repeated lockouts — and the replies name the tool and the artefact: LockoutStatus.exe to find the DC, event 4740 on the PDC, and a saved RDP credential as the usual culprit. It beats 'reset the password again' because it shows how to find what is still presenting the old one.",
+      "struggle": "The user changed her password and the account still locks every hour — what is still using the old password?",
+      "topic": "Eradication",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Defender Tactical: Isolate a Threat Device During an Incident",
+      "creator": "Doug Does Tech",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=G5x6MqVrKr4",
+      "why": "Four minutes in the actual console: isolate, what the user sees, and how to release — the containment step the lesson prescribes instead of powering the host off. It also shows the release-failure case, which is the part a learner discovers at 02:00 with no idea whether the machine is still contained.",
+      "struggle": "If I isolate the laptop in Defender, can the user still work, and how do I prove later that it was contained?",
+      "topic": "Containment",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "The infinite hows",
+      "creator": "John Allspaw, O'Reilly Radar",
+      "format": "Article",
+      "url": "https://www.oreilly.com/radar/the-infinite-hows/",
+      "why": "An argument against the Five Whys and against naming a single root cause, which is the trap in 'the user clicked the link' — the report needs a control that failed, not a person. It gives the learner language for the client's follow-up question about why the same thing will not happen again.",
+      "struggle": "The client wants one root cause and the draft says 'user opened a phishing email' — is that the cause?",
+      "topic": "Root Cause Analysis",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Blameless Postmortems and Incident Response: How DevOps teams learn without blame",
+      "creator": "Eficode (DevOps Sauna podcast)",
+      "format": "Podcast",
+      "url": "https://www.eficode.com/insights/podcast/blameless-postmortems-and-incident-response",
+      "why": "Two practitioners walk through what a postmortem meeting should produce and why blame makes the next incident go unreported — the culture half of the lesson's 'write for a reader with one hour and a decision to make'. The transcript sits on the page, so a learner with 4-5 hours a week can skim it instead of streaming the whole episode.",
+      "struggle": "If I write down that the engineer misconfigured the rule, will anyone tell me the truth next time?",
+      "topic": "Reporting",
+      "level": "Working",
+      "cost": "Free"
+    }
+  ]
+}

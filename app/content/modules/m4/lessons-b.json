@@ -1,0 +1,441 @@
+{
+  "moduleId": "m4",
+  "lessons": [
+    {
+      "id": "l4-4",
+      "moduleId": "m4",
+      "seq": 4,
+      "title": "Network and endpoint protection: segmentation, EDR and patching",
+      "subtitle": "Why a flat network turns one laptop into an incident.",
+      "minutes": 15,
+      "level": "Applying",
+      "objectives": [
+        "Trace which VLANs and server ports a compromised workstation can actually reach, using switch and firewall output",
+        "Read an EDR detection for parent process, command line and repeat timing, and decide whether to isolate the host",
+        "Prove effective patch state, including pending reboot, on Windows and Linux before calling a host patched",
+        "Hand over a containment note that names the segment boundary, the ports found open, and who approved isolation"
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC — endpoint alert queue",
+        "subject": "Antivirus alert on ws-0412 and the finance share is full of locked files",
+        "body": "At 08:55 the endpoint console raised a detection on ws-0412 for a process writing to many files on a mapped drive. The user on that desk says the finance share on fs01 now shows locked files and nothing opens. The user rebooted the machine once and the alert fired again at 09:04. No change request is open for that host.",
+        "impact": "The 12-desk accounts payable team cannot open anything on the finance share since 08:55."
+      },
+      "sections": [
+        {
+          "h": "One laptop, one flat VLAN, and 200 hosts in the blast radius",
+          "body": "The 08:55 alert names one desk. The scope decision is not about that desk. `ws-0412` sits in VLAN 120 with 200 other workstations, two file servers and the print server, and the only thing between them is a switch that forwards whatever it is asked to forward. Ransomware needs no vulnerability for that trip: it opens SMB to TCP 445 on a share the logged-in user can already write to, and encrypts everything the account can reach.\n\nThat is the cost of a flat segment. One click becomes twelve desks and a file server before lunch, and recovery becomes a reimage weekend instead of a shift. Nothing you do at the endpoint stops that once the session is authenticated.\n\nThree controls decide how far it spreads, in order of effect: the boundary a host cannot cross, the sensor that notices the write pattern and can cut the host off, and the patch level that closes the ways in. Each has a check you can run and put in the ticket."
+        },
+        {
+          "h": "Segmentation you can prove with a show command",
+          "body": "A **VLAN** is a switch-level broadcast domain, and it is not a security boundary on its own. The moment a router or firewall routes between VLANs, every VLAN can reach every other one unless a policy says otherwise. The boundary is the policy between the segments, and the switch tells you where the hosts actually are.\n\n```\nsw-core-1# show vlan brief | include 120|130|140\n120  AP-Finance-WS   active    Gi1/0/3, Gi1/0/4, Gi1/0/12\n130  SRV-File        active    Gi1/0/21\n140  SRV-Print       active    Gi1/0/22\nsw-core-1# show ip interface vlan 120 | include Internet\n  Internet address is 10.20.120.1/24\n```\n\nThe segments exist, so the design intent is there. What matters is what the policy between them permits, and the test runs from the workstation:\n\n```\nPS C:\\> Test-NetConnection 10.20.130.10 -Port 445 | Select-Object -ExpandProperty TcpTestSucceeded\nTrue\nPS C:\\> Test-NetConnection 10.20.130.11 -Port 445 | Select-Object -ExpandProperty TcpTestSucceeded\nTrue\nPS C:\\> Test-NetConnection 10.20.130.5 -Port 3389 | Select-Object -ExpandProperty TcpTestSucceeded\nTrue\n```\n\nThe file server answer is correct, because that is the share the team uses. The backup server on 445 is not: no workflow writes to it from a desk, and it is the target that turns an encryption event into a failed restore. RDP to the domain controller is worse. Both belong in the ticket, with the ports and addresses listed.\n\nDecision rule: if a workstation reaches a port on a server that no documented application needs, that is the finding. Fix the policy before you spend another minute on the endpoint."
+        },
+        {
+          "h": "EDR is a sensor with a remote control, not a wall",
+          "body": "**EDR** — endpoint detection and response — records what a process does: its parent, its command line, the files it writes and the addresses it connects to. Antivirus matches known signatures and blocks them. EDR keeps the behavior record, which is why it can show a chain that no signature ever matched.\n\nThe console action worth knowing is **isolate**. It cuts the host off the network while keeping the management channel open, so the agent keeps reporting and you can still pull the process tree. Isolating a file server stops the business. Isolating a workstation that is encrypting a mapped drive stops the spread.\n\nOn a Windows host with the built-in agent, two commands answer the first questions:\n\n```\nPS C:\\> Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled,AntivirusSignatureLastUpdated\n\nRealTimeProtectionEnabled AntivirusSignatureLastUpdated\n------------------------- -----------------------------\n                     True 11/23/2026 3:14:07 AM\n\nPS C:\\> Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending |\n>> Select-Object -First 2 InitialDetectionTime,ThreatID\n\nInitialDetectionTime  ThreatID\n--------------------  --------\n11/24/2026 9:04:38 AM   2147722\n11/24/2026 8:55:12 AM   2147722\n```\n\nTwo detections nine minutes apart mean the process returned after the first block, so the parent is still running somewhere on that host. That single fact belongs in the ticket. A record that says the machine was cleaned once is not a containment state."
+        },
+        {
+          "h": "Installed is not the same as effective",
+          "body": "When someone says a host is patched, three facts are being claimed: the update is installed, the running service uses the new binary, and the host has restarted since the kernel or core library changed. Only the first is easy to check.\n\nOn Windows, `Get-HotFix` lists installed updates, and a pending reboot hides the half-applied state underneath it:\n\n```\nPS C:\\> Get-HotFix -Id KB5040434 | Select-Object HotFixID,InstalledOn\n\nHotFixID   InstalledOn\n--------   -----------\nKB5040434  11/20/2026 12:00:00 AM\n\nPS C:\\> Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending'\nTrue\n```\n\nThe update is installed and the reboot never happened, so the old library is still mapped into the running process.\n\nOn Linux the same split shows between `updateinfo` and `needs-restarting`:\n\n```\n$ sudo dnf updateinfo list --security\nCVE-2026-3888 Important/Sec. openssl-libs-1:3.0.7-28.el9_4.x86_64\nCVE-2026-3120 Moderate/Sec.  kernel-5.14.0-427.42.1.el9_4.x86_64\n$ sudo needs-restarting -r; echo \"exit=$?\"\nCore libraries or services have been updated since boot-up:\n  * kernel\n  * openssl-libs\nReboot is required to fully utilize these updates.\nexit=1\n```\n\n`needs-restarting -r` exits 1 when a restart is required, which makes it usable in a script that closes the loop after a patch window. A host that reports zero findings but has not rebooted comes back in next week's scan with the same CVEs."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note has seven lines: hostname and desk, the VLAN the host sits in, the EDR detection time and threat ID, the containment action and the minute you took it, the server ports the host could reach that it should not, patch state including any pending reboot, and the name of the person who approved isolation.\n\nClosing note: do not reimage before the disk or an image of it is preserved for L2. A reimaged host closes the alert and destroys the only record of how the encryption started.\n\nEscalation criterion: if the host reached a server it should not have reached, or a share already shows encrypted files, escalate to L2 incident response immediately and keep the host isolated. Do not clean it and hand it back."
+        }
+      ],
+      "diagram": {
+        "type": "topology",
+        "title": "VLAN 120 to the server tier, as routed today",
+        "caption": "Workstations reach fs01 on 445 by design. The dashed path to bk01 is the same port on a server no desk workflow needs, and it is what turns one infected laptop into a failed restore.",
+        "data": {
+          "nodes": [
+            {
+              "id": "inet",
+              "label": "Internet",
+              "tier": 0,
+              "type": "cloud",
+              "sub": "egress 443"
+            },
+            {
+              "id": "fw",
+              "label": "fw-edge-1",
+              "tier": 1,
+              "type": "firewall",
+              "sub": "zone policy"
+            },
+            {
+              "id": "sw",
+              "label": "sw-core-1",
+              "tier": 2,
+              "type": "switch",
+              "sub": "VLAN 120 / 130"
+            },
+            {
+              "id": "ws",
+              "label": "ws-0412",
+              "tier": 3,
+              "type": "host",
+              "sub": "10.20.120.42",
+              "tone": "bad"
+            },
+            {
+              "id": "fs",
+              "label": "fs01",
+              "tier": 3,
+              "type": "server",
+              "sub": "10.20.130.10",
+              "tone": "ok"
+            },
+            {
+              "id": "bk",
+              "label": "bk01",
+              "tier": 3,
+              "type": "server",
+              "sub": "10.20.130.11",
+              "tone": "warn"
+            }
+          ],
+          "links": [
+            {
+              "from": "fw",
+              "to": "inet",
+              "label": "443",
+              "tone": "accent"
+            },
+            {
+              "from": "sw",
+              "to": "fw",
+              "label": "L3 routed",
+              "tone": "accent"
+            },
+            {
+              "from": "ws",
+              "to": "sw",
+              "label": "VLAN 120",
+              "tone": "accent"
+            },
+            {
+              "from": "fs",
+              "to": "sw",
+              "label": "VLAN 130",
+              "tone": "accent"
+            },
+            {
+              "from": "ws",
+              "to": "bk",
+              "label": "445 unexpected",
+              "tone": "bad",
+              "dashed": true
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "What is Endpoint Detection and Response (EDR)?",
+        "channel": "IBM Technology",
+        "url": "https://www.youtube.com/watch?v=55GaIolVVqI",
+        "start": 0,
+        "length": "5:33",
+        "why": "Shows the detection-to-response path inside an endpoint console, which the text can only describe as a list of record types."
+      },
+      "commands": [
+        {
+          "cmd": "show vlan brief | include 120|130|140",
+          "what": "which access ports sit in each segment on the switch"
+        },
+        {
+          "cmd": "Test-NetConnection 10.20.130.11 -Port 445",
+          "what": "whether a workstation can reach SMB on a server it does not use"
+        },
+        {
+          "cmd": "Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending",
+          "what": "detection times on the host, to see whether the process returned"
+        },
+        {
+          "cmd": "sudo needs-restarting -r",
+          "what": "exits 1 when updates are installed but the host has not restarted"
+        }
+      ],
+      "pitfalls": [
+        "Treating VLAN separation as a security boundary: once a router routes between the segments, hosts reach each other unless an ACL or zone policy blocks the port, and the flat-network incident repeats.",
+        "Reimaging before imaging the disk: the alert closes and L2 loses the process tree, the scheduled task and the initial payload, so the entry path is never found.",
+        "Calling a host patched because the update appears in Get-HotFix: without the pending-reboot check the old binary is still serving requests, and the same CVE returns in the next scan."
+      ],
+      "takeaways": [
+        "A VLAN is a broadcast domain; the ACL or firewall zone between segments is the boundary.",
+        "EDR records behavior and can isolate a host while keeping the management channel open; it is not a signature wall.",
+        "Installed, loaded, and rebooted are three different facts, and only the third makes a kernel or library patch effective."
+      ],
+      "drill": {
+        "prompt": "On your own machine, list the outbound ports that are open from your host to your local network and record which ones you cannot explain. Use `netstat -ano` on Windows or `ss -tunp` on Linux, then map each remote port to a process. Write down three ports you expected and two you did not, and note what each would let an attacker reach if this host were compromised.",
+        "minutes": 8,
+        "checklist": [
+          "A list of established connections with the remote address and port for each",
+          "The process name and PID behind every listening port you can see",
+          "At least two connections you cannot justify from a service you knowingly run",
+          "One sentence naming the segment boundary that would have blocked the worst of them"
+        ]
+      },
+      "sheetTopics": [
+        "Network Protection",
+        "Device Protection"
+      ]
+    },
+    {
+      "id": "l4-5",
+      "moduleId": "m4",
+      "seq": 5,
+      "title": "Web security: injection, XSS and misconfiguration",
+      "subtitle": "The three findings behind most application tickets, and their fixes.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Reproduce a suspected injection with a harmless character and capture the response code, error line and timestamp",
+        "Tell an encoding defect from an injection defect by watching what the page does with the text you typed",
+        "Read response headers for the three misconfigurations that leak the most: version banners, missing cookie flags, and a missing CSP",
+        "Hand over a one-page reproduction the developer can act on without guessing"
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC — application queue",
+        "subject": "Order search returns an error page when a customer name has an apostrophe",
+        "body": "The order-desk lead reports that searching for a name with an apostrophe, such as O'Brien, returns a page headed You have an error in your SQL syntax with a file path underneath. Clearing the browser cache was tried, and it happens in Chrome, Edge and Firefox. The same search worked last week and nothing was deployed since.",
+        "impact": "About 30 order-desk staff cannot look up roughly one name in twenty since 08:20."
+      },
+      "sections": [
+        {
+          "h": "The apostrophe that broke the order search",
+          "body": "The order desk types `O'Brien` into a search box and gets back a page headed `You have an error in your SQL syntax`, with a file path underneath it. That page is doing three jobs badly at once: it proves the input reached the database without being treated as data, it tells the reader which database engine and which directory the code runs from, and it shows that the application prints its own errors to anonymous users.\n\nReproduce it with a harmless character before you open any browser console. The status code and the response time separate a rejected query from a dead worker:\n\n```\n$ curl -s -o /dev/null -w \"%{http_code} %{time_total}s\\n\" \"https://portal.example.com/orders?q=O%27Brien\"\n500 0.412s\n```\n\nA 500 in under half a second is the database parser rejecting malformed SQL, not a timeout or a crash. Three families of defect produce this class of ticket: injection, cross-site scripting and misconfiguration. They are separate fixes, usually separate owners, and one page can carry all three."
+        },
+        {
+          "h": "Injection: when the input becomes code",
+          "body": "The apostrophe is not the bug. String concatenation is the bug: the query is assembled by gluing user text into SQL, so the database parses whatever the user typed as instructions rather than as a value.\n\n```php\n// concatenation: the input is now SQL\n$sql = \"SELECT id, name FROM orders WHERE name = '\" . $_GET['q'] . \"'\";\n\n// parameterized: the input stays data, and can never become syntax\n$stmt = $pdo->prepare('SELECT id, name FROM orders WHERE name = ?');\n$stmt->execute([$_GET['q']]);\n```\n\nThe fix is a prepared statement with a bound parameter, and it is the developer's change to make. What you contribute is the evidence that turns a flaky page into a defect: the URL with the parameter, the exact string the user typed, the timestamp in UTC, the status code, and the first line of the error body. Add the answer to one question the developer will ask: does the same request return different records for a different name.\n\nTwo rules keep you inside your role. Do not append `OR 1=1`, a `UNION`, or a quote-by-quote payload to prove the point on production: a request that returns other users' records is a data breach you caused, and the customer now has to be told. Any test that changes application behavior needs written authorization from the application owner, naming the host and the test window, and it belongs in the lab, not on the live portal."
+        },
+        {
+          "h": "XSS: the application trusting its own database",
+          "body": "**Cross-site scripting** happens when the application puts stored text back into a page as HTML instead of as text. A comment, a ticket title, or a saved search name containing `<script>` runs in every browser that loads that page, carrying that user's session cookie with it. The database is not the problem; the render step is.\n\nThe fix is output encoding at render time, not input filtering on the way in. Encode on output (`htmlspecialchars` in PHP, or a template engine that escapes by default), and set the cookie flags so a stolen cookie buys nothing:\n\n```\n$ curl -sI https://portal.example.com/account\nHTTP/1.1 200 OK\nServer: nginx/1.24.0\nX-Powered-By: PHP/8.2.14\nSet-Cookie: PHPSESSID=8f2c1d7a; path=/\nContent-Type: text/html; charset=UTF-8\n```\n\n`Set-Cookie` has no `HttpOnly` and no `Secure`, and there is no `Content-Security-Policy` header anywhere in the response. `HttpOnly` stops JavaScript from reading the session cookie, `Secure` keeps it off plain HTTP, and a CSP limits which scripts may run at all. Any one of those missing is a finding you can show in a single line of output, with no payload involved.\n\nDecision rule: if the text you typed comes back inside the HTML source and displays as visible characters, that is an encoding problem. If it executes, that is XSS. The fix in both cases sits in one template, not in the database."
+        },
+        {
+          "h": "Misconfiguration: the defaults that ship open",
+          "body": "Most application findings are not clever. Directory listing left enabled, a sample application still installed under `/examples`, `X-Powered-By` announcing the exact framework patch level, database admin consoles reachable from the user VLAN, verbose errors in production. None of these needs an exploit; each needs a browser or a scanner.\n\nThe header check above is your fastest read. `Server: nginx/1.24.0` and `X-Powered-By: PHP/8.2.14` hand over the exact version, which turns find a bug into find the bug for 8.2.14. Suppressing the version banner and the stack trace is a configuration change with no application logic in it, so it is the cheapest item on the list and usually the slowest to get scheduled.\n\nDecision rule: if an unauthenticated request returns a stack trace, a SQL error, or a framework version, write it up as a finding. The application still working is not a counterargument. The message is the disclosure, and it is the strongest evidence you can attach because it needs no exploitation to prove."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note carries the URL with its parameter, the exact input, the timestamp in UTC, the status code, the first error line or the missing header, the browser and account used, and whether the page showed data belonging to another user. Name the class in the subject line: injection, XSS, or misconfiguration. A developer fixes from a one-page reproduction far faster than from a screenshot of a browser.\n\nClosing note: state what you did not do. A line that says the failure was reproduced with the customer's own input and no payloads were sent protects the customer, the application owner and you.\n\nEscalation criterion: escalate to the application team in the same shift if the page returns another user's records, if an error exposes credentials or internal paths beyond the message text, or if no owner is recorded for the change. Everything else waits for the normal change window."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "How one input string becomes a finding",
+        "caption": "Steps 2 through 4 are three separate defects: concatenation, error reporting, and logging. A fix at any single step changes the evidence but not the class.",
+        "data": {
+          "steps": [
+            {
+              "label": "Input arrives",
+              "detail": "q=O'Brien, no type check"
+            },
+            {
+              "label": "String is built",
+              "detail": "WHERE name='$q'"
+            },
+            {
+              "label": "Database parses it",
+              "detail": "syntax error or row leak"
+            },
+            {
+              "label": "Error sent to page",
+              "detail": "path, engine, line number"
+            },
+            {
+              "label": "Fix at the right layer",
+              "detail": "bind parameter, generic 500"
+            }
+          ],
+          "footer": "The rendered error at step 4 is the evidence you attach and also the disclosure the customer must fix."
+        }
+      },
+      "video": {
+        "title": "Cross-Site Scripting: A 25-Year Threat That Is Still Going Strong",
+        "channel": "IBM Technology",
+        "url": "https://www.youtube.com/watch?v=z4LhLJnmoZ0",
+        "start": 0,
+        "length": "9:33",
+        "why": "Covers the XSS category end to end, including why the browser executes stored text, which this lesson has room to state but not to demonstrate."
+      },
+      "commands": [
+        {
+          "cmd": "curl -s -o /dev/null -w \"%{http_code} %{time_total}s\\n\" \"https://portal.example.com/orders?q=O%27Brien\"",
+          "what": "reproduces the failure and separates a parse error from a timeout"
+        },
+        {
+          "cmd": "curl -sI https://portal.example.com/account",
+          "what": "shows version banners, cookie flags and missing security headers"
+        },
+        {
+          "cmd": "curl -s \"https://portal.example.com/orders?q=O%27Brien\" | head -40",
+          "what": "captures the first error line for the ticket"
+        },
+        {
+          "cmd": "openssl s_client -connect portal.example.com:443 -tls1_1",
+          "what": "checks whether the server still accepts a deprecated TLS version"
+        }
+      ],
+      "pitfalls": [
+        "Sending a working payload to prove injection on production: a successful UNION or OR 1=1 returns real customer rows, which turns a support ticket into a reportable breach.",
+        "Fixing injection by blocking quote characters in the form: the query is still concatenated, and any other metacharacter or an encoded quote walks straight past the filter.",
+        "Reading only the page body and never the headers: missing HttpOnly, Secure and CSP do not break the application, so they never appear in a functional test and survive for years."
+      ],
+      "takeaways": [
+        "Injection is a concatenation defect; parameterized queries fix it at the only layer that can.",
+        "XSS is an output encoding defect, and HttpOnly plus a CSP limits what a successful one can steal.",
+        "A stack trace shown to an anonymous user is both the proof of the bug and a finding on its own."
+      ],
+      "drill": {
+        "prompt": "In your own lab, stand up any intentionally vulnerable web application image locally (DVWA or OWASP Juice Shop in Docker), and on that lab instance only, type a single quote into a search field and capture the response. Then add `HttpOnly` to the lab session cookie and re-read the response headers. Do not run anything against a site you do not own.",
+        "minutes": 9,
+        "checklist": [
+          "The lab response showing an error or an escaped quote, saved with the URL and timestamp",
+          "The response headers before and after the cookie change, side by side",
+          "A one-line verdict naming the class: injection, XSS, or misconfiguration",
+          "A note of which test you deliberately did not run, and why"
+        ]
+      },
+      "sheetTopics": [
+        "Application Protection"
+      ]
+    },
+    {
+      "id": "l4-6",
+      "moduleId": "m4",
+      "seq": 6,
+      "title": "Risk, vulnerability management and the policy you are enforcing",
+      "subtitle": "Severity, likelihood, exceptions and the document nobody reads.",
+      "minutes": 15,
+      "level": "Applying",
+      "objectives": [
+        "Separate a scanner's severity score from the risk of a specific host in a specific zone",
+        "Sort a scan export by score and port to find the three findings worth a decision",
+        "Read an exception register for the three fields that make a deferral valid",
+        "Hand over a risk note that forces a recorded decision instead of another email thread"
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC — vulnerability queue",
+        "subject": "Scanner says 47 critical on app01 and the owner wants to wait until January",
+        "body": "The weekly scan finished at 02:00 and reports 47 critical findings on app01, including a 9.8 in the bundled web framework. The application owner replies that the next maintenance window is in January and the application is internal only. The same export shows the host answering on 8443 from the VPN address pool. The year-end change freeze starts Monday.",
+        "impact": "One application server holds 47 critical findings with no signed exception on file since the 02:00 scan."
+      },
+      "sections": [
+        {
+          "h": "Forty-seven critical findings and an owner who says January",
+          "body": "The export lands at 02:00 with 47 critical findings on a single application server, and by 09:00 the owner has replied that the next maintenance window is in January. Both statements are true and neither one is a decision. Forty-seven is a count of findings, not a measure of risk, and January is a date, not a control.\n\nWhat the desk can settle is narrower and more useful: which findings are reachable, from where, what the host holds, and whether the deferral exists on paper. That is enough to write a note that either closes the queue item or forces a decision from someone accountable for it.\n\nThe vocabulary matters here because it is where the conversation goes wrong. A scanner finding is a fact about a host. A vulnerability is a weakness. A threat is someone willing to use it. **Risk** is what you get when all three line up against something the business needs."
+        },
+        {
+          "h": "Severity is the bug. Risk is this host.",
+          "body": "**CVSS** — the Common Vulnerability Scoring System — scores the vulnerability largely on its own terms. A 9.8 says the flaw is remotely reachable with no privileges and high impact if reached. It says nothing about whether anyone can reach the component, whether it is enabled, or what data sits behind it.\n\nThe environmental factors move the ranking more than the base score does. Is the port exposed to the VPN pool or only to the backup subnet. Is the vulnerable library actually loaded by the running application. Is there a WAF rule or a host firewall in front of it. What does the data classification say about the records on that host. A 9.8 behind a jump server that only two administrators use is a different decision from a 9.8 on a login page.\n\nDecision rule: if CVSS is 9.0 or higher, a working exploit is public, and the host is reachable from a lower-trust zone, treat it as P1 today. The change freeze governs changes, not incidents."
+        },
+        {
+          "h": "Sort the list before you argue about it",
+          "body": "The export is a CSV with the columns `host,cve,severity,cvss3_base,port,protocol`. Sort it by score and read the top four. The argument about 47 findings becomes an argument about three, and the port column tells you which of those three needs a maintenance window at all.\n\n```\n$ awk -F, 'NR>1 && $4+0>=9.0 {print $2\",\"$1\",\"$4\",\"$5}' scan-app01.csv | sort -t, -k3,3 -nr | head -4\nCVE-2026-21445,app01,9.8,443\nCVE-2026-31102,app01,9.8,8443\nCVE-2025-48871,app01,9.1,443\nCVE-2025-36744,app01,9.1,22\n```\n\nPort 443 is the service the business uses, so a fix needs a window and a rollback plan. Port 8443 on an application server with no documented admin interface is a service nobody should be able to call, and closing it is a firewall rule that does not need a maintenance window at all. Port 22 answering beyond the jump host is an exposure finding, not a patch finding, and it can be fixed this afternoon.\n\nAttach the counts as well, because the owner will ask for them: `awk -F, 'NR>1 {c[$3]++} END {for (k in c) print k, c[k]}' scan-app01.csv`. A list without counts invites a debate about the list."
+        },
+        {
+          "h": "The exception is a document with an expiry date",
+          "body": "A deferral that exists only in email is not an exception, it is a hope with a timestamp. An **exception** records the asset, the finding, the reason for the delay, the compensating control, the owner, the approver and an expiry date. The expiry is the field people skip and the one that makes the register work: on that date the decision is made again or the finding returns to the queue on its own.\n\nYour job is to read the register, not to grant the deferral. Search by host and by CVE, then check three fields. Is it signed by someone with authority over that asset class. Does the compensating control exist as something you can verify. Is the expiry still in the future. A control written as monitoring in place is not verifiable. A control written as host firewall permits 443 only from 10.20.50.0/24 is, and you can test it in one command.\n\nDecision rule: no signed exception, no deferral. If the owner pushes back, send the scan output and the request to the security manager. Accepting risk is a decision for someone accountable for it, and the desk is not that person."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note carries the asset, the finding count by severity, the top three by CVSS with port and exposure, whether each one is reachable from a lower-trust zone, the exception status and expiry, the owner's requested window, and the freeze dates currently in force.\n\nClosing note: quote the evidence, not the adjective. A line reading CVE-2026-31102, CVSS 9.8, port 8443 reachable from 10.20.0.0/16 ends a meeting that a line reading the server is at risk starts.\n\nEscalation criterion: escalate to the security manager the same day if a critical finding is being deferred with no signed exception, or if the host is reachable from a zone its documentation does not allow. Do not scan production or run exploit checks to prove the point; scanning is intrusive, any such test needs written authorization, and it belongs in the lab."
+        }
+      ],
+      "diagram": {
+        "type": "quadrant",
+        "title": "This week's queue, placed by likelihood and impact",
+        "caption": "The top right is what pages you at 02:00. The bottom left is real and is not this week's ticket: the register records it and the next review picks it up.",
+        "data": {
+          "xLabel": "Likelihood of exploit",
+          "yLabel": "Business impact",
+          "points": [
+            {
+              "label": "RCE, VPN-reachable",
+              "x": 88,
+              "y": 92,
+              "tone": "bad"
+            },
+            {
+              "label": "Flat VLAN, SMB open",
+              "x": 76,
+              "y": 78,
+              "tone": "bad"
+            },
+            {
+              "label": "Unpatched jump host",
+              "x": 52,
+              "y": 70,
+              "tone": "warn"
+            },
+            {
+              "label": "Shared local admin",
+              "x": 64,
+              "y": 56,
+              "tone": "warn"
+            },
+            {
+              "label": "Legacy TLS 1.0",
+              "x": 26,
+              "y": 32,
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "CertMike Explains CVSS",
+        "channel": "Mike Chapple",
+        "url": "https://www.youtube.com/watch?v=2zIQSzf7hQk",
+        "start": 0,
+        "length": "4:49",
+        "why": "Walks the CVSS metric groups in under five minutes, which makes the gap between a base score and a host-specific risk judgment concrete."
+      },
+      "commands": [
+        {
+          "cmd": "awk -F, 'NR>1 && $4+0>=9.0 {print $2\",\"$1\",\"$4\",\"$5}' scan-app01.csv | sort -t, -k3,3 -nr",
+          "what": "the findings that actually need a decision this week"
+        },
+        {
+          "cmd": "awk -F, 'NR>1 {c[$3]++} END {for (k in c) print k, c[k]}' scan-app01.csv",
+          "what": "findings per severity band, for the note and the pushback"
+        },
+        {
+          "cmd": "Test-NetConnection app01 -Port 8443",
+          "what": "whether the admin port is reachable from your segment or only from the jump host"
+        },
+        {
+          "cmd": "grep -i \"app01\" exception-register.csv",
+          "what": "whether a signed, unexpired exception exists for that host"
+        }
+      ],
+      "pitfalls": [
+        "Reporting the raw critical count as the risk: 47 findings on a host that nobody outside one subnet can reach reads the same as 47 on an internet-facing server, so the number stops meaning anything and gets ignored.",
+        "Treating an email approval as an exception: with no expiry and no named approver, the deferral never returns to the queue and the finding is still open two years later.",
+        "Running an exploit check to settle the argument: scanning and exploit validation against production without written authorization is an unapproved test against a customer system."
+      ],
+      "takeaways": [
+        "CVSS scores the bug; risk depends on exposure, data and controls on that host.",
+        "Ports and exposure reorder a scan export faster than the severity column does.",
+        "An exception without an approver and an expiry is not a decision, it is a delay."
+      ],
+      "drill": {
+        "prompt": "Take any published CVE that affected a product you use, read its CVSS vector string, and write two paragraphs: one describing the bug with no reference to your environment, and one describing the risk if it were on a host you administer. Then place three findings from your own lab on a likelihood-versus-impact grid and label each with the control that would move it.",
+        "minutes": 10,
+        "checklist": [
+          "The CVSS vector string decoded into its four base metrics in plain words",
+          "Two separate paragraphs: the vulnerability alone, then the risk on a named host",
+          "Three plotted items with a one-line justification for each position",
+          "One named compensating control that would move an item down the grid"
+        ]
+      },
+      "sheetTopics": [
+        "Risk Management",
+        "Governance"
+      ]
+    }
+  ]
+}

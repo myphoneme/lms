@@ -1,0 +1,137 @@
+{
+  "moduleId": "m3",
+  "items": [
+    {
+      "title": "Can you ping a specific port of a machine?",
+      "creator": "Server Fault",
+      "format": "Thread",
+      "url": "https://serverfault.com/questions/309357/can-you-ping-a-specific-port-of-a-machine",
+      "why": "The 877-vote answer draws the line learners keep crossing: ping is ICMP, ICMP has no ports, so a reply from the host says nothing about 3389 or 443 — then gives the telnet and nmap checks that do test a socket. A generic 'ping basics' video teaches the command and leaves the assumption intact.",
+      "struggle": "Ping to the server replies, so the port must be open — why does Remote Desktop still fail?",
+      "topic": "ping",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Port 80 is being used by SYSTEM (PID 4), what is that?",
+      "creator": "Server Fault",
+      "format": "Thread",
+      "url": "https://serverfault.com/questions/65717/port-80-is-being-used-by-system-pid-4-what-is-that",
+      "why": "Answers the 'is the server infected' panic with the mechanism instead: a system-owned listener plus Windows' built-in HTTP dispatch means several processes can legitimately want port 80, so the fix is deciding which listener to stop, not rebooting. The replies also name the culprits people actually find, which is the 'who owns this PID' step l3-2 needs.",
+      "struggle": "netstat says port 80 is held by SYSTEM with PID 4 — is the server infected, and how do I take the port back?",
+      "topic": "tasklist",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "IPCONFIG Explained - Flush DNS Cache",
+      "creator": "PowerCert Animated Videos",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=ZKhorleA5aA",
+      "why": "Its chapters track the order ipconfig prints: /all at 3:32, flush at 5:01, /displaydns at 7:34, so address, mask, gateway and DNS server appear on screen as they appear in the console. The flush section is the one that explains a single stale name failing while every other name resolves.",
+      "struggle": "One website will not open but every other site loads — do I flush DNS, or is the site down?",
+      "topic": "ipconfig",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Discovering objects, properties, and methods (PowerShell 101, chapter 3)",
+      "creator": "Microsoft Learn",
+      "format": "Course",
+      "url": "https://learn.microsoft.com/en-us/powershell/scripting/learn/ps101/03-discovering-objects",
+      "why": "It runs Get-Service | Get-Member and points at the TypeName System.ServiceProcess.ServiceController that ends up in a broken export, then uses Select-Object to pull the properties that should have been written. That is the exact repair for the 'forty lines of type names' bug, from the cmdlet's own documentation rather than a blog.",
+      "struggle": "I piped Get-Service into a file and every line says System.ServiceProcess.ServiceController instead of a service name.",
+      "topic": "Get-Process",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "WINDOWS: Using netstat to show the owning executable to an open port",
+      "creator": "theurbanpenguin",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=V3nWkr7v4-E",
+      "why": "Two minutes and fifty-four seconds on the single question in the l3-2 ticket — which executable owns this open port — demonstrated with netstat's -b switch on a live box. Watch it with tasklist /svc open, so a PID becomes a name and an owner instead of a number in a note.",
+      "struggle": "The app says port 8080 is already in use — how do I see which program actually owns it?",
+      "topic": "tasklist",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Where's the 4624? - Logon Events vs. Account Logons",
+      "creator": "13Cubed",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=EXsKJ9kIc6s",
+      "why": "Kills the assumption that a sign-in leaves a 4624 on the machine in front of you: it walks a workstation-to-workstation scenario across three lab VMs to show which host records the logon event and which records the account logon. 'No events, so nothing happened' becomes 'wrong log, wrong host'.",
+      "struggle": "The user signed in at 08:40 but there is no 4624 in the Security log on their PC — is auditing broken?",
+      "topic": "Get-WinEvent",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Win32_Service class",
+      "creator": "Microsoft Learn (Win32 apps reference)",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-service",
+      "why": "Documents StartMode's three values — Auto starts before anyone logs on, Manual waits for a caller, Disabled refuses — and the StartName account field, neither of which the Get-Service output in a ticket shows. It is the page that justifies reaching for Get-CimInstance Win32_Service instead of a services.msc screenshot.",
+      "struggle": "The service shows Running, so why did it not come back after the reboot, and which account is it using?",
+      "topic": "Get-Service",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Creating Get-WinEvent queries with FilterHashtable",
+      "creator": "Microsoft Learn (PowerShell samples)",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/powershell/scripting/samples/creating-get-winevent-queries-with-filterhashtable",
+      "why": "Lists the hash table keys (LogName, ID, StartTime, EndTime, Level, UserID) and sets the bad pattern — pull the whole log, then Where-Object — against the same query handed to the log service. That is why one returns in a second and the other takes a minute on a busy server.",
+      "struggle": "Get-WinEvent takes a minute and returns thousands of rows, so I filter with Where-Object afterwards — why is that the slow way?",
+      "topic": "Get-WinEvent",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Windows Security Log Event ID 4740 - A user account was locked out",
+      "creator": "Randy Franklin Smith, Ultimate Windows Security",
+      "format": "Article",
+      "url": "https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventID=4740",
+      "why": "Field-level detail for the record that settles a lockout ticket, including Caller Computer Name and the fact that 4740 fires for local SAM accounts as well as domain accounts — which is how a learner stops confusing 'the PC in front of me' with 'the account in Active Directory'. Shorter and more specific than the platform reference page.",
+      "struggle": "Unlocked at 09:40, locked again at 09:52 — how do I prove it is not the user mistyping the password?",
+      "topic": "net user",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Handle v5.0",
+      "creator": "Sysinternals (Microsoft)",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/sysinternals/downloads/handle",
+      "why": "The tool and its syntax for finding which process holds a handle to a named file — a question tasklist cannot answer, because tasklist lists processes and not handles. It is read-only, so it is the check to run before anyone suggests ending the user's session.",
+      "struggle": "A file on the share is locked and nobody admits to opening it — how do I find the process holding the handle?",
+      "topic": "Get-Process",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Detecting Lateral Movement through Tracking Event Logs",
+      "creator": "JPCERT/CC",
+      "format": "Paper",
+      "url": "https://www.jpcert.or.jp/english/pub/sr/20170612ac-ir_research_en.pdf",
+      "why": "Eighty-one pages mapping recorded event IDs to actions, with the logon-type distinction (3 versus 10) and the 4672 and 4648 records that accompany a remote execution. It is the depth behind the six-ID table in l3-4, and it shows why a 4624 on its own is not proof of anything.",
+      "struggle": "There is a 4624 with logon type 3 from another workstation — normal file access, or someone moving between machines?",
+      "topic": "Get-WinEvent",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Troubleshooting with the Windows Sysinternals Tools",
+      "creator": "Mark Russinovich and Aaron Margosis (Microsoft Press)",
+      "format": "Book",
+      "url": "https://learn.microsoft.com/en-us/sysinternals/resources/troubleshooting-book",
+      "why": "The case chapters are a senior engineer looking over your shoulder: full chapters on Process Explorer, Process Monitor and Autoruns plus 45 'Case of the Unexplained' walkthroughs, which is how the l3-6 slow-PC call gets past CPU and disk counters. Buy it only when the free tool pages leave you guessing at the next step.",
+      "struggle": "CPU and disk both look idle but the user says the machine is unusable — what do I look at next?",
+      "topic": "Get-Process",
+      "level": "Deep",
+      "cost": "Paid"
+    }
+  ]
+}

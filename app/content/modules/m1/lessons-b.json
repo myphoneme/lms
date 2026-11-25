@@ -1,0 +1,434 @@
+{
+  "moduleId": "m1",
+  "lessons": [
+    {
+      "id": "l1-4",
+      "moduleId": "m1",
+      "seq": 4,
+      "title": "TCP, UDP, ports and HTTP: what crosses the wire",
+      "subtitle": "Why the port number, not the application name, is what you verify first.",
+      "minutes": 16,
+      "level": "Core",
+      "objectives": [
+        "Separate a name problem, a path problem and a listener problem with two commands",
+        "Explain what TCP guarantees that UDP does not, and name the symptom each failure produces",
+        "Test a specific port from the user's machine and read the result as evidence",
+        "Classify an HTTP response code as proof that the network path works"
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC, shift queue",
+        "subject": "Customer portal times out on the whole third floor since 09:40",
+        "body": "Twelve people on the third floor cannot open the customer portal. The browser spins for about twenty seconds, then shows ERR_CONNECTION_TIMED_OUT. Other internet sites open normally and the portal's address replies to ping. We cleared the browser cache and tried a second browser on one desk; same result.",
+        "impact": "Twelve sales users blocked on order entry since 09:40; two of them are taking orders by phone."
+      },
+      "sections": [
+        {
+          "h": "The portal is down, so the team restarts the browser",
+          "body": "At 09:40, twelve people on the third floor cannot open `portal.example.com`. The browser spins for twenty seconds and then shows `ERR_CONNECTION_TIMED_OUT`. Someone pings the portal's address, gets a reply, and writes \"network is fine, application team to check\" in the ticket. That conclusion is wrong in both directions.\n\nA ping proves one thing: an ICMP echo reached a host and came back. It says nothing about TCP port 443, nothing about the certificate, and nothing about the process behind the port. A **socket** is an address and a port bound to a protocol, written `10.30.5.20:443/TCP`. The port is the part of the destination that decides whether a service answers.\n\nTwo commands separate the cases in under a minute. `Test-NetConnection` opens a real TCP connection and reports success or failure. `curl -v` shows what came back on that connection, including the status line. Run both from the user's machine: a test from your desk proves that your desk works."
+        },
+        {
+          "h": "TCP and UDP make different promises, and the promise explains the symptom",
+          "body": "**TCP** opens with a three-way handshake, SYN then SYN-ACK then ACK, and numbers every byte so a lost segment can be retransmitted. **UDP** sends a datagram and keeps no record of it; the application decides whether to notice the loss.\n\n| Symptom on the call | What it usually proves |\n| --- | --- |\n| Refused in under a second | A host answered; nothing listens on that port, or a rule rejected it |\n| Times out after 8 to 20 seconds | Packets are being dropped silently somewhere on the path |\n| Connects, then stalls | Path works; look at payload size, MTU or the application |\n\nThe speed of the failure is the cheapest clue you have. A refusal in 300 milliseconds came from a host. A request that hangs for twenty seconds was dropped by something that did not want to reply. Decision rule: fast failure means look for a listener or a reject rule; slow failure means look for a drop on the path. Do not apply this rule to UDP, where a blocked port and a dead service both look like silence."
+        },
+        {
+          "h": "The ports you check in the first two minutes",
+          "body": "Put a port number in every ticket you write. \"The app is down\" cannot be routed to a team; `tcp/443 to 10.30.5.20` can. These are the ones that appear most often on a corporate floor:\n\n| Port | Service |\n| --- | --- |\n| 22 | SSH |\n| 53 | DNS |\n| 443 | HTTPS |\n| 389 | LDAP |\n| 445 | SMB file shares |\n| 3389 | RDP |\n\n```\nPS C:\\> Test-NetConnection portal.example.com -Port 443\n\nComputerName     : portal.example.com\nRemoteAddress    : 10.30.5.20\nRemotePort       : 443\nInterfaceAlias   : Ethernet\nSourceAddress    : 10.20.10.25\nTcpTestSucceeded : False\n```\n\nRead three fields. `RemoteAddress` tells you whether the name resolved to the address you expected. `TcpTestSucceeded` tells you whether the handshake completed. The pause before the answer tells you whether you were refused or ignored. `True` closes the network question. `False` after a long pause is a drop, and on this ticket it is the finding."
+        },
+        {
+          "h": "A response code means the path is proven",
+          "body": "`curl` writes the status line, so it can tell you which layer answered even when the page looks broken:\n\n```\nPS C:\\> curl.exe -sS -o NUL -w \"%{http_code} connect=%{time_connect}s\\n\" https://portal.example.com/\n502 connect=0.031s\n```\n\nA status code of any kind, including `403` and `502`, proves that DNS resolved, the route exists, the firewall passed the flow, and a proxy or server replied. A 31-millisecond connect makes a network drop impossible. `502` means the reverse proxy is up and the application behind it is not. `503` means the proxy is deliberately refusing. `401` and `403` mean the request arrived and policy stopped it, which is an application or identity ticket. A browser TLS error means the certificate does not match the name, which is a certificate ticket.\n\nDecision rule: if you get any HTTP status, stop testing the network and start reading the status. If you get `connection refused`, the path is also proven, because something answered. If you get a timeout with no status, the path is not proven and you keep going."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Write the note so the next team does not repeat your work:\n\n```\n09:52 Tested from 10.20.10.25 (third floor, VLAN 20).\nName resolves to 10.30.5.20.\nTest-NetConnection -Port 443 returned TcpTestSucceeded: False after ~20s.\ncurl: no status line, timeout.\nSecond subnet 10.20.11.0/24: same result.\n443 to other HTTPS sites: TcpTestSucceeded True.\n```\n\nThose last two lines are the reason this is a network ticket and not an application ticket. Four facts belong in every hand-over: source address, destination address and port, whether the handshake completed, and the time you tested.\n\nEscalate to the network team when TCP 443 to the destination fails from two subnets while other 443 destinations succeed, and attach that test output. If the handshake completes and the portal returns `5xx`, it is an application ticket, not a network one, and it goes to the application team with the status code and timestamp. Never close the ticket as \"works for me\" after testing from your own desk."
+        }
+      ],
+      "diagram": {
+        "type": "compare",
+        "title": "TCP and UDP: what each one promises",
+        "caption": "The promise on the left is why a lost packet becomes a slow page. The promise on the right is why a lost packet becomes silence, and silence is what makes UDP faults hard to prove.",
+        "data": {
+          "left": {
+            "title": "TCP",
+            "items": [
+              "three-way handshake",
+              "retransmits lost segments",
+              "every byte in order",
+              "failure is visible, slow"
+            ]
+          },
+          "right": {
+            "title": "UDP",
+            "items": [
+              "no handshake",
+              "no retransmission",
+              "order not guaranteed",
+              "failure looks like silence"
+            ]
+          },
+          "verdict": "TCP failing slowly means a drop on the path; UDP silence means test the port from both sides."
+        }
+      },
+      "video": {
+        "title": "Network Ports Explained",
+        "channel": "PowerCert Animated Videos",
+        "url": "https://www.youtube.com/watch?v=g2fT-g9PX9o",
+        "start": 0,
+        "length": "10:32",
+        "why": "It animates how one IP address carries many conversations at once by port number, which is the demultiplexing step the text can only name."
+      },
+      "commands": [
+        {
+          "cmd": "Test-NetConnection portal.example.com -Port 443",
+          "what": "Proves whether a TCP handshake completes to that exact port"
+        },
+        {
+          "cmd": "curl.exe -sS -o NUL -w \"%{http_code} %{time_connect}s\\n\" https://portal.example.com/",
+          "what": "Separates a status code from a timeout in one line"
+        },
+        {
+          "cmd": "curl.exe -v https://portal.example.com/",
+          "what": "Shows the status line, TLS details and where the request stopped"
+        },
+        {
+          "cmd": "nslookup portal.example.com",
+          "what": "Confirms the name resolves, and which resolver answered"
+        }
+      ],
+      "pitfalls": [
+        "Testing the port from your own machine and closing the ticket as \"works for me\". The user's subnet, VLAN and firewall rule are part of the path and yours is not.",
+        "Treating a successful ping as proof the application is reachable. ICMP proves a host answered, not that any service on it is listening.",
+        "Reporting \"the firewall is blocking it\" from a timeout alone. A timeout also comes from a missing route, a dead host, or a listener that never accepts; the timeout narrows the path, it does not name the device."
+      ],
+      "takeaways": [
+        "A ticket without a port number cannot be routed to a team, only bounced.",
+        "Fast refusal means something answered; slow silence means something dropped the packet.",
+        "Any HTTP status code proves the network path end to end, so the next question is about the application."
+      ],
+      "drill": {
+        "prompt": "On your own machine, pick three destinations you use daily (a web page, a mail server name, and a public DNS address). For each, run Test-NetConnection on its port and curl with -w. Write one line per destination saying which layer answered and how you know.",
+        "minutes": 8,
+        "checklist": [
+          "Three destinations tested, each with a port number written down",
+          "For each, the pause before the answer noted in seconds",
+          "One destination returned a status code and one returned a timeout or refusal",
+          "A one-line conclusion per destination naming the layer that answered"
+        ]
+      },
+      "sheetTopics": [
+        "HTTP/HTTPS",
+        "TCP and UDP",
+        "Ports and Protocols"
+      ]
+    },
+    {
+      "id": "l1-5",
+      "moduleId": "m1",
+      "seq": 5,
+      "title": "Routing, switching and firewalls: where a packet dies",
+      "subtitle": "Follow the path across VLANs and rules until one device says no.",
+      "minutes": 17,
+      "level": "Applying",
+      "objectives": [
+        "Trace a frame from an access port across a trunk and name the VLAN boundary",
+        "Read a routing table entry and decide whether the return path exists",
+        "Read a firewall packet trace and identify the phase that dropped the flow",
+        "Write a hand-over that names the device instead of the whole network"
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC, floor walk",
+        "subject": "Inventory app unreachable after the third floor move, shared drive is fine",
+        "body": "The team moved to the third floor on Monday. The shared drive on dc01 opens normally, but the inventory app at 10.30.5.20 never loads. Ping to 10.30.5.20 times out after four packets, and tracert prints one hop and then stars. No changes were made on the server or the firewall, and the same app worked from the old floor.",
+        "impact": "Nine warehouse staff cannot book stock movements since Monday 08:00; they are writing movements on paper."
+      },
+      "sections": [
+        {
+          "h": "The shared drive works, the app does not, and both are called \"the network\"",
+          "body": "The team moved to the third floor on Monday. The shared drive on `dc01` at `10.20.10.15` opens instantly. The inventory app at `10.30.5.20` never loads. `ping 10.30.5.20` times out after four packets, and `tracert 10.30.5.20` prints one hop and then stars.\n\nTwo facts come out of that. The client reaches its own gateway, so the cable, the access port and the local VLAN are working. Something after the gateway either refuses, drops, or cannot send the reply back. \"The network\" is now four devices wide, and the ticket takes ten minutes instead of two days only if you can name which one said no.\n\nThe order matters. Check the switch first, because a missing VLAN is the most common cause after a floor move. Then routing, then the firewall. Each check returns evidence, not an opinion."
+        },
+        {
+          "h": "A switch forwards frames by MAC, and the trunk is the first rule-out",
+          "body": "A switch does not read IP addresses. It learns which MAC address is on which port and forwards the frame there. A **VLAN** splits one physical switch into separate broadcast domains, and a **trunk** carries several VLANs between switches with an 802.1Q tag on each frame. A port that is not configured for a VLAN does not deliver its frames, which is why a floor move breaks things that worked last week.\n\nOne command removes the switch from the suspect list:\n\n```\nsw-access-1# show interfaces GigabitEthernet1/0/24 switchport\nName: Gi1/0/24\nSwitchport: Enabled\nAdministrative Mode: trunk\nOperational Mode: trunk\nTrunking Native Mode VLAN: 1 (default)\nTrunking VLANs Enabled: 1,20,30,99\n```\n\n`Operational Mode: trunk` and VLAN 30 in the allowed list mean tagged frames for the server VLAN leave this switch, so the switch is not the cause here. Keep the output as proof the segment was tested. Had VLAN 30 been missing from that list, every host beyond it would have failed and the fix would be a port change under a change record.\n\nDecision rule: if the local subnet works and every address beyond the gateway fails, check the trunk before you open a firewall ticket. One command rules out half the path."
+        },
+        {
+          "h": "Routing picks a path, and the path has to come back",
+          "body": "Once a frame leaves its VLAN it is routed. The router compares the destination against its table and picks the most specific match, so a `/24` entry beats the default route. A missing entry does not drop the packet, it hands it to the default gateway, which is why the trace dies at the first hop.\n\n```\nrt-core-1# show ip route 10.30.5.20\nRouting entry for 10.30.5.0/24\n  Known via \"static\", distance 1, metric 0\n  Last update from 172.16.10.2 00:14:22 ago\n  Routing Descriptor Blocks:\n  * 172.16.10.2, from 172.16.10.2, 00:14:22 ago, via GigabitEthernet0/1\n      Route metric is 0, traffic share count is 1\n```\n\nThis entry says the core router sends `10.30.5.0/24` traffic to `172.16.10.2`, which is the firewall's inside address. That is a correct forward path. Ask the second question before you believe it: does the firewall have a route back to `10.20.10.0/24`? If not, the request arrives and the reply is dropped, giving the same one-hop trace.\n\nDecision rule: a forward route tells you where the packet went, not whether it can return. A working ping to the gateway plus a dead ping beyond it means look for the return path."
+        },
+        {
+          "h": "A firewall permits a conversation, not a packet",
+          "body": "A stateful firewall checks the first packet of a flow against its rules, then records the flow in a state table. Replies that match the table pass without a new rule, which is why one port can be permitted to a host while another is dropped: they are different flows, and the rule names protocol, source, destination and port.\n\nOn a Cisco ASA, `packet-tracer` replays the flow through every stage and names the one that dropped it:\n\n```\nfw-edge-1# packet-tracer input inside tcp 10.20.10.25 51515 10.30.5.20 443 detailed\nPhase: 1\nType: ROUTE-LOOKUP\nResult: ALLOW\nPhase: 4\nType: ACCESS-LIST\nSubtype:\nResult: DROP\nConfig:\nImplicit Rule\n```\n\nPhase 1 ALLOW means the firewall knows where `10.30.5.20` is. Phase 4 DROP on the implicit rule means the access list applied to the inside interface has no permit for this flow, so the default deny caught it. The same rule drops the ICMP echo, which is why the ping timed out as well. That is a firewall finding with evidence, and a change request, not a call-time fix.\n\nDecision rule: if `packet-tracer` shows DROP, the firewall is the device. If it shows ALLOW and the flow still fails, stop testing the firewall and check that the server has the right default gateway and is listening on that port."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Put the path in the note, in the order the packet traveled:\n\n```\n10:15 From 10.20.10.25 / VLAN 20.\nSwitch: Gi1/0/24 trunk, VLANs allowed 1,20,30,99 - not the cause.\nRouter rt-core-1: 10.30.5.0/24 via 172.16.10.2, forward path present.\nFirewall fw-edge-1: packet-tracer phase 4 DROP, implicit rule, no permit\nfor tcp/443 10.20.10.0/24 -> 10.30.5.20.\nPing 10.20.10.15 works; ping 10.30.5.20 times out; tracert stops\nafter the first hop.\n```\n\nThe note says where the packet dies and what it would take to let it through. Ask for the exact rule, not for \"network help\": `access-list inside_in extended permit tcp 10.20.10.0 255.255.255.0 host 10.30.5.20 eq 443`. That is a managed firewall change: it needs a change record and the network team, not you.\n\nEscalate to the network team when `packet-tracer` shows DROP or a trunk is missing a VLAN, and attach that output. If `packet-tracer` shows ALLOW, the path is proven and the ticket belongs to the server or application owner, with the source address and port in the note."
+        }
+      ],
+      "diagram": {
+        "type": "topology",
+        "title": "One packet, four devices, one decision",
+        "caption": "Follow the client to web01. The path through the switch and the router is intact and dc01 proves it; the last link carries a deny, and that boundary is what the ticket has to name.",
+        "data": {
+          "nodes": [
+            {
+              "id": "pc1",
+              "label": "Client 10.20.10.25",
+              "tier": 0,
+              "type": "host"
+            },
+            {
+              "id": "swa",
+              "label": "sw-access-1",
+              "tier": 1,
+              "type": "switch"
+            },
+            {
+              "id": "rtc",
+              "label": "rt-core-1",
+              "tier": 2,
+              "type": "router"
+            },
+            {
+              "id": "fw",
+              "label": "fw-edge-1",
+              "tier": 2,
+              "type": "firewall"
+            },
+            {
+              "id": "web",
+              "label": "web01 10.30.5.20",
+              "tier": 3,
+              "type": "server"
+            },
+            {
+              "id": "dc",
+              "label": "dc01 10.20.10.15",
+              "tier": 3,
+              "type": "server"
+            }
+          ],
+          "links": [
+            {
+              "from": "pc1",
+              "to": "swa",
+              "label": "access VLAN 20",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "swa",
+              "to": "dc",
+              "label": "VLAN 20, reaches ok",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "swa",
+              "to": "rtc",
+              "label": "trunk 802.1Q",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "rtc",
+              "to": "fw",
+              "label": "172.16.10.0/30",
+              "dashed": false,
+              "tone": "accent"
+            },
+            {
+              "from": "fw",
+              "to": "web",
+              "label": "tcp 443 denied",
+              "dashed": false,
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Packet Traveling - How Packets Move Through a Network",
+        "channel": "Practical Networking",
+        "url": "https://www.youtube.com/watch?v=rYodcvhh7b8",
+        "start": 0,
+        "length": "14:38",
+        "why": "It walks the same frame-then-packet path across a switch, a router and a firewall and shows each header being rewritten, which the diagram cannot show in motion."
+      },
+      "commands": [
+        {
+          "cmd": "show interfaces GigabitEthernet1/0/24 switchport",
+          "what": "Shows whether the uplink is a trunk and which VLANs it allows"
+        },
+        {
+          "cmd": "show ip route 10.30.5.20",
+          "what": "Shows the exact next hop the router will use, not the whole table"
+        },
+        {
+          "cmd": "packet-tracer input inside tcp 10.20.10.25 51515 10.30.5.20 443 detailed",
+          "what": "Replays the flow and names the phase that allowed or dropped it"
+        },
+        {
+          "cmd": "tracert 10.30.5.20",
+          "what": "Shows the last device that forwarded the packet before it died"
+        },
+        {
+          "cmd": "show mac address-table | include Gi1/0/24",
+          "what": "Confirms which MAC addresses the access port has learned"
+        }
+      ],
+      "pitfalls": [
+        "Calling the firewall first because it is the device that \"blocks things\". On a floor move the missing trunk VLAN is more common, and it is a one-command check.",
+        "Reading the routing table as proof of reachability. A forward route with no return route gives the same one-hop trace as no route at all.",
+        "Making a firewall or trunk change during the call without a change record. You fix today's ticket and create an untraceable outage tomorrow."
+      ],
+      "takeaways": [
+        "A switch moves frames by MAC, a VLAN is a hard boundary, and a trunk that omits a VLAN silently drops that traffic.",
+        "The forward route and the return route are two separate facts; both must exist before a flow works.",
+        "packet-tracer output converts \"the firewall is blocking it\" from an opinion into a phase number."
+      ],
+      "drill": {
+        "prompt": "Draw the path from your own workstation to one internal service you use, labeling every device you can identify. Then run tracert to it and mark on the drawing where your evidence stops. Note one command per device that would prove or disprove the hop.",
+        "minutes": 9,
+        "checklist": [
+          "Drawing shows client, access switch, router or firewall, and the server",
+          "Each hop labeled with the command that would confirm it",
+          "tracert output compared against the drawing and differences noted",
+          "One line stating which device you would suspect first after a subnet move"
+        ]
+      },
+      "sheetTopics": [
+        "Routing and Switching",
+        "Firewalls"
+      ]
+    },
+    {
+      "id": "l1-6",
+      "moduleId": "m1",
+      "seq": 6,
+      "title": "VPN and the network triage runbook",
+      "subtitle": "Remote-access failures, and the six checks that close most of them.",
+      "minutes": 15,
+      "level": "Applying",
+      "objectives": [
+        "Explain what a remote-access VPN client must obtain before an internal host is reachable",
+        "Run the six triage checks in order and record the result of each",
+        "Recognize split-tunnel routing and MTU symptoms that imitate application faults",
+        "Hand over a remote-access fault with the evidence the next team needs"
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC, remote queue",
+        "subject": "VPN connected but the ordering system will not load from the hotel",
+        "body": "A user working from a hotel says the VPN client shows Connected, the intranet wiki loads, but the login page of the ordering system at orders.internal.example never appears. They restarted the laptop and reinstalled the client. The same account works from their home connection.",
+        "impact": "One regional manager cannot approve orders since 07:10; three approvals are waiting past their deadline."
+      },
+      "sections": [
+        {
+          "h": "The VPN says connected, so the ticket gets bounced twice",
+          "body": "A regional manager connects from a hotel at 07:10. The client says Connected. The intranet wiki opens. The login page of `orders.internal.example` never appears, and the browser eventually times out. The ticket goes to the network team as \"VPN broken\", comes back as \"VPN works\", and is closed by nobody.\n\nThe word \"connected\" is doing too much work. The client shows Connected when the tunnel is negotiated, which says nothing about the address it received, the routes it was given, the DNS server it was told to use, or whether the application's port is allowed across the tunnel. Four things have to be right before one internal page loads, and each one has a separate check that takes ten seconds.\n\nA remote-access **VPN** builds an encrypted tunnel from the client to a concentrator at the edge of the corporate network, then gives the client an address inside that network. Everything after that is ordinary routing and firewall work, over a link you do not control."
+        },
+        {
+          "h": "Routing is pushed to the client, and that is where most cases live",
+          "body": "The tunnel adapter gets an address from the concentrator, plus routes and DNS settings. With a **full tunnel**, the client sends all traffic into the tunnel. With a **split tunnel**, only the listed corporate subnets go through it and everything else uses the hotel's connection. That is why the wiki can load while an application in another subnet cannot: only one of those subnets was pushed.\n\n```\nPS C:\\> route print -4\n===========================================================================\nActive Routes:\nNetwork Destination        Netmask          Gateway       Interface  Metric\n          0.0.0.0          0.0.0.0     192.168.1.1     192.168.1.44     35\n       10.20.0.0    255.255.255.0         On-link       10.99.14.37    281\n       10.30.0.0    255.255.255.0     10.99.14.1       10.99.14.37    281\n```\n\nThe default route still points at the hotel gateway, so this is a split tunnel. `10.20.0.0/24` is on-link because the wiki lives in it. `10.30.0.0/24` goes through the tunnel gateway. If a needed subnet is absent from this list, the client will send that traffic to the hotel and it will die there, whatever the client's status light says."
+        },
+        {
+          "h": "The six checks, in the order that saves time",
+          "body": "Any of these failing makes the rest meaningless, so run them in order and write the result of each:\n\n1. **Internet without the tunnel.** Open a public site. If that fails, the hotel network is the ticket.\n2. **Tunnel state.** The client says Connected, and `ipconfig` shows an adapter with a `10.99.x` address and a subnet mask.\n3. **Routes.** `route print` contains the subnet of the failing application, with the tunnel interface as the path.\n4. **DNS.** `nslookup orders.internal.example` returns an internal address. A public address here means the client is asking the hotel's resolver.\n5. **Port, not only the name.** `Test-NetConnection orders.internal.example -Port 443` reports whether the handshake completes.\n6. **Neighbor comparison.** Another internal host in the same subnet answers or does not, which separates a subnet problem from one host.\n\nDecision rule: name the first check that fails and stop there. A failure at check 4 is a DNS ticket, even if the user describes it as a VPN problem, and a failure at check 1 has nothing to do with the company network."
+        },
+        {
+          "h": "When small pages load and big ones hang, the tunnel is losing size",
+          "body": "The tunnel adds an IPsec or TLS header, so the usable MTU drops, commonly to around 1400 bytes. A small page fits and loads. A page with a large response, or a file upload, stalls after the handshake. That looks like a broken application and it is a tunnel sizing problem.\n\n```\nPS C:\\> ping -f -l 1400 10.30.5.20\nPinging 10.30.5.20 with 1400 bytes of data:\nPacket needs to be fragmented but DF set.\n\nPS C:\\> ping -f -l 1300 10.30.5.20\nPinging 10.30.5.20 with 1300 bytes of data:\nReply from 10.30.5.20: bytes=1300 time=41ms TTL=124\n```\n\nThe `-f` flag sets the don't-fragment bit and `-l` sets the payload size, so the first command proves the path cannot carry 1400 bytes in one packet. Bisect between the two numbers to find the limit. The fix belongs on the concentrator, where TCP MSS clamping is configured; do not change the client's MTU as a first move, because you will be guessing at a problem the network team can fix once for everyone.\n\nDecision rule: if the page loads partially, or small pages load and large ones hang, test MTU before you reopen the application ticket."
+        },
+        {
+          "h": "What you hand over",
+          "body": "A remote-access note needs the client's public address, its tunnel address, and the result of each check:\n\n```\n07:40 User on hotel Wi-Fi, public 203.0.113.44, tunnel 10.99.14.37.\n1 Internet without tunnel: OK\n2 Tunnel: Connected, adapter has 10.99.14.37/24\n3 Routes: 10.30.0.0/24 via 10.99.14.1 present; 10.40.0.0/24 absent\n4 DNS: orders.internal.example -> 10.30.5.20 (correct)\n5 Port 443: TcpTestSucceeded True\n6 Same subnet host 10.30.5.21 wiki: loads\n```\n\nThat record shows a working tunnel, working DNS and a working port. The tunnel is not the fault, and the note proves it, which sends the ticket to the application owner in one move instead of two bounces.\n\nEscalate to the network team when checks 2 or 3 fail, because routes and split-tunnel policy are concentrator configuration and require a change record. Escalate to the application owner when checks 1 through 5 pass and the service still does not respond, and attach this record. Authentication and MFA failures go to the identity team, not the network team, and saying that in the ticket saves a day."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "Six checks before you blame the tunnel",
+        "caption": "The order is the point: each step can only be trusted if the one above it passed, so the first failure names the team that owns the ticket.",
+        "data": {
+          "steps": [
+            {
+              "label": "Internet, no tunnel",
+              "detail": "public site opens"
+            },
+            {
+              "label": "Tunnel and address",
+              "detail": "10.99.x address on adapter"
+            },
+            {
+              "label": "Routes pushed",
+              "detail": "app subnet in route print"
+            },
+            {
+              "label": "DNS resolves inside",
+              "detail": "internal IP, not public"
+            },
+            {
+              "label": "Port answers",
+              "detail": "TCP 443, not ping"
+            },
+            {
+              "label": "Neighbor host",
+              "detail": "one host or the subnet"
+            }
+          ],
+          "footer": "Stop at the first failure and record it."
+        }
+      },
+      "video": {
+        "title": "VPNs Explained | Site-to-Site + Remote Access",
+        "channel": "CertBros",
+        "url": "https://www.youtube.com/watch?v=CWy3x3Wux6o",
+        "start": 0,
+        "length": "9:08",
+        "why": "It separates remote-access tunnels from site-to-site tunnels and shows what the client is actually building, which makes the six checks easier to order."
+      },
+      "commands": [
+        {
+          "cmd": "ipconfig /all",
+          "what": "Shows the tunnel adapter address and the DNS servers handed to the client"
+        },
+        {
+          "cmd": "route print -4",
+          "what": "Shows whether the failing subnet is routed into the tunnel"
+        },
+        {
+          "cmd": "nslookup orders.internal.example",
+          "what": "Proves which resolver answered and whether the name is internal"
+        },
+        {
+          "cmd": "Test-NetConnection orders.internal.example -Port 443",
+          "what": "Proves the port crosses the tunnel, not only the name"
+        },
+        {
+          "cmd": "ping -f -l 1400 10.30.5.20",
+          "what": "Tests whether the tunnel can carry a full-size packet"
+        }
+      ],
+      "pitfalls": [
+        "Restarting the VPN client when the failing subnet was never pushed to it. The route table shows that in one command, and a reconnect will not add a route.",
+        "Reading an internal wiki page as proof that the whole corporate network is reachable. Under a split tunnel only the pushed subnets work, and the wiki is usually in the first one.",
+        "Changing the client MTU on the call instead of escalating one MSS clamping setting on the concentrator, which fixes the same failure for every remote user."
+      ],
+      "takeaways": [
+        "Connected means the tunnel is up, which is one of six things that must be true.",
+        "route print is the fastest way to prove a split-tunnel policy is missing a subnet.",
+        "A page that loads partially points at MTU, a page that never starts points at DNS or the port."
+      ],
+      "drill": {
+        "prompt": "On a machine with a VPN client you are authorized to use, connect and capture ipconfig /all, route print -4 and nslookup for one internal name. Mark which of the six checks pass. Do not test against production hosts you do not own.",
+        "minutes": 10,
+        "checklist": [
+          "Tunnel adapter name, address and DNS servers written down",
+          "Route table marked with which entries point into the tunnel",
+          "One internal name resolved and the answering server identified",
+          "The six checks listed with pass or fail next to each"
+        ]
+      },
+      "sheetTopics": [
+        "VPN"
+      ]
+    }
+  ]
+}

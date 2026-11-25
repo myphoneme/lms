@@ -1,0 +1,964 @@
+{
+ "version": 1,
+ "modules": [
+  {
+   "id": "m1",
+   "seq": 1,
+   "title": "Networking foundations",
+   "tagline": "From the OSI ladder to a customer VLAN you can defend",
+   "color": "#2f6bff",
+   "icon": "network",
+   "days": "Days 1\u20135",
+   "quiz": "q1",
+   "lessons": [
+    {
+     "id": "l1-1",
+     "seq": 1,
+     "title": "Why packets fail: the two network models you will actually use",
+     "subtitle": "A packet's journey, layer by layer, and how to name the layer that broke.",
+     "minutes": 14,
+     "level": "Core",
+     "diagram": "layers",
+     "covers": [
+      "s0:OSI Model",
+      "s0:TCP/IP Model"
+     ],
+     "sheetTopics": [
+      "OSI Model",
+      "TCP/IP Model"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l1-2",
+     "seq": 2,
+     "title": "IP addresses and subnets without panic",
+     "subtitle": "Read an address plan, spot an overlap, and stop guessing whether two hosts can talk.",
+     "minutes": 18,
+     "level": "Core",
+     "diagram": "tree",
+     "covers": [
+      "s0:IP Addressing",
+      "s0:Subnetting"
+     ],
+     "sheetTopics": [
+      "IP Addressing",
+      "Subnetting"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l1-3",
+     "seq": 3,
+     "title": "DNS and DHCP: the two services behind 'the internet is down'",
+     "subtitle": "Name resolution and leases, in the order the failure actually happens.",
+     "minutes": 16,
+     "level": "Core",
+     "diagram": "sequence",
+     "covers": [
+      "s0:DNS",
+      "s0:DHCP"
+     ],
+     "sheetTopics": [
+      "DNS",
+      "DHCP"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l1-4",
+     "seq": 4,
+     "title": "TCP, UDP, ports and HTTP: what crosses the wire",
+     "subtitle": "Why the port number, not the application name, is what you verify first.",
+     "minutes": 16,
+     "level": "Core",
+     "diagram": "compare",
+     "covers": [
+      "s0:HTTP/HTTPS",
+      "s0:TCP and UDP",
+      "s0:Ports and Protocols",
+      "s1"
+     ],
+     "sheetTopics": [
+      "HTTP/HTTPS",
+      "TCP and UDP",
+      "Ports and Protocols"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l1-5",
+     "seq": 5,
+     "title": "Routing, switching and firewalls: where a packet dies",
+     "subtitle": "Follow the path across VLANs and rules until one device says no.",
+     "minutes": 17,
+     "level": "Applying",
+     "diagram": "topology",
+     "covers": [
+      "s0:Routing and Switching",
+      "s0:Firewalls"
+     ],
+     "sheetTopics": [
+      "Routing and Switching",
+      "Firewalls"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l1-6",
+     "seq": 6,
+     "title": "VPN and the network triage runbook",
+     "subtitle": "Remote-access failures, and the six checks that close most of them.",
+     "minutes": 15,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s0:VPN"
+     ],
+     "sheetTopics": [
+      "VPN"
+     ],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m2",
+   "seq": 2,
+   "title": "Linux for the desk",
+   "tagline": "Files, logs, permissions, processes and ports",
+   "color": "#0b7a4b",
+   "icon": "terminal",
+   "days": "Days 6\u201310",
+   "quiz": "q2",
+   "lessons": [
+    {
+     "id": "l2-1",
+     "seq": 1,
+     "title": "Find your way: the six commands you will type daily",
+     "subtitle": "pwd, ls, cd, mkdir, cat and find \u2014 and the paths that bite when you guess.",
+     "minutes": 13,
+     "level": "Core",
+     "diagram": "tree",
+     "covers": [
+      "s2:pwd",
+      "s2:ls",
+      "s2:cd",
+      "s2:mkdir",
+      "s2:cat",
+      "s2:find"
+     ],
+     "sheetTopics": [
+      "pwd",
+      "ls",
+      "cd",
+      "mkdir",
+      "cat",
+      "find"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l2-2",
+     "seq": 2,
+     "title": "grep and journalctl: reading what the box is telling you",
+     "subtitle": "Search a tree, read a unit's journal, and pull the error that matters.",
+     "minutes": 15,
+     "level": "Core",
+     "diagram": "flow",
+     "covers": [
+      "s2:grep",
+      "s2:journalctl"
+     ],
+     "sheetTopics": [
+      "grep",
+      "journalctl"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l2-3",
+     "seq": 3,
+     "title": "Permissions, ownership and sudo: why 'permission denied' happens",
+     "subtitle": "rwx bits, numeric modes, and the smallest change that fixes access.",
+     "minutes": 15,
+     "level": "Core",
+     "diagram": "layers",
+     "covers": [
+      "s2:chmod",
+      "s2:chown",
+      "s2:sudo"
+     ],
+     "sheetTopics": [
+      "chmod",
+      "chown",
+      "sudo"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l2-4",
+     "seq": 4,
+     "title": "Processes and listening ports: ps, top, ss",
+     "subtitle": "Find what is running, what is eating the CPU, and what owns port 8080.",
+     "minutes": 16,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s2:ps",
+      "s2:top",
+      "s2:ss -tulnp"
+     ],
+     "sheetTopics": [
+      "ps",
+      "top",
+      "ss -tulnp"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l2-5",
+     "seq": 5,
+     "title": "Networking from Linux: addresses, routes and DNS checks",
+     "subtitle": "Prove the interface, the route and the resolver before you escalate.",
+     "minutes": 15,
+     "level": "Applying",
+     "diagram": "topology",
+     "covers": [
+      "s2:ip addr"
+     ],
+     "sheetTopics": [
+      "ip addr"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l2-6",
+     "seq": 6,
+     "title": "The Linux triage runbook: disk, service, port, permission",
+     "subtitle": "A repeatable order for the four calls that look different and are not.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "tree",
+     "covers": [],
+     "sheetTopics": [],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m3",
+   "seq": 3,
+   "title": "Windows and PowerShell",
+   "tagline": "Identity, services and the event log trail",
+   "color": "#8a5300",
+   "icon": "server",
+   "days": "Days 11\u201315",
+   "quiz": "q3",
+   "lessons": [
+    {
+     "id": "l3-1",
+     "seq": 1,
+     "title": "ipconfig, ping, whoami: the first three commands on any Windows box",
+     "subtitle": "Establish identity, address and reachability before changing anything.",
+     "minutes": 12,
+     "level": "Core",
+     "diagram": "compare",
+     "covers": [
+      "s3:ipconfig",
+      "s3:ping",
+      "s3:whoami"
+     ],
+     "sheetTopics": [
+      "ipconfig",
+      "ping",
+      "whoami"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l3-2",
+     "seq": 2,
+     "title": "Processes and services: tasklist, Get-Process, Get-Service",
+     "subtitle": "What is running, under which account, and what starts at boot.",
+     "minutes": 15,
+     "level": "Core",
+     "diagram": "flow",
+     "covers": [
+      "s3:tasklist",
+      "s3:Get-Process",
+      "s3:Get-Service"
+     ],
+     "sheetTopics": [
+      "tasklist",
+      "Get-Process",
+      "Get-Service"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l3-3",
+     "seq": 3,
+     "title": "Accounts and lockouts: net user and the local admin problem",
+     "subtitle": "Find a locked, disabled or over-privileged account without guessing.",
+     "minutes": 14,
+     "level": "Applying",
+     "diagram": "tree",
+     "covers": [
+      "s3:net user"
+     ],
+     "sheetTopics": [
+      "net user"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l3-4",
+     "seq": 4,
+     "title": "Event logs: Get-EventLog, Get-WinEvent and six IDs that matter",
+     "subtitle": "Turn a vague 'it logged me out' into a timestamp you can defend.",
+     "minutes": 17,
+     "level": "Applying",
+     "diagram": "timeline",
+     "covers": [
+      "s3:Get-EventLog",
+      "s3:Get-WinEvent",
+      "s13"
+     ],
+     "sheetTopics": [
+      "Get-EventLog",
+      "Get-WinEvent"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l3-5",
+     "seq": 5,
+     "title": "PowerShell for L1: objects, pipes and safe one-liners",
+     "subtitle": "Stop parsing text; select, sort and filter real objects.",
+     "minutes": 16,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [],
+     "sheetTopics": [],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l3-6",
+     "seq": 6,
+     "title": "The Windows triage runbook: slow PC, no RDP, locked account",
+     "subtitle": "Three common calls, one order of checks, evidence in the ticket.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "tree",
+     "covers": [],
+     "sheetTopics": [],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m4",
+   "seq": 4,
+   "title": "Security fundamentals",
+   "tagline": "CIA, identity, crypto, and the policies behind the ticket",
+   "color": "#6b3fa0",
+   "icon": "shield",
+   "days": "Days 16\u201320",
+   "quiz": "q4",
+   "lessons": [
+    {
+     "id": "l4-1",
+     "seq": 1,
+     "title": "The CIA triad and thinking like an attacker, within the rules",
+     "subtitle": "Confidentiality, integrity and availability as three different tickets.",
+     "minutes": 14,
+     "level": "Core",
+     "diagram": "flow",
+     "covers": [
+      "s4:Security Principles"
+     ],
+     "sheetTopics": [
+      "Security Principles"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l4-2",
+     "seq": 2,
+     "title": "Identity: authentication, authorisation, MFA and least privilege",
+     "subtitle": "Who you are, what you may do, and why both checks exist.",
+     "minutes": 16,
+     "level": "Core",
+     "diagram": "sequence",
+     "covers": [
+      "s4:Identity Security",
+      "s4:Access Security"
+     ],
+     "sheetTopics": [
+      "Identity Security",
+      "Access Security"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l4-3",
+     "seq": 3,
+     "title": "Encryption and hashing: what TLS actually proves",
+     "subtitle": "Certificates, handshakes, and the difference between secrecy and integrity.",
+     "minutes": 17,
+     "level": "Core",
+     "diagram": "sequence",
+     "covers": [
+      "s4:Cryptography"
+     ],
+     "sheetTopics": [
+      "Cryptography"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l4-4",
+     "seq": 4,
+     "title": "Network and endpoint protection: segmentation, EDR and patching",
+     "subtitle": "Why a flat network turns one laptop into an incident.",
+     "minutes": 15,
+     "level": "Applying",
+     "diagram": "topology",
+     "covers": [
+      "s4:Network Protection",
+      "s4:Device Protection"
+     ],
+     "sheetTopics": [
+      "Network Protection",
+      "Device Protection"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l4-5",
+     "seq": 5,
+     "title": "Web security: injection, XSS and misconfiguration",
+     "subtitle": "The three findings behind most application tickets, and their fixes.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s4:Application Protection",
+      "s14"
+     ],
+     "sheetTopics": [
+      "Application Protection"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l4-6",
+     "seq": 6,
+     "title": "Risk, vulnerability management and the policy you are enforcing",
+     "subtitle": "Severity, likelihood, exceptions and the document nobody reads.",
+     "minutes": 15,
+     "level": "Applying",
+     "diagram": "quadrant",
+     "covers": [
+      "s4:Risk Management",
+      "s4:Governance"
+     ],
+     "sheetTopics": [
+      "Risk Management",
+      "Governance"
+     ],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m5",
+   "seq": 5,
+   "title": "Offensive security, legally",
+   "tagline": "Recon to report, only on systems you are authorised to test",
+   "color": "#ae2a1c",
+   "icon": "target",
+   "days": "Days 21\u201325",
+   "quiz": "q5",
+   "lessons": [
+    {
+     "id": "l5-1",
+     "seq": 1,
+     "title": "Recon and footprinting: what is already public about a company",
+     "subtitle": "Map the exposed surface before you touch a single port.",
+     "minutes": 15,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s5:Reconnaissance",
+      "s5:Footprinting"
+     ],
+     "sheetTopics": [
+      "Reconnaissance",
+      "Footprinting"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l5-2",
+     "seq": 2,
+     "title": "Nmap: scanning with a question, not a habit",
+     "subtitle": "Hosts, ports, service versions, and reading the output honestly.",
+     "minutes": 17,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s5:Port Scanning",
+      "s5:Nmap"
+     ],
+     "sheetTopics": [
+      "Port Scanning",
+      "Nmap"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l5-3",
+     "seq": 3,
+     "title": "Wireshark: seeing the conversation instead of guessing",
+     "subtitle": "Capture, filter, follow a stream, and prove where it stopped.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "sequence",
+     "covers": [
+      "s5:Wireshark",
+      "s12"
+     ],
+     "sheetTopics": [
+      "Wireshark"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l5-4",
+     "seq": 4,
+     "title": "Burp Suite: testing a web app the authorised way",
+     "subtitle": "Proxy, intercept, replay, and keep a record of every request.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "flow",
+     "covers": [
+      "s5:Burp Suite"
+     ],
+     "sheetTopics": [
+      "Burp Suite"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l5-5",
+     "seq": 5,
+     "title": "OWASP Top 10 in practice: break SQLi and XSS, then fix them",
+     "subtitle": "Exploit in the lab, read the code, write the fix.",
+     "minutes": 20,
+     "level": "Diagnosing",
+     "diagram": "compare",
+     "covers": [
+      "s5:OWASP Top 10",
+      "s5:SQL Injection",
+      "s5:Cross-Site Scripting"
+     ],
+     "sheetTopics": [
+      "OWASP Top 10",
+      "SQL Injection",
+      "Cross-Site Scripting"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l5-6",
+     "seq": 6,
+     "title": "Vulnerability scanning, Metasploit and the report that follows",
+     "subtitle": "Validate findings, rate them honestly, and write for the client.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "timeline",
+     "covers": [
+      "s5:Vulnerability Scanning",
+      "s5:Metasploit",
+      "s5:Penetration Testing"
+     ],
+     "sheetTopics": [
+      "Vulnerability Scanning",
+      "Metasploit",
+      "Penetration Testing"
+     ],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m6",
+   "seq": 6,
+   "title": "SOC, SIEM and detection",
+   "tagline": "From raw logs to one alert queue you can trust",
+   "color": "#0f6f83",
+   "icon": "activity",
+   "days": "Days 26\u201330",
+   "quiz": "q6",
+   "lessons": [
+    {
+     "id": "l6-1",
+     "seq": 1,
+     "title": "Logs to SIEM: how raw events become one queue",
+     "subtitle": "Sources, normalisation, indexing, and why the timestamp is the argument.",
+     "minutes": 16,
+     "level": "Core",
+     "diagram": "flow",
+     "covers": [
+      "s6:Log Management",
+      "s6:SIEM"
+     ],
+     "sheetTopics": [
+      "Log Management",
+      "SIEM"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l6-2",
+     "seq": 2,
+     "title": "Splunk, Sentinel and Elastic: same job, different syntax",
+     "subtitle": "Pick the query that answers the question, not the one you memorised.",
+     "minutes": 16,
+     "level": "Applying",
+     "diagram": "compare",
+     "covers": [
+      "s7"
+     ],
+     "sheetTopics": [
+      "Tools"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l6-3",
+     "seq": 3,
+     "title": "Alert triage: true positive, false positive, and severity",
+     "subtitle": "Decide in three minutes whether to escalate, close or investigate.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "tree",
+     "covers": [
+      "s7:Security Alerts",
+      "s7:Threat Detection"
+     ],
+     "sheetTopics": [
+      "Security Alerts",
+      "Threat Detection"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l6-4",
+     "seq": 4,
+     "title": "Correlation and detection engineering: writing a use case",
+     "subtitle": "Turn one alert into a rule that finds the behaviour, not the symptom.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "flow",
+     "covers": [
+      "s7:Incident Correlation",
+      "s7:Detection Engineering"
+     ],
+     "sheetTopics": [
+      "Incident Correlation",
+      "Detection Engineering"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l6-5",
+     "seq": 5,
+     "title": "MITRE ATT&CK and threat intelligence: mapping what you see",
+     "subtitle": "Where IOCs fit, where they fail, and how to use ATT&CK for coverage.",
+     "minutes": 17,
+     "level": "Diagnosing",
+     "diagram": "timeline",
+     "covers": [
+      "s8:MITRE ATT&CK",
+      "s7:Threat Intelligence"
+     ],
+     "sheetTopics": [
+      "MITRE ATT&CK",
+      "Threat Intelligence"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l6-6",
+     "seq": 6,
+     "title": "A SOC shift: five alerts, one incident",
+     "subtitle": "Walk a shift: triage, correlate, escalate, hand over.",
+     "minutes": 20,
+     "level": "Complex",
+     "diagram": "sequence",
+     "covers": [],
+     "sheetTopics": [],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m7",
+   "seq": 7,
+   "title": "Incident response and forensics",
+   "tagline": "Contain, preserve, explain \u2014 in that order",
+   "color": "#8a1f14",
+   "icon": "alert",
+   "days": "Days 31\u201335",
+   "quiz": "q7",
+   "lessons": [
+    {
+     "id": "l7-1",
+     "seq": 1,
+     "title": "Identification and classification: is this an incident?",
+     "subtitle": "Separate a nuisance from a breach, and set severity without drama.",
+     "minutes": 15,
+     "level": "Core",
+     "diagram": "tree",
+     "covers": [
+      "s9:Identification",
+      "s9:Classification"
+     ],
+     "sheetTopics": [
+      "Identification",
+      "Classification"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l7-2",
+     "seq": 2,
+     "title": "Investigation and evidence: chain of custody for people who are not examiners",
+     "subtitle": "What to capture, what to stop touching, and how to record it.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s9:Investigation",
+      "s9:Evidence Collection"
+     ],
+     "sheetTopics": [
+      "Investigation",
+      "Evidence Collection"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l7-3",
+     "seq": 3,
+     "title": "Digital forensics: disk, memory and log artefacts",
+     "subtitle": "Order of volatility, and the three artefacts that answer most questions.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "layers",
+     "covers": [
+      "s9:Digital Forensics"
+     ],
+     "sheetTopics": [
+      "Digital Forensics"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l7-4",
+     "seq": 4,
+     "title": "Malware analysis without becoming the next victim",
+     "subtitle": "Safe handling, hashes, sandboxes and what a report must contain.",
+     "minutes": 17,
+     "level": "Diagnosing",
+     "diagram": "flow",
+     "covers": [
+      "s9:Malware Analysis"
+     ],
+     "sheetTopics": [
+      "Malware Analysis"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l7-5",
+     "seq": 5,
+     "title": "Containment, eradication and recovery",
+     "subtitle": "Isolate the blast radius, remove the root cause, restore with proof.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "timeline",
+     "covers": [
+      "s9:Containment",
+      "s9:Eradication",
+      "s9:Recovery"
+     ],
+     "sheetTopics": [
+      "Containment",
+      "Eradication",
+      "Recovery"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l7-6",
+     "seq": 6,
+     "title": "Root cause, documentation and the report a client reads",
+     "subtitle": "Write the timeline, the cause, the fix and the prevention \u2014 plainly.",
+     "minutes": 18,
+     "level": "Diagnosing",
+     "diagram": "flow",
+     "covers": [
+      "s9:Root Cause Analysis",
+      "s9:Documentation",
+      "s9:Reporting"
+     ],
+     "sheetTopics": [
+      "Root Cause Analysis",
+      "Documentation",
+      "Reporting"
+     ],
+     "kind": "Lesson"
+    }
+   ]
+  },
+  {
+   "id": "m8",
+   "seq": 8,
+   "title": "Automation and scripting",
+   "tagline": "Make the repetitive check one command",
+   "color": "#1f5bd6",
+   "icon": "bolt",
+   "days": "Days 36\u201340",
+   "quiz": "q8",
+   "lessons": [
+    {
+     "id": "l8-1",
+     "seq": 1,
+     "title": "Python you actually need: values, loops, functions, files",
+     "subtitle": "Enough Python to read a log, count things and write a CSV.",
+     "minutes": 18,
+     "level": "Core",
+     "diagram": "flow",
+     "covers": [
+      "s10:Python"
+     ],
+     "sheetTopics": [
+      "Python"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l8-2",
+     "seq": 2,
+     "title": "Python for operations: requests, JSON, APIs and logging",
+     "subtitle": "Pull a ticket list, parse it, and leave a trail when it fails.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "sequence",
+     "covers": [
+      "s10:Integrations",
+      "s11:requests",
+      "s11:json",
+      "s11:logging"
+     ],
+     "sheetTopics": [
+      "Integrations",
+      "requests",
+      "json",
+      "logging"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l8-3",
+     "seq": 3,
+     "title": "Bash: turning ten commands into one script",
+     "subtitle": "Arguments, loops, exit codes, and the safety line before rm.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s10:Linux Automation",
+      "s10:Security Automation"
+     ],
+     "sheetTopics": [
+      "Linux Automation",
+      "Security Automation"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l8-4",
+     "seq": 4,
+     "title": "PowerShell automation: objects, filters and scheduled checks",
+     "subtitle": "One pipeline that answers 'which services are stopped and should not be'.",
+     "minutes": 18,
+     "level": "Applying",
+     "diagram": "flow",
+     "covers": [
+      "s10:Windows Automation"
+     ],
+     "sheetTopics": [
+      "Windows Automation"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l8-5",
+     "seq": 5,
+     "title": "Logs, regex and indicators: re, pandas, hashlib",
+     "subtitle": "Extract the fields, count the sources, hash the file.",
+     "minutes": 19,
+     "level": "Diagnosing",
+     "diagram": "flow",
+     "covers": [
+      "s10:Log Processing",
+      "s10:Programming",
+      "s10:Threat Intelligence",
+      "s11:re",
+      "s11:pandas",
+      "s11:hashlib"
+     ],
+     "sheetTopics": [
+      "Log Processing",
+      "Programming",
+      "Threat Intelligence",
+      "re",
+      "pandas",
+      "hashlib"
+     ],
+     "kind": "Lesson"
+    },
+    {
+     "id": "l8-6",
+     "seq": 6,
+     "title": "Detection, alerting and playbooks: the four capstones",
+     "subtitle": "YARA, alert routing, a written playbook, and the projects that prove it.",
+     "minutes": 20,
+     "level": "Complex",
+     "diagram": "topology",
+     "covers": [
+      "s10:Threat Hunting",
+      "s10:Detection",
+      "s10:Monitoring",
+      "s10:Response",
+      "s11:socket",
+      "s15"
+     ],
+     "sheetTopics": [
+      "Threat Hunting",
+      "Detection",
+      "Monitoring",
+      "Response",
+      "socket"
+     ],
+     "kind": "Lesson"
+    }
+   ]
+  }
+ ]
+}

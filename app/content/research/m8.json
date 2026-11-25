@@ -1,0 +1,137 @@
+{
+  "moduleId": "m8",
+  "items": [
+    {
+      "title": "Python Tutorial: CSV Module - How to Read, Parse, and Write CSV Files",
+      "creator": "Corey Schafer",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=q5uM4VKywbA",
+      "why": "Builds csv.reader, csv.writer and DictWriter with fieldnames in sixteen minutes, so the header row and the quoting of a field that contains a comma are done by the module rather than by string concatenation. That is exactly the step where l8-1's hand-built rows turn into 'plausible rows and a wrong total'.",
+      "struggle": "I joined the fields with commas myself and now every ticket title containing a comma shifts the columns in Excel.",
+      "topic": "Python",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "JSONDecodeError: Expecting value: line 1 column 1 (char 0)",
+      "creator": "Stack Overflow",
+      "format": "Thread",
+      "url": "https://stackoverflow.com/questions/16573332/jsondecodeerror-expecting-value-line-1-column-1-char-0",
+      "why": "The accepted answer separates the three ways that error appears: an empty body, a non-2xx status nobody checked, and a body that is HTML rather than JSON, with a highly voted answer naming the '<' at position one as the tell. It is l8-2's login-page-instead-of-API failure answered by people who hit it, not a tutorial that assumes the API behaves.",
+      "struggle": "The same URL returns JSON in my browser, but the call from Python dies with JSONDecodeError: Expecting value: line 1 column 1 (char 0).",
+      "topic": "json",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "SC2086 – Double quote to prevent globbing and word splitting",
+      "creator": "ShellCheck project (koalaman)",
+      "format": "Docs",
+      "url": "https://www.shellcheck.net/wiki/SC2086",
+      "why": "One page showing the problematic line, the corrected line, and the reason in plain words: quoting 'prevents the script from breaking when input contains spaces, line feeds, glob characters'. It is the exact rule l8-3 depends on, keyed to the warning code the learner will see in the terminal, so it beats re-reading a shell tutorial to find the one paragraph.",
+      "struggle": "My for loop works on every file except the ones with a space in the name — it treats one file as two.",
+      "topic": "Linux Automation",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Unleash the Power of PowerShell Pipelines for Beginners!",
+      "creator": "Travis Roberts",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=LlfvskfweBg",
+      "why": "Eight minutes on the thing that separates PowerShell from bash: the pipe passes objects, and $_ is one of them, which is why filtering on a column you can plainly see in the console returns nothing until you use the property name. It is l8-4's 'stop reading the console by eye' idea shown on screen instead of asserted.",
+      "struggle": "I can see the Status column in the console, but Where-Object returns nothing — what is the pipe actually passing?",
+      "topic": "Windows Automation",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Python Tutorial: Logging Basics - Logging to Files, Setting Levels, and Formatting",
+      "creator": "Corey Schafer",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=-ARI4Cz-awo",
+      "why": "Shows basicConfig, the five levels and a format string, then demonstrates that the default level silently drops debug lines — which is why a learner concludes logging is broken when it is doing exactly what it was configured to do. Fourteen minutes, standard library only, no framework.",
+      "struggle": "I added log.debug() lines and the log file only ever contains warnings and errors.",
+      "topic": "logging",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Advanced Usage — Timeouts",
+      "creator": "Requests documentation",
+      "format": "Docs",
+      "url": "https://requests.readthedocs.io/en/latest/user/advanced/#timeouts",
+      "why": "Two paragraphs no beginner tutorial says out loud: requests has no default timeout, so a stalled server hangs the script for minutes with no error at all, and the fix is one argument or a connect/read tuple. This is the documentation behind l8-2's 'timeout 10 s' and the reason a cron job can sit there forever looking busy.",
+      "struggle": "The script hung on one API call for forty minutes and never printed an error — cron just left it running.",
+      "topic": "requests",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Writing YARA rules",
+      "creator": "YARA documentation",
+      "format": "Docs",
+      "url": "https://yara.readthedocs.io/en/latest/writingrules.html",
+      "why": "The syntax page rather than the landing page: meta, strings and condition in order, then 'all of them', 'any of them' and filesize — the three levers that stop a rule firing on a readme that merely contains the string. l8-6's false-positive problem is a condition problem, and this page is where the conditions are listed.",
+      "struggle": "My YARA rule fires on a readme and on the admin team's own PsExec copy, so someone muted it and now nobody reads the alerts.",
+      "topic": "Detection",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Automatic exit from Bash shell script on error",
+      "creator": "Stack Overflow",
+      "format": "Thread",
+      "url": "https://stackoverflow.com/questions/2870992/automatic-exit-from-bash-shell-script-on-error",
+      "why": "The accepted answer gives set -euxo pipefail and then lists the exceptions from man bash — a failing command inside an && or || list, or anything but the last element of a pipeline — which is precisely the hole the night-shift disk check fell through with its '|| true'. Reading the exceptions is what stops 'I put set -e at the top' from being treated as the whole answer.",
+      "struggle": "I put set -e at the top of my script and it still ran the next command after a failure.",
+      "topic": "Linux Automation",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "PowerShell script won't execute as a Windows scheduled task",
+      "creator": "Stack Overflow",
+      "format": "Thread",
+      "url": "https://stackoverflow.com/questions/13015245/powershell-script-wont-execute-as-a-windows-scheduled-task",
+      "why": "The asker has the l8-4 symptom exactly — Last Run Result 0x1, script works by hand, the log line it writes never appears — and the accepted answer gives the full powershell.exe invocation (-NoProfile, -NonInteractive, -ExecutionPolicy Bypass, -File) while another answer lists the remaining 0x1 causes. This is how the morning check writes an empty CSV that everyone reads as a clean estate.",
+      "struggle": "The scheduled task shows Last Run Result 0x1 and my script's log file was never created, but it runs fine when I start it by hand.",
+      "topic": "Windows Automation",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Data Wrangling",
+      "creator": "MIT Missing Semester (Anish Athalye, Jon Gjengset, Jose Javier Gonzalez Ortiz)",
+      "format": "Course",
+      "url": "https://missing.csail.mit.edu/2020/data-wrangling/",
+      "why": "The lecture that answers l8-5's question before Python does: pull fields out of grep output with sed, awk and jq, then count them in a pipeline you can rerun on the other two hosts. It is where the lesson's awk one-liner comes from, and it makes the case for when a pipeline beats a script and when it does not.",
+      "struggle": "grep gives me 2,141 matching lines but I need a count per source IP — is there a one-liner before I write Python?",
+      "topic": "re",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Tools and Benchmarks for Automated Log Parsing",
+      "creator": "Shilin He, Jieming Zhu, Pinjia He, Michael R. Lyu (ICSE 2019)",
+      "format": "Paper",
+      "url": "https://arxiv.org/abs/1811.03509",
+      "why": "Benchmarks a field of log parsers on the same datasets and reports how many templates each one misses, which turns 'my regex is broken' into the number l8-5 asks for: an unknown-line budget you state rather than hide. The abstract alone kills the assumption that a good pattern should match every line.",
+      "struggle": "My regex parses about 70 percent of the log lines and I cannot tell whether the rest are a different event or my pattern is wrong.",
+      "topic": "Log Processing",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "The Practice of Programming",
+      "creator": "Brian W. Kernighan & Rob Pike",
+      "format": "Book",
+      "url": "https://www.informit.com/store/practice-of-programming-9780201615869",
+      "why": "Its debugging and testing chapters are about the habit this module keeps demanding — build the check that would have caught the wrong answer before the number goes in a ticket — in forty pages that predate Python and outlive it. Chapter 6's test scaffolds are the difference between l8-1's checked CSV and the grep -c it replaced, and no free article covers that as concretely.",
+      "struggle": "My script printed a number and the app team asked how I know it is right.",
+      "topic": "Programming",
+      "level": "Deep",
+      "cost": "Paid"
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "moduleId": "m2",
+  "items": [
+    {
+      "title": "Demystifying \"find\" and \"find -exec\" ...Lil' Linux Lesson!",
+      "creator": "Veronica Explains",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=FvEoGHFKsKA",
+      "why": "Shows the find expression in the order the parser reads it (-type, then -name, then -exec) and why `-exec ... +` batches while `\\;` runs once per hit, which is the difference that makes a find command do nothing with no error at all. Eight minutes, no course intro, and it never drifts into packaging or permissions.",
+      "struggle": "my find -exec prints nothing and returns no error - I can't tell whether it ran at all",
+      "topic": "find",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Learning the shell - Lesson 2: Navigation",
+      "creator": "William Shotts (linuxcommand.org)",
+      "format": "Article",
+      "url": "https://linuxcommand.org/lc3_lts0020.php",
+      "why": "Defines absolute versus relative pathnames and the cd shortcuts before anything else, then states the rule behind most 'the config is gone' tickets: names beginning with a dot are hidden unless you type ls -a. One page, and it makes pwd the first thing you run, which is exactly the pwd-first habit l2-1's handover asks for.",
+      "struggle": "ls in /etc/nginx shows only conf.d - where did nginx.conf go?",
+      "topic": "cd",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "How To Manage Linux Services with systemctl and journalctl | Sysadmin Basics",
+      "creator": "Akamai Developers",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=3kl62YSU9XA",
+      "why": "The 9:20-12:01 chapters do the three reductions l2-2 asks for - one unit's log, follow it live, then one time window - instead of dumping a whole boot into the ticket, and the first seven minutes prove the unit is even running before you read its log. Fourteen minutes is one sitting for a learner on a four-hour week.",
+      "struggle": "journalctl -u app prints three days of logs - how do I pull just the failures from last night?",
+      "topic": "journalctl",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Shell Tools and Scripting (The Missing Semester, Lecture 2)",
+      "creator": "MIT Missing Semester (Anish Athalye, Jon Gjengset, Jose Javier Gonzalez Ortiz)",
+      "format": "Course",
+      "url": "https://missing.csail.mit.edu/2020/shell-tools/",
+      "why": "Frames grep as one stage in a pipeline - line numbers, piping into xargs, quoting so the shell does not expand your pattern before grep ever sees it - which is why a grep that 'matches nothing' is usually a quoting or path problem, not a regex problem. It ships exercises, so learners practise on their own VM instead of watching a demo.",
+      "struggle": "grep 'error' app.log finds nothing, but the string is right there when I open the file",
+      "topic": "grep",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "File permissions",
+      "creator": "Arch Wiki",
+      "format": "Docs",
+      "url": "https://wiki.archlinux.org/title/File_permissions",
+      "why": "Puts the directory execute bit, setgid, sticky and umask in tables beside the rwx triplets, so a learner can see why chmod 777 on the file still fails when a parent directory or an ACL blocks the path. Vendor intro pages stop at chmod 755 and never mention the parent directory the denial actually comes from.",
+      "struggle": "chmod 777 changed nothing - the service still gets permission denied in its own upload folder",
+      "topic": "chmod",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Linux user in group can't cd into directory with executable permission",
+      "creator": "Super User (Stack Exchange)",
+      "format": "Thread",
+      "url": "https://superuser.com/questions/851087/linux-user-in-group-cant-cd-into-directory-with-executable-permission",
+      "why": "The l2-3 trap in one question: the user is in the group, the group triplet has r-x, and cd still fails. The answer is the trailing + on drwxr-xr-x+ - an ACL mask overriding the group bits - so the fix is setfacl, not chmod, which is why the ten characters have to be read before they are changed.",
+      "struggle": "I'm in the group and the directory has r-x for that group, so why does cd say permission denied?",
+      "topic": "chmod",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "How to Interpret Load Average in Linux (Linux Crash Course Series)",
+      "creator": "Learn Linux TV (Jay LaCroix)",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=4bJmzHh4pg0",
+      "why": "Normalises the three load numbers against CPU count - load 12 on four cores is three times oversubscribed - and says which of the three to quote, so the l2-4 ticket stops being 'CPU is at 96%' and becomes a statement about queueing. It explains the top header specifically rather than touring every monitoring tool.",
+      "struggle": "load average is 12 but CPU is only at 60% - is the box overloaded or not?",
+      "topic": "top",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "ss(8) - another utility to investigate sockets",
+      "creator": "iproute2 project (man7.org)",
+      "format": "Docs",
+      "url": "https://man7.org/linux/man-pages/man8/ss.8.html",
+      "why": "Documents the two defaults behind 'nothing is listening': plain ss omits listening sockets, so -l is required, and without -n port 8080 prints as a service name you cannot grep. It also defines the Recv-Q/Send-Q columns, which is what turns 'port is open' into 'the queue is full'.",
+      "struggle": "ss shows nothing on 8080 but the app process is running - is it not listening?",
+      "topic": "ss -tulnp",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Why can't ping resolve hostname, but nslookup can, in Ubuntu 17.04?",
+      "creator": "Super User (Stack Exchange)",
+      "format": "Thread",
+      "url": "https://superuser.com/questions/1214131/why-can-t-ping-resolve-hostname-but-nslookup-can-in-ubuntu-17-04",
+      "why": "Separates the two lookup paths l2-5 tells learners to separate: dig queries DNS directly, while ping goes through getaddrinfo and /etc/nsswitch.conf, where mdns4_minimal with [NOTFOUND=return] can end the search before DNS is ever tried. One nsswitch line explains a ticket that otherwise gets escalated as 'DNS is broken'.",
+      "struggle": "dig returns the A record but ping says 'Name or service not known' - how can DNS work and not work?",
+      "topic": "ip addr",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "RFC 1034 - Domain Names: Concepts and Facilities, section 5.3.3 Resolver Algorithm",
+      "creator": "Paul Mockapetris (IETF)",
+      "format": "Paper",
+      "url": "https://www.rfc-editor.org/rfc/rfc1034.html#section-5.3.3",
+      "why": "Section 5.3.3 specifies the resolver algorithm and its search list, which is why curl billing tries billing.corp.example.com while dig billing returns NXDOMAIN - the getent-versus-dig split at the level of mechanism rather than commands. Command docs can tell you what to type; only this tells you what the stub resolver does with it.",
+      "struggle": "curl billing won't resolve but dig billing.corp.example.com answers - same host, same nameserver",
+      "topic": "ip addr",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Systemctl service failed Exit-code (status=203/EXEC)",
+      "creator": "Unix & Linux Stack Exchange",
+      "format": "Thread",
+      "url": "https://unix.stackexchange.com/questions/697995/systemctl-service-failed-exit-code",
+      "why": "The accepted answer decodes 203/EXEC as execve failing on a missing or unexecutable ExecStart binary and points at man systemd.exec for the 200+ range - l2-6's step from exit code to failing layer. It beats an exit-code table because it tells you to test the binary as the service user instead of restarting again.",
+      "struggle": "systemctl restart works, then the service dies again in ten seconds and status only says 'failed with result exit-code'",
+      "topic": "journalctl",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "How Linux Works, 3rd Edition",
+      "creator": "Brian Ward (No Starch Press)",
+      "format": "Book",
+      "url": "https://nostarch.com/howlinuxworks3",
+      "why": "Ch. 4 'Disks and Filesystems' goes below df and du to inodes, mounts and block accounting, which is what makes 'no space left on device' next to 40% free space legible; Ch. 8 explains what the ps state letters and load figures are measuring. That is the depth l2-6's runbook assumes when it asks you to separate real disk use from what df cannot see.",
+      "struggle": "df says the filesystem is full but du finds nothing large - and the nightly job keeps dying",
+      "topic": "ps",
+      "level": "Deep",
+      "cost": "Paid"
+    }
+  ]
+}

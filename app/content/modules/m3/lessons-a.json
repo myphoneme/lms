@@ -1,0 +1,427 @@
+{
+  "moduleId": "m3",
+  "lessons": [
+    {
+      "id": "l3-1",
+      "moduleId": "m3",
+      "seq": 1,
+      "title": "ipconfig, ping, whoami: the first three commands on any Windows box",
+      "subtitle": "Establish identity, address and reachability before changing anything.",
+      "minutes": 12,
+      "level": "Core",
+      "objectives": [
+        "Prove which account and which privilege level you are working under with whoami and whoami /groups",
+        "Read ipconfig /all for address, gateway, DNS servers and DHCP state, and spot an APIPA address",
+        "Tell Request timed out, Destination host unreachable and could not find host apart, and say what each one rules out",
+        "Decide in one line whether the ticket is DNS, DHCP, link or application before you escalate"
+      ],
+      "ticket": {
+        "from": "Service Desk — Windows desktop queue",
+        "subject": "Laptop shows full Wi-Fi but no browser page loads",
+        "body": "The user opened the laptop at 08:55, the Wi-Fi icon shows five bars, and the browser says \"This site can't be reached\" for the invoice portal. Teams on the same laptop still receives messages. The user restarted once and tried the wired dock with the same result. Nothing was changed on the machine since yesterday.",
+        "impact": "One accounts payable user cannot reach the invoice portal since 09:05; month-end invoices are waiting."
+      },
+      "sections": [
+        {
+          "h": "Five bars of Wi-Fi and the user still cannot reach the portal",
+          "body": "Five bars of Wi-Fi and the user still cannot reach the invoice portal. The tray icon measures the radio link between the laptop and the access point. It says nothing about the address the laptop received, whether the gateway answers, or whether the name in the browser became an address at all.\n\nTickets that start from that icon end in a reboot, a second call, and an escalation that names no failing layer. Three commands in the right order produce a ticket that names one: `whoami` says which account is asking, `ipconfig /all` says what the machine believes about its own addressing, and `ping` says whether one specific host answers right now. Under a minute of typing, and the next engineer does not repeat it."
+        },
+        {
+          "h": "whoami: which account is asking, and with which rights",
+          "body": "`whoami` prints the account as `domain\\user`. Run it first when two people on the same machine get different results, because Group Policy, mapped drives, per-user VPN profiles and proxy settings all follow the account, not the computer.\n\n`whoami /groups` lists every group in the current token, including the integrity level line that tells you whether the window is elevated. `whoami /priv` lists the privileges the token holds; a standard user has far fewer than an administrator. `whoami /upn` prints the user principal name, the `jdoe@corp.example` form that the mail and VPN teams will ask for.\n\n```\nC:\\> whoami\ncorp\\jdoe\n\nC:\\> whoami /groups | findstr /i \"mandatory\"\nMandatory Label\\Medium Mandatory Level  Label  S-1-16-8192\n```\n\n`Medium` means the window is not elevated. A fix that needs administrator rights will fail from that window even when the account is a local administrator, and the failure looks like a permissions bug rather than the User Account Control prompt the user dismissed."
+        },
+        {
+          "h": "ipconfig /all: the machine's account of itself",
+          "body": "`ipconfig /all` prints one block per adapter. Read four lines before any other: the IPv4 address, the default gateway, the DNS servers, and whether DHCP is enabled. An address starting with `169.254.` is an APIPA address, which means the machine asked for a lease and nothing answered; there is no point testing the internet until DHCP replies. `Media State . . . . . . . : Media disconnected` means the link is down at the network card, so the cable, the dock or the switch port is the finding.\n\n```\nC:\\> ipconfig /all\n\nWindows IP Configuration\n\n   Host Name . . . . . . . . . . . . : ws-4412\n   Primary Dns Suffix  . . . . . . . : corp.example\n\nEthernet adapter Ethernet:\n\n   Description . . . . . . . . . . . : Intel(R) Ethernet Connection I219-LM\n   DHCP Enabled. . . . . . . . . . . : Yes\n   IPv4 Address. . . . . . . . . . . : 10.20.14.87(Preferred)\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 10.20.14.1\n   DNS Servers . . . . . . . . . . . : 10.20.0.10\n                                       10.20.0.11\n   Lease Obtained. . . . . . . . . . : Monday, November 24, 2025 8:41:12 AM\n```\n\nThe DNS server line is the one people leave out of the ticket. A machine pointed at `10.20.0.10` while the rest of the floor uses `10.20.0.11` is a finding, not noise. `ipconfig /displaydns` shows the local cache and `ipconfig /flushdns` clears it, which is worth trying when one name fails and every other name works."
+        },
+        {
+          "h": "ping: whether anything answers, and which failure you got",
+          "body": "`ping` sends ICMP echo requests. On Windows, bare `ping` sends four and stops, so `-n 2` only shortens the wait; `-t` is the one that runs until you press Ctrl+C. Ping the address first, then the name.\n\n```\nC:\\> ping -n 2 10.20.0.10\n\nPinging 10.20.0.10 with 32 bytes of data:\nReply from 10.20.0.10: bytes=32 time=1ms TTL=128\nReply from 10.20.0.10: bytes=32 time=1ms TTL=128\n\nC:\\> ping intranet.corp.example\nPing request could not find host intranet.corp.example. Please check the name and try again.\n\nC:\\> ping -n 2 10.20.14.77\nReply from 10.20.14.1: Destination host unreachable.\n```\n\nThe three messages are three diagnoses. `Request timed out` means the request left and nothing came back. `Destination host unreachable` comes from a router or gateway that has no route, and it names the device that gave up. `could not find host` means the name never became an address, so the finding is DNS and more ping testing will not move it.\n\n**Decision rule:** if ping by address succeeds and ping by name fails, stop testing reachability and run `nslookup intranet.corp.example 10.20.0.10`. A failed ping misleads in the same way: Windows Firewall drops inbound ICMP echo by default, so a server that ignores ping can still serve its application. Test the port the application uses before you write the word down."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Four lines close this ticket: the account from `whoami`, the address, gateway and DNS server from `ipconfig /all`, the exact ping command with its first reply or error, and the name that failed with its `nslookup` result. Then one sentence to the user that states what works and what does not.\n\n> From ws-4412 as corp\\jdoe: address 10.20.14.87/24, gateway 10.20.14.1 replies in 1 ms, DNS server is 10.20.0.10. `ping intranet.corp.example` returns \"could not find host\". The network path is up; name resolution for the intranet zone is not.\n\nEscalate when the address is `169.254.x.x` and `ipconfig /renew` returns the same address, because that is a DHCP scope, relay or VLAN problem on the network side. Escalate also when ping by address and by name both succeed but a single application fails: that is not a network ticket, and it belongs to the application owner with the port test attached."
+        }
+      ],
+      "diagram": {
+        "type": "compare",
+        "title": "Configuration versus reachability",
+        "caption": "The two halves of a network ticket. ipconfig /all reports what the machine was given; ping reports what answers now. Neither one alone closes the call.",
+        "data": {
+          "left": {
+            "title": "ipconfig /all",
+            "items": [
+              "Address, mask, gateway",
+              "DNS servers in use",
+              "DHCP enabled or static",
+              "Lease obtained time"
+            ]
+          },
+          "right": {
+            "title": "ping",
+            "items": [
+              "One host answers or not",
+              "Round-trip time in ms",
+              "Packet loss percentage",
+              "Name resolves first"
+            ]
+          },
+          "verdict": "Run ipconfig /all to see what the machine was configured with, then ping to see what answers. Quote both lines in the ticket."
+        }
+      },
+      "video": {
+        "title": "Basic Networking Commands (Part 1)",
+        "channel": "Neso Academy",
+        "url": "https://www.youtube.com/watch?v=rurs7cdT5cc",
+        "start": 0,
+        "length": "14:11",
+        "why": "Works through ping and ipconfig from a real command prompt, so the output fields in this lesson appear in the order you will see them on a call."
+      },
+      "commands": [
+        {
+          "cmd": "whoami",
+          "what": "Prints domain\\user for the session; the identity half of every permissions ticket"
+        },
+        {
+          "cmd": "whoami /groups",
+          "what": "Shows group membership and the integrity level, which tells you whether the window is elevated"
+        },
+        {
+          "cmd": "ipconfig /all",
+          "what": "Address, gateway, DNS servers, DHCP state and lease time for every adapter"
+        },
+        {
+          "cmd": "ipconfig /flushdns",
+          "what": "Clears the local resolver cache when one name is stale and the rest work"
+        },
+        {
+          "cmd": "ping -n 4 10.20.0.10",
+          "what": "Sends four echo requests, so the result is a number of replies, not a guess"
+        },
+        {
+          "cmd": "nslookup intranet.corp.example 10.20.0.10",
+          "what": "Asks one named server, which separates a name failure from a resolver failure"
+        }
+      ],
+      "pitfalls": [
+        "Reading the Wi-Fi bars as connectivity. The icon reports radio signal only; a laptop with five bars and an APIPA address has no usable network at all.",
+        "Treating a failed ping as a dead host. Windows Firewall drops inbound ICMP echo by default, so test the application port before you tell anyone the server is down.",
+        "Quoting ipconfig without the DNS Servers line. A machine pointed at the wrong resolver explains a name-only failure, and that line is the evidence.",
+        "Running ipconfig /flushdns in a user session that is not elevated. It fails with a permission error and the cache stays as it was."
+      ],
+      "takeaways": [
+        "Identity, address, reachability: three commands, three answers, in that order.",
+        "Request timed out, Destination host unreachable and could not find host are three different diagnoses, not one.",
+        "The DNS Servers line in ipconfig /all is part of the diagnosis, not trivia."
+      ],
+      "drill": {
+        "prompt": "On your own Windows machine, run whoami, whoami /groups and ipconfig /all, and write the four deciding lines into a scratch note. Then ping your default gateway, ping a name that you know exists, and ping a name that does not. Save the exact error text for the failing name.",
+        "minutes": 10,
+        "checklist": [
+          "The note holds the domain\\user string and the integrity level from whoami /groups",
+          "The note holds IPv4 address, default gateway and one DNS server address",
+          "You have the exact text of the \"could not find host\" error next to the working gateway ping",
+          "You can say which of the three results would change if the cable were unplugged"
+        ]
+      },
+      "sheetTopics": [
+        "ipconfig",
+        "ping",
+        "whoami"
+      ]
+    },
+    {
+      "id": "l3-2",
+      "moduleId": "m3",
+      "seq": 2,
+      "title": "Processes and services: tasklist, Get-Process, Get-Service",
+      "subtitle": "What is running, under which account, and what starts at boot.",
+      "minutes": 15,
+      "level": "Core",
+      "objectives": [
+        "Name the process holding a port or a file with tasklist and Get-Process, including its PID and owner",
+        "Read State, StartMode and StartName from Get-Service and Win32_Service, and say what each value rules out",
+        "Separate a service from a scheduled task or a startup entry when a user asks what starts at boot",
+        "Decide whether a restart is your action or a change that needs approval"
+      ],
+      "ticket": {
+        "from": "Service Desk — Windows server queue",
+        "subject": "Report engine will not start, says port 8080 is in use on fs01",
+        "body": "The reporting service failed at 02:00 and the operator restarted the server. The service still stops a few seconds after it starts, and the application log says the port is already in use. The operator rebooted twice and reports that nothing changed. The nightly report has not run since the restart.",
+        "impact": "Nightly reporting has not produced output for one cycle; three analysts are waiting on the 08:00 report."
+      },
+      "sections": [
+        {
+          "h": "Port 8080 is in use and nobody can name the process",
+          "body": "\"The application will not start, it says port 8080 is already in use.\" The same shape arrives as a stuck print queue, a backup agent that dies at 02:00, or a file share that answers for one user and not another. All of them are one question: what is running, under which account, and what starts it at boot.\n\nThe expensive answer is a reboot. It clears the symptom and destroys the evidence, so the next call is identical. The cheap answer is a process list and a service query: a few seconds of typing that tells you whether the thing is a user application, a Windows service or a scheduled task. Those three escalate to three different teams."
+        },
+        {
+          "h": "tasklist: the fastest read on what is running",
+          "body": "`tasklist` prints image name, process ID (PID), session name, session number and memory use. `tasklist /v` adds the user name, CPU time and window title, which is how you separate a user's own `chrome.exe` from something running as `SYSTEM`. `tasklist /svc` maps each process to the services hosted inside it, which matters because one `svchost.exe` can carry a dozen services.\n\n```\nC:\\> tasklist /svc /fi \"imagename eq svchost.exe\" | findstr /i spooler\nsvchost.exe                  1428   Spooler\n\nC:\\> tasklist /fi \"imagename eq excel.exe\"\nImage Name                     PID Session Name        Session#    Mem Usage\n========================= ======== ================ =========== ============\nEXCEL.EXE                     8844 Console                    1    214,336 K\n```\n\nThe filter syntax is narrow: it takes `eq`, not `=`, and the quotes are required because the expression contains a space. `tasklist` cannot show the executable path or the command line, so it names a process but not where it came from; that is the job of `Get-Process`."
+        },
+        {
+          "h": "Get-Process: the same list, as objects you can sort",
+          "body": "`Get-Process` returns process objects rather than text, so you select, sort and filter before anything prints. `Get-Process -Name excel` accepts wildcards. Sorting by working set answers \"what is eating this machine\" with a number instead of an impression.\n\n```\nPS C:\\> Get-Process | Sort-Object WS -Descending | Select-Object -First 5 -Property Name, Id, WS, CPU\n\nName       Id        WS    CPU\n----       --        --    ---\nchrome   9184 1482752000 812.44\nTeams    7620  964689920 341.02\nOUTLOOK  4412  612368384  87.19\nexplorer 6120  198754304  41.88\nsvchost  1428  132120576   9.31\n```\n\n`WS` is the working set in bytes; Task Manager shows the same value in megabytes. `CPU` is total processor seconds since the process started, not a percentage, so a long-running process can outrank a busy one. Add `-IncludeUserName` to see the owner, and note that it needs an elevated session; without elevation `Path` is often empty for processes you do not own.\n\n**Decision rule:** if `tasklist` shows the process but `Get-Service` has no service by that name, restarting services will never fix it. You are dealing with a user application or a scheduled task, and the escalation goes to the application owner."
+        },
+        {
+          "h": "Get-Service: state, start type and the account behind it",
+          "body": "`Get-Service` answers a different question: is this thing registered, is it running, and will Windows start it at boot. `Get-Service -Name Spooler` returns status, name and display name. `Get-Service | Where-Object Status -eq 'Stopped'` lists what is not running, which is noise on a healthy workstation and a lead on a server that lost a dependency.\n\nThe columns that belong in a ticket come from the service configuration, not from the runtime state.\n\n```\nPS C:\\> Get-CimInstance Win32_Service | Where-Object Name -eq 'Spooler' |\n>> Select-Object Name, State, StartMode, StartName, PathName\n\nName    State   StartMode StartName    PathName\n----    -----   --------- ---------    --------\nSpooler Running Auto      LocalSystem  C:\\WINDOWS\\System32\\spoolsv.exe\n```\n\n`StartMode` is `Auto`, `Manual` or `Disabled`. A service that is `Auto` and `Stopped` after a reboot failed to start, and the reason is in the System event log, not in the service list. `StartName` is the account: `LocalSystem` has broad rights on that machine, `NT AUTHORITY\\NetworkService` has few local rights, and a domain account such as `CORP\\svc-print` depends on its password and on the policy that applies to it. Nearly every problem with a domain-account service is a password, lockout or logon-rights ticket.\n\n`sc.exe qc Spooler` prints the same configuration when PowerShell is not available. `Restart-Service -Name Spooler` restarts it, and on a print or file server that is a change: confirm the approval before you run it, and say in the ticket that you did."
+        },
+        {
+          "h": "What starts at boot is not always a service",
+          "body": "Three mechanisms start software without anyone logging in, and they are not interchangeable. Services start under the service control manager before any user logs on. Scheduled tasks start on a trigger, under the account stored in the task. Startup entries in the Run key or the Startup folder start only when that particular user logs on.\n\n```\nPS C:\\> Get-CimInstance Win32_StartupCommand | Select-Object Name, Location\n\nName      Location\n----      --------\nTeams     Startup\nOneDrive  HKU\\S-1-5-21-8823...\\Run\n```\n\nWhen a user says \"it starts by itself and I cannot stop it\", that list plus `Get-ScheduledTask -TaskName \"Report-Engine\"` names the mechanism and the account. Turning an entry off changes someone's workflow: record it and hand it over rather than disabling it on the call."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Four facts, then one sentence: the process name and PID, the account it runs under, whether it is a service and its `StartMode`, and what you changed or deliberately did not change.\n\n> On fs01: port 8080 is held by PID 8844. `Get-Process -Id 8844` shows java.exe at D:\\apps\\report\\jre\\bin\\java.exe, started by scheduled task Report-Engine under CORP\\svc-report. Spooler is Running, StartMode Auto, StartName LocalSystem. No restart performed.\n\nEscalate when the process runs as a domain service account and the service starts then stops within a minute, because the cause is that account's password, lockout or logon rights and the fix belongs to the identity team. Escalate also when a service is `Auto`, `Stopped`, and the System log shows event 7000 or 7009, since dependency chains are an application-owner decision and not something to guess at with a restart."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From \"it will not start\" to an owner",
+        "caption": "Six steps, cheapest first. Only the last one changes anything, and it is the one that needs approval on a server.",
+        "data": {
+          "steps": [
+            {
+              "label": "Get the process list",
+              "detail": "tasklist /v or Get-Process"
+            },
+            {
+              "label": "Identify the owner",
+              "detail": "User Name or Path property"
+            },
+            {
+              "label": "Is it a service?",
+              "detail": "Get-Service -Name <name>"
+            },
+            {
+              "label": "Read state and start type",
+              "detail": "State and StartMode"
+            },
+            {
+              "label": "Check the logon account",
+              "detail": "LocalSystem or domain"
+            },
+            {
+              "label": "Restart or hand over",
+              "detail": "approval, then evidence"
+            }
+          ],
+          "footer": "A process is what runs now; a service is what Windows starts for you."
+        }
+      },
+      "video": {
+        "title": "What Are Windows Services? (Startup Types & User Accounts)",
+        "channel": "TechKnowSurge",
+        "url": "https://www.youtube.com/watch?v=cOTM7s6Gx1U",
+        "start": 144,
+        "length": "4:27",
+        "why": "Shows the Services console and how start types and service accounts work, which is what the State and StartName columns describe in text."
+      },
+      "commands": [
+        {
+          "cmd": "tasklist /svc /fi \"imagename eq svchost.exe\"",
+          "what": "Shows which services share a svchost process, so a PID can be traced to a name"
+        },
+        {
+          "cmd": "tasklist /v",
+          "what": "Adds the user name and CPU time to the process list without admin tools"
+        },
+        {
+          "cmd": "Get-Process | Sort-Object WS -Descending | Select-Object -First 5 -Property Name, Id, WS, CPU",
+          "what": "Names the top consumers by working set instead of guessing"
+        },
+        {
+          "cmd": "Get-Process -IncludeUserName",
+          "what": "Shows the account behind each process; needs an elevated session"
+        },
+        {
+          "cmd": "Get-Service -Name Spooler",
+          "what": "Status, name and display name for one service"
+        },
+        {
+          "cmd": "Get-CimInstance Win32_Service | Where-Object Name -eq 'Spooler'",
+          "what": "State, StartMode, StartName and PathName in one object"
+        },
+        {
+          "cmd": "sc.exe qc Spooler",
+          "what": "The same configuration from the command line when PowerShell is unavailable"
+        },
+        {
+          "cmd": "Restart-Service -Name Spooler",
+          "what": "Restarts a service; on a server this is a change and needs approval"
+        }
+      ],
+      "pitfalls": [
+        "Rebooting before you capture the process list. The PID, the owner and the port are gone after the restart, and the second call costs the same as the first.",
+        "Writing tasklist /fi \"imagename = excel.exe\" with an equals sign. The filter rejects it and returns an empty list that looks like \"nothing is running\".",
+        "Reading CPU in Get-Process as a percentage. It is total processor seconds, so a process that has been idle for days can still sit at the top.",
+        "Restarting a service under a domain service account to \"clear\" an error. If the account is locked or its password is wrong, the restart fails and the original evidence is gone."
+      ],
+      "takeaways": [
+        "A PID plus an owner plus a start type is a complete handover; a process name alone is not.",
+        "StartMode Auto with State Stopped means it failed to start, and the reason is in the System event log.",
+        "Services, scheduled tasks and Run-key entries are three mechanisms, and they escalate to different teams."
+      ],
+      "drill": {
+        "prompt": "Open PowerShell without elevation and run Get-Process | Sort-Object WS -Descending | Select-Object -First 5 -Property Name, Id, WS, Path. Note which entries have no Path, then repeat the same command in an elevated window. Finally run Get-CimInstance Win32_Service | Select-Object -First 5 Name, State, StartMode, StartName and read the four columns out loud.",
+        "minutes": 10,
+        "checklist": [
+          "You can state the PID and working set of the top process on your machine",
+          "You can name at least one process whose Path was empty without elevation",
+          "You can say what StartMode and StartName are for one service on the machine",
+          "Your note separates what the process list proved from what the service list proved"
+        ]
+      },
+      "sheetTopics": [
+        "tasklist",
+        "Get-Process",
+        "Get-Service"
+      ]
+    },
+    {
+      "id": "l3-3",
+      "moduleId": "m3",
+      "seq": 3,
+      "title": "Accounts and lockouts: net user and the local admin problem",
+      "subtitle": "Find a locked, disabled or over-privileged account without guessing.",
+      "minutes": 14,
+      "level": "Applying",
+      "objectives": [
+        "Read Account active, Password expires and group membership from net user without changing anything",
+        "Distinguish a lockout from a disabled account and an expired password, and name the evidence for each",
+        "Choose between waiting, unlocking and escalating a repeat lockout, and justify the choice in the ticket",
+        "Explain why adding a user to the local Administrators group is an approval, not a fix"
+      ],
+      "ticket": {
+        "from": "Service Desk — Identity queue",
+        "subject": "Locked out again, third time today",
+        "body": "The user was unlocked at 09:40 and says the password prompt now rejects the same password that worked this morning. A colleague reset the password yesterday afternoon. Two other people on the same floor sign in normally. The user has a personal phone with mail and a mapped drive to the finance share.",
+        "impact": "One finance user cannot sign in to any workstation since 09:52; the 10:00 payment run is blocked."
+      },
+      "sections": [
+        {
+          "h": "It says my password is wrong, and it is not the password",
+          "body": "\"It says my password is wrong.\" That one message covers a locked account, a disabled account, an expired password, a mistyped domain, and a genuinely wrong password. A reset fixes exactly one of those five and makes the other four harder to tell apart, because the reset destroys the timestamp that would have shown which one you had.\n\nThe repeat case is the expensive one. The user is unlocked at 09:40, locked again at 09:52, and the ticket now has two resets and no diagnosis. The order that works is read first, act second: read the account state, name the condition, then decide whether the fix is yours to make."
+        },
+        {
+          "h": "net user: read the account before touching it",
+          "body": "`net user` with no arguments lists the local accounts on the machine. `net user jdoe` prints one account's state. The fields that decide the ticket are `Account active`, `Account expires`, `Password last set`, `Password expires`, `Last logon` and the group lines.\n\n```\nC:\\> net user jdoe\nUser name                    jdoe\nFull Name                    J. Doe\nAccount active               Yes\nAccount expires              Never\nPassword last set            11/03/2025 9:14:02 AM\nPassword expires             02/01/2026 9:14:02 AM\nLast logon                   11/24/2025 8:37:11 AM\nLocal Group Memberships      *Users\nGlobal Group memberships     *None\nThe command completed successfully.\n```\n\n`Account active  No` means the account is disabled, and no password reset changes that. A `Password expires` date in the past means the password expired. A `Last logon` older than the ticket time means this machine has not seen the account today, so you may be reading the wrong account entirely: on a domain-joined workstation, `net user` reads the local account unless you add `/domain`, and if the local account does not exist the answer is \"The user name could not be found.\" `net user jdoe /domain` needs a reachable domain controller and shows the domain account instead."
+        },
+        {
+          "h": "Locked, disabled and expired are three different states",
+          "body": "`net accounts` prints the local lockout policy: `Lockout threshold`, `Lockout duration` and `Lockout observation window`. With a threshold of 5 and a duration of 15 minutes, the account unlocks itself a quarter of an hour after the last bad attempt, and the correct action for a single lockout is often to wait and to find the source. `net accounts /domain` reads the domain policy and needs a domain controller.\n\nOn the domain side, a lockout appears on a domain controller as event 4740, and the failed attempts behind it as 4625. When a user locks out again minutes after an unlock, the 4740 `Caller Computer Name` field names the machine that keeps trying. In practice that is a phone with a stale mail profile, a mapped drive holding old credentials, or a scheduled job running as the user.\n\nThere is no `net user /unlock`. `net user jdoe /active:yes` enables a disabled account; it does not clear a lockout, and the two are frequently confused. A domain account is unlocked in Active Directory, with `Unlock-ADAccount -Identity jdoe` from a machine that has the RSAT Active Directory module, or in the account properties in Active Directory Users and Computers. That right is delegated to specific groups, so a failure here is a permission answer, not a broken cmdlet.\n\n**Decision rule:** if `Account active` reads `No`, stop resetting the password. If the account locks again within minutes of an unlock, stop unlocking and escalate with the caller computer name, because the source is still presenting the old password somewhere on the network."
+        },
+        {
+          "h": "The local admin problem",
+          "body": "`net localgroup administrators` lists who is a local administrator on the machine in front of you. `Get-LocalGroupMember -Group Administrators` gives the same answer as objects, and needs Windows 10 or Server 2016 with the LocalAccounts module. Both are read-only and both belong in the ticket, because \"the user cannot install the software\" and \"the user is a local administrator and UAC is still blocking the installer\" are different answers to different teams.\n\nThe shortcut to avoid is adding the user to that group to unblock a ticket. It grants full control of the machine, it survives long after the ticket closes, and in most organizations it is a change that needs approval from the endpoint team, not a helpdesk action. Where local administrator passwords are managed, they are per-machine and not shared: Windows LAPS stores them in Active Directory in the `msLAPS-Password` attribute, and the older LAPS client uses `ms-Mcs-AdmPwd`. Reading either one is restricted to a delegated group. L1 uses the retrieval process it was given, or escalates, and never writes that password into a ticket note."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Write the account exactly as `net user` prints it, say whether you read the local or the domain account, give the four fields that decided the case, and add the policy values from `net accounts`. If you unlocked, disabled or enabled anything, state it with the time.\n\n> Read corp\\jdoe on ws-4412: Account active Yes, Password expires 02/01/2026, last logon 08:37 today. Two 4740 events on dc01 at 09:41 and 09:52, caller computer ws-3310. Password not reset, account not unlocked.\n\nEscalate when the lockout returns after an unlock, with the caller computer name attached, because clearing a stored credential is a workstation cleanup and not a helpdesk action. Escalate when the fix needs the LAPS password, since retrieval is a delegated right, and escalate any request to add an account to the local administrators group for a reason the ticket does not record."
+        }
+      ],
+      "diagram": {
+        "type": "tree",
+        "title": "Five states, five different actions",
+        "caption": "Read down the branches in order. Each result is a fact you can quote, and only one of them is fixed by a password reset.",
+        "data": {
+          "root": "User cannot sign in",
+          "branches": [
+            {
+              "label": "Account locked?",
+              "result": "4740 on a DC, source named",
+              "tone": "bad"
+            },
+            {
+              "label": "Account active?",
+              "result": "net user shows No",
+              "tone": "bad"
+            },
+            {
+              "label": "Password expired?",
+              "result": "Password expires in past",
+              "tone": "warn"
+            },
+            {
+              "label": "Right account?",
+              "result": "Reading local, not domain",
+              "tone": "warn"
+            },
+            {
+              "label": "Local admin needed?",
+              "result": "Separate approval path",
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Let's try: Net user (command)",
+        "channel": "Nathan Bradford",
+        "url": "https://www.youtube.com/watch?v=MLFg-nRmHx4",
+        "start": 0,
+        "length": "3:32",
+        "why": "Shows net user against real local accounts, including enabling and disabling the built-in administrator, so the /active switch stops being abstract."
+      },
+      "commands": [
+        {
+          "cmd": "net user",
+          "what": "Lists the local accounts on the machine"
+        },
+        {
+          "cmd": "net user jdoe",
+          "what": "Account active, password dates, last logon and group membership for one account"
+        },
+        {
+          "cmd": "net user jdoe /domain",
+          "what": "Reads the domain account instead of the local one; needs a reachable domain controller"
+        },
+        {
+          "cmd": "net accounts",
+          "what": "Local lockout threshold, duration and observation window"
+        },
+        {
+          "cmd": "net accounts /domain",
+          "what": "The same policy values from the domain, which usually differ from the local ones"
+        },
+        {
+          "cmd": "net localgroup administrators",
+          "what": "Lists who holds local administrator rights on this machine"
+        },
+        {
+          "cmd": "Get-LocalGroupMember -Group Administrators",
+          "what": "The same membership as objects; Windows 10 and Server 2016 or later"
+        },
+        {
+          "cmd": "Unlock-ADAccount -Identity jdoe",
+          "what": "Unlocks a domain account; needs the RSAT Active Directory module and a delegated right"
+        }
+      ],
+      "pitfalls": [
+        "Resetting the password on a locked account. The lockout stays, the user is rejected again, and the password history now hides what actually happened.",
+        "Running net user jdoe on a domain-joined machine and reporting the local account. Add /domain, or state clearly that you read the local one.",
+        "Trying net user jdoe /unlock. No such switch exists; enabling an account with /active:yes does not clear a lockout either.",
+        "Adding the user to the local Administrators group to unblock an installer. It grants permanent control of the machine and is a change, not a fix."
+      ],
+      "takeaways": [
+        "Account active, Password expires and Last logon are three facts that separate disabled, expired and never-signed-in.",
+        "A repeat lockout is a source problem, and the 4740 caller computer name is the evidence to escalate with.",
+        "Local administrator membership is an approval path; LAPS passwords are delegated and never go in a ticket note."
+      ],
+      "drill": {
+        "prompt": "On a lab Windows machine, run net user and pick one local account you did not create. Read its Account active, Password expires and Last logon lines, then run net accounts and write down the lockout threshold and duration. Do not change, unlock or disable anything. Finish by listing the local administrators group.",
+        "minutes": 10,
+        "checklist": [
+          "Your note quotes the three state lines exactly as net user printed them",
+          "You can state the lockout threshold and duration and what they imply for a single lockout",
+          "The local administrators list is in the note with the account names unedited",
+          "Nothing was modified: no /active switch, no password change, no group change"
+        ]
+      },
+      "sheetTopics": [
+        "net user"
+      ]
+    }
+  ]
+}

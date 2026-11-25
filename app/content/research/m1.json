@@ -1,0 +1,137 @@
+{
+  "moduleId": "m1",
+  "items": [
+    {
+      "title": "The OSI Model Makes Sense When You See the Packets",
+      "creator": "Chris Greer",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=PD0cNPpYmng",
+      "why": "Greer opens a packet capture and points at the bytes each layer adds, so the seven names attach to something a learner can find in Wireshark on their own laptop. The animated OSI videos leave the model as a memorized ladder; this shows why a timeout cannot tell you which rung failed, which is the whole point of the first lesson.",
+      "struggle": "Ping to the app server times out - is that DNS, the route, or the application? Which layer do I blame?",
+      "topic": "OSI Model",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "TCP vs UDP Explained // Hands On Lab Example with Wireshark",
+      "creator": "Chris Greer",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=V1CxV6Vg7_U",
+      "why": "Runs the same transfer over TCP and over UDP in Wireshark, so the three-way handshake and the missing handshake are visible side by side. That is the difference between a browser that hangs on ERR_CONNECTION_TIMED_OUT and one that fails instantly, which no TCP-versus-UDP comparison table makes concrete.",
+      "struggle": "The host answers ping, but the browser hangs for twenty seconds on ERR_CONNECTION_TIMED_OUT - if the box is up, why does the port never answer?",
+      "topic": "TCP and UDP",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Packet Traveling - How Packets Move Through a Network",
+      "creator": "Practical Networking",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=rYodcvhh7b8",
+      "why": "Follows one packet out of the NIC through ARP, the switch, the default gateway and a router, rebuilding the frame at each hop. A static topology diagram cannot explain why tracert prints your gateway and then nothing, which is the exact symptom in the floor-move ticket.",
+      "struggle": "tracert shows my gateway, then four timeouts - is a firewall dropping the packet or is there no route back?",
+      "topic": "Routing and Switching",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Configure IP Addresses and Unique Subnets for New Users",
+      "creator": "Cisco",
+      "format": "Docs",
+      "url": "https://www.cisco.com/c/en/us/support/docs/ip/routing-information-protocol-rip/13788-3.html",
+      "why": "Does the binary borrowing on a /24 by hand and prints the resulting network and host ranges, which is the arithmetic behind 10.20.14.87/26 and 10.20.14.60/26 landing in different blocks. A subnet calculator hands over the answer without the reason, so the next ticket of the same shape looks brand new.",
+      "struggle": "Both laptops show 10.20.14.x addresses, so why can one reach the finance app and the other only reach the gateway?",
+      "topic": "IP Addressing",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "nslookup",
+      "creator": "Microsoft Learn",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/nslookup",
+      "why": "Documents the second argument, nslookup name 10.20.0.12, which is the one switch that separates a bad record from a laptop pointed at the wrong resolver. DNS tutorials explain how resolution works; this page gives the retry against a named server that L1 actually types on a call.",
+      "struggle": "nslookup answers correctly on my machine but the user's laptop returns a different address - is the record wrong or is their resolver wrong?",
+      "topic": "DNS",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Test-NetConnection",
+      "creator": "Microsoft Learn",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/nettcpip/test-netconnection",
+      "why": "The -Port parameter turns can I reach it into does anything listen on 443, and the TcpTestSucceeded line is the sentence to paste into the ticket. Ping tutorials prove a host answered and leave the port question untouched, which is why those tickets bounce back from L2.",
+      "struggle": "Test-NetConnection -Port 443 reports TcpTestSucceeded False while ping succeeds - so is the server down or is the port blocked?",
+      "topic": "Ports and Protocols",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Cisco Secure Firewall ASA Series Command Reference, I - R Commands - pa - pn",
+      "creator": "Cisco",
+      "format": "Docs",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/asa/asa-cli-reference/I-R/asa-command-ref-I-R/pa-pn-commands.html",
+      "why": "Gives the full packet-tracer syntax for a 5-tuple probe and the phase-by-phase output that shows every rule applicable to the packet along with the CLI line that added it. That is the evidence L2 asks for when you escalate a firewall drop, and no how-firewall-rules-work article produces it.",
+      "struggle": "The firewall log shows no denies but the packet still never arrives - how do I prove which rule or route stopped it?",
+      "topic": "Firewalls",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Why does operating system need to know subnet mask?",
+      "creator": "Server Fault",
+      "format": "Thread",
+      "url": "https://serverfault.com/questions/564934/why-does-operating-system-need-to-know-subnet-mask",
+      "why": "The asker assumes the mask is the router's business, and the accepted answer shows the OS comparing the destination against its own mask before it sends anything. That is the mechanism that makes one wrong /26 on one laptop break only half of an app, and the thread states the misconception out loud instead of assuming it away.",
+      "struggle": "Why does my OS need the subnet mask at all - I thought the router decides whether the destination is on the local network?",
+      "topic": "Subnetting",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Windows 10 DNS resolution via VPN connection not working",
+      "creator": "Super User",
+      "format": "Thread",
+      "url": "https://superuser.com/questions/966832/windows-10-dns-resolution-via-vpn-connection-not-working",
+      "why": "Six answers converge on the interface metric deciding which DNS server Windows prefers, so the VPN's resolvers are ignored and internal names never resolve. That is the mechanism behind VPN connected, wiki opens, orders.internal.example does not, and the accepted fix is one netsh command rather than a client reinstall.",
+      "struggle": "The VPN says connected and the intranet wiki opens, but orders.internal.example will not resolve from the hotel.",
+      "topic": "VPN",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "IPv4 Link-Local Addresses",
+      "creator": "IETF / RFC Editor (RFC 3927)",
+      "format": "Paper",
+      "url": "https://www.rfc-editor.org/rfc/rfc3927",
+      "why": "The abstract and section 2.7 settle two facts exactly: 169.254/16 is what a host falls back to when no address configuration is available, and link-local packets are never forwarded, so that machine cannot reach the default gateway at all. DHCP explainers show a healthy lease and never mention the fallback, which is why learners cannot tell an exhausted scope from a desk move onto the wrong VLAN.",
+      "struggle": "ipconfig shows 169.254.41.7 and no default gateway - is DHCP down, or did the desk move put this port on the wrong VLAN?",
+      "topic": "DHCP",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Network Warrior, 2nd Edition",
+      "creator": "Gary A. Donahue (O'Reilly)",
+      "format": "Book",
+      "url": "https://www.oreilly.com/library/view/network-warrior-2nd/9781449307974/",
+      "why": "Its switching and firewall material is written for someone holding the pager: what a VLAN or trunk mismatch looks like from a desk, not from a lab rack. Exam guides teach the protocol in isolation; this assumes a change window, a spare port and a user waiting, which is the L1 reality behind the floor-move ticket.",
+      "struggle": "After a floor move the shared drive works but the inventory app does not - do I check the trunk, the route, or the firewall first?",
+      "topic": "Routing and Switching",
+      "level": "Working",
+      "cost": "Paid"
+    },
+    {
+      "title": "N4N023: DNS - Turning Names Into Numbers",
+      "creator": "Packet Pushers",
+      "format": "Podcast",
+      "url": "https://packetpushers.net/podcasts/n-is-for-networking/n4n023-dns-turning-names-into-numbers/",
+      "why": "Walks the resolver through root, TLD and authoritative servers in conversation, then keeps returning to where a lookup quietly goes wrong instead of stopping at it works. A five-minute DNS animation ends where this episode starts, which is the failure case the ticket actually contains.",
+      "struggle": "The same site opens on a phone but not on the office laptop - if DNS is shared, why does only one device fail?",
+      "topic": "DNS",
+      "level": "Starter",
+      "cost": "Free"
+    }
+  ]
+}

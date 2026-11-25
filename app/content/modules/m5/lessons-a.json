@@ -1,0 +1,434 @@
+{
+  "moduleId": "m5",
+  "lessons": [
+    {
+      "id": "l5-1",
+      "moduleId": "m5",
+      "seq": 1,
+      "title": "Recon and footprinting: what is already public about a company",
+      "subtitle": "Map the exposed surface before you touch a single port.",
+      "minutes": 15,
+      "level": "Applying",
+      "objectives": [
+        "List the public sources that describe an estate, and say what each one reveals",
+        "Run whois, dig and a certificate-transparency query, and read the fields that change the report",
+        "Classify every question as passive or active, and hold the active ones until scope is signed",
+        "Produce a one-page asset table where every row carries its source and date"
+      ],
+      "ticket": {
+        "from": "Security Services — pre-engagement desk",
+        "subject": "Client SOC saw scanning from our office IP before the contract was signed",
+        "body": "The client's security team says it saw port scans against their web range at 09:40, coming from an address in our office. The engagement letter is still with their legal team. The analyst who ran the scan says they were only checking what was already exposed. The client wants to know what was sent and whether anything was touched.",
+        "impact": "Engagement start date is on hold until the client security team gets a written answer; two consultants are idle this week."
+      },
+      "sections": [
+        {
+          "h": "The scan hit a /24 before the scope letter was signed",
+          "body": "The intake call happened on a Friday. The scope letter was signed on Monday. On Wednesday an analyst ran a discovery scan across the range the client had mentioned on the phone, because the range was obvious. The client's SOC opened an incident at 09:40, and the engagement started with an apology instead of a kickoff.\n\nThat is the failure this lesson exists to prevent. **Footprinting** means collecting information about a target from sources that already publish it: DNS, certificate logs, company filings, search indexes. **Reconnaissance** is the whole opening phase, and it splits on one question: does a packet reach an address the client owns? Passive work sends none, so it can be done before the contract, from a desk, at any hour. Active work sends packets at their estate, so it needs signed authorization that names the ranges, the dates, and a contact who answers at 22:00.\n\nTwo rules hold for the rest of this module. Written authorization is required before any active step, and every active exercise stays in the lab range. Everything in this lesson is passive, and passive answers more than most people expect."
+        },
+        {
+          "h": "The zone answers four questions before you email anyone",
+          "body": "DNS is the client's own index of what it publishes, and it is readable without touching them. Four queries cover most of what a first report needs.\n\n```console\n$ dig +short example.com NS\nns1.hosting.example.\nns2.hosting.example.\n\n$ dig +short example.com MX\n10 mail1.mailprovider.example.\n20 mail2.mailprovider.example.\n\n$ dig +short example.com TXT\n\"v=spf1 include:_spf.mailprovider.example -all\"\n\n$ dig +short www.example.com\nexample.com.\n```\n\nThe NS records name the DNS provider, which is usually the hosting provider and a hint at where the site actually lives. The MX records name the mail provider, and with it the mail filtering vendor. The TXT record is an SPF policy, and the `include:` entries list every third party allowed to send mail as this domain, which is a list of SaaS platforms somebody bought without telling you. A `CNAME` on `www` that points at a registrar host means the site is hosted, not owned in that rack.\n\nThen try the zone transfer and record the refusal. `dig axfr example.com @ns1.hosting.example.` returning `; Transfer failed.` is the correct, normal answer, and it belongs in the report as a line of evidence, not as a finding."
+        },
+        {
+          "h": "Certificates publish hostnames nobody meant to publish",
+          "body": "A public certificate authority must publish every certificate it issues to a Certificate Transparency log. Those logs are searchable, and they keep hostnames that DNS stopped pointing at years ago. That is how you find the staging host and the build server nobody meant to publish.\n\n```console\n$ curl -s \"https://crt.sh/?q=%25.example.com&output=json\" \\\n    | jq -r '.[].name_value' | tr ',' '\\n' | sort -u\n*.example.com\njenkins.example.com\nstaging.example.com\nvpn.example.com\n```\n\n`%25` is a URL-encoded percent sign, which crt.sh reads as the wildcard, so the query asks for every name under `example.com`. One JSON entry can carry several names in `name_value`, which is why the output is split and sorted. crt.sh is a free service under load: run one query, then wait.\n\nEvery name becomes an asset line with its source attached. `jenkins.example.com` came from a certificate issued in March 2024, and if it resolves from the public internet, that is the first paragraph of your report. A build server exposed to the internet is a worse finding than anything you will scan for later."
+        },
+        {
+          "h": "A job post named the firewall version, a search index named the folder",
+          "body": "Search indexes hold what the client published and forgot. Two queries do most of the work: `site:example.com filetype:pdf` finds documents, and `site:example.com -inurl:www` finds pages outside the main site. Change the file type to `xlsx` and you find the price list.\n\nJob posts are the quietest source. A vacancy asking for FortiOS 7.0 and Cisco ASA 9.16 on the edge tells you the platform and the generation. A post mentioning Jenkins on 10.20.x tells you the internal addressing scheme. Treat both as claims, not facts: a recruiter wrote them, not the network team.\n\nShodan indexes what is exposed on the public internet. A query such as `org:\"Example Corp\"` matches the IP registration name rather than DNS, so it surfaces hosts no name points at. Record the timestamp, because the index changes hourly.\n\n**Decision rule:** if the question can be answered from a cache, a log, a filing or a search index, it is passive and it goes in the report today. If the answer needs a packet to an address the client owns, it is active, it waits for signed scope, and L1 does not start it."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The deliverable is one table, on one page, with no scan output attached.\n\n| Asset | Source | First seen | Why it matters |\n|---|---|---|---|\n| `vpn.example.com` | crt.sh, cert dated 2024-03 | 24 Nov | remote access, likely SSO in front |\n| `jenkins.example.com` | crt.sh, cert dated 2023-11 | 24 Nov | build server, public address, not in scope |\n| `mail1.mailprovider.example` | `dig MX` | 24 Nov | mail hosted by a third party |\n\nThen the closing note, which is what the engagement lead forwards:\n\n> Passive footprint of example.com, collected 24 Nov 10:00 to 11:20. Sources: public DNS, crt.sh, one search index. No packets were sent to client addresses. Four subdomains found; jenkins.example.com resolves to a public address and is not covered by the scope letter.\n\nEscalate to the engagement lead, before anyone scans, when a discovered name resolves to a public address outside the documented scope, when a public repository appears to hold a live credential, or when an administrative login is reachable from the internet. None of those are tested from L1. They are dated, quoted with their source, and handed up."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "Passive footprint, in order",
+        "caption": "Each step feeds the next: DNS names the hosts, certificates reveal the ones DNS hides, and the search step fills in people and versions. No packet leaves your network.",
+        "data": {
+          "steps": [
+            {
+              "label": "Confirm scope",
+              "detail": "signed letter, ranges"
+            },
+            {
+              "label": "Enumerate DNS",
+              "detail": "NS, MX, TXT, subdomains"
+            },
+            {
+              "label": "Harvest certs",
+              "detail": "CT logs, SAN names"
+            },
+            {
+              "label": "Search public sources",
+              "detail": "index, job posts, filings"
+            },
+            {
+              "label": "Write the asset list",
+              "detail": "one source per row"
+            }
+          ],
+          "footer": "All five steps are passive: nothing is sent to a client address."
+        }
+      },
+      "video": {
+        "title": "Passive Reconnaissance - Whois Lookup Tutorial",
+        "channel": "HackerSploit",
+        "url": "https://www.youtube.com/watch?v=12MITs5KK40",
+        "start": 0,
+        "length": "6:19",
+        "why": "Shows a real whois response field by field, so you can see which lines are worth copying into a report and which are registrar noise."
+      },
+      "commands": [
+        {
+          "cmd": "whois example.com",
+          "what": "Registrar, creation date and name servers; the creation date tells you how old the estate is"
+        },
+        {
+          "cmd": "dig +short example.com NS",
+          "what": "Names the DNS and hosting provider, which points at where the site runs"
+        },
+        {
+          "cmd": "dig +short example.com MX",
+          "what": "Names the mail provider and, with it, the mail filtering vendor"
+        },
+        {
+          "cmd": "dig +short example.com TXT",
+          "what": "The SPF record lists every third party allowed to send mail for the domain"
+        },
+        {
+          "cmd": "dig axfr example.com @ns1.hosting.example.",
+          "what": "Tests for an open zone transfer; \"Transfer failed.\" is the normal, correct answer"
+        },
+        {
+          "cmd": "curl -s \"https://crt.sh/?q=%25.example.com&output=json\" | jq -r \".[].name_value\"",
+          "what": "Pulls every hostname ever published in a public certificate for that domain"
+        }
+      ],
+      "pitfalls": [
+        "Running a discovery scan \"to check the range\" before scope is signed. That is an active step against someone else's estate, it is logged by their SOC, and it can end the engagement.",
+        "Reporting a hostname from a certificate log as a live host without resolving it. The log keeps names for years after DNS stopped answering; mark unverified rows as unverified.",
+        "Trimming the source column to save space. An asset with no source and no date cannot be defended when the client asks how you found it."
+      ],
+      "takeaways": [
+        "Passive means no packet reaches the client; passive work needs no scope letter, active work does.",
+        "DNS, certificates, search indexes and job posts each answer a different question about the same estate.",
+        "An asset list without a source per row is an opinion, not a footprint."
+      ],
+      "drill": {
+        "prompt": "Pick a domain you own or a public documentation domain such as example.com. Run the NS, MX and TXT queries, then the crt.sh query, and build a four-column table for every name you find. Do not scan, resolve-and-probe, or send any packet at the addresses.",
+        "minutes": 10,
+        "checklist": [
+          "The table has the columns asset, source, first seen, why it matters",
+          "Every row names the exact command or URL that produced it",
+          "At least one row came from the certificate log and not from DNS",
+          "You wrote one sentence saying what you deliberately did not test, and why"
+        ]
+      },
+      "sheetTopics": [
+        "Reconnaissance",
+        "Footprinting"
+      ]
+    },
+    {
+      "id": "l5-2",
+      "moduleId": "m5",
+      "seq": 2,
+      "title": "Nmap: scanning with a question, not a habit",
+      "subtitle": "Hosts, ports, service versions, and reading the output honestly.",
+      "minutes": 17,
+      "level": "Applying",
+      "objectives": [
+        "Choose the scan flag from the question asked, not from memory",
+        "Separate open, closed, filtered and unfiltered, and say what each one proves",
+        "Run a version probe with a rate limit that will not alarm a SOC",
+        "Write a scan handover that quotes the command, the file and the reason column"
+      ],
+      "ticket": {
+        "from": "Service Desk — network security queue",
+        "subject": "Our scan says 443 is filtered but the app team says the site is open",
+        "body": "The monthly internal scan reports 443/tcp filtered on app01 at 10.20.30.15, while the application team says the site loads from the office. The previous analyst reran the scan, got filtered again, and closed the ticket as \"port blocked\". There is no firewall change request for this host this quarter and the app team says nothing was changed.",
+        "impact": "The scan report cannot be signed off and the change board wants an answer before Thursday."
+      },
+      "sections": [
+        {
+          "h": "The scan said filtered and the ticket said the server was down",
+          "body": "The monthly scan flagged 443/tcp on app01 as `filtered`. The analyst reran it, got the same word, wrote \"port blocked by firewall\" and closed the ticket. The application team reopened it that afternoon: the site works from the office, from home, and from a phone on mobile data. Two days went into an argument about a word nobody looked up.\n\nNmap reports a port state, and that state is evidence about the path, not about the service. **open** means a SYN came back with SYN/ACK. **closed** means a SYN came back with RST, so the host is alive and nothing is listening. **filtered** means no reply came back at all, so a device in the path dropped it, and the only thing proved is that your probe did not arrive. **unfiltered** means the port is reachable but Nmap could not decide whether anything listens.\n\nThe skill is not memorizing flags. It is choosing the question first, then the flag that answers it, and writing down what the answer does and does not prove."
+        },
+        {
+          "h": "Four questions, four flags, no guessing",
+          "body": "Four questions cover almost every scan an L1 analyst is asked to run, and each has one flag that answers it.\n\n*Which hosts are alive?* `nmap -sn 10.20.30.0/24` sends discovery probes and prints addresses that answer. It is not a port scan.\n\n*Which ports?* `-p` takes a list, a range or a name: `-p 22,80,443`, `-p 1-1024`, `-p-` for all 65535. Without `-p`, Nmap scans its default top-1000 list, which is why \"not open\" sometimes means \"not looked at\".\n\n*How?* `-sS` sends a SYN and never completes the handshake, which needs root or sudo on Linux and Administrator on Windows. `-sT` uses a full TCP connect, works without privilege, and is louder in the target's logs. `-sU` is UDP, which is slow and mostly unanswered.\n\n*What is listening?* `-sV` reads banners and probes services for a version. It takes time per port and it is the only way to turn a port number into a service name you can act on.\n\nThen `-oA scan-app01` writes three files at once: normal, XML and grepable. Every scan you may quote later gets that flag."
+        },
+        {
+          "h": "One command, one question, four states to read",
+          "body": "Four ports, one command, and output you can read line by line:\n\n```console\n$ sudo nmap -sS -p 22,80,443,8080 --reason 10.20.30.15\nStarting Nmap 7.94 ( https://nmap.org ) at 2025-11-24 09:14 IST\nNmap scan report for app01.lab.example (10.20.30.15)\nHost is up (0.0011s latency).\n\nPORT     STATE    SERVICE    REASON\n22/tcp   open     ssh        syn-ack ttl 64\n80/tcp   closed   http       reset ttl 64\n443/tcp  open     https      syn-ack ttl 64\n8080/tcp filtered http-proxy no-response\n\nNmap done: 1 IP address (1 host up) scanned in 2.11 seconds\n```\n\nRead the REASON column before the STATE column. `syn-ack` means the service answered. `reset` means the host answered and refused, which is a working host with no listener. `no-response` means silence, and silence is a statement about a firewall, a security group, or a route, not about the application. The 8080 row has the same shape as the original ticket: `filtered` with `no-response` points at the path between the scanner and app01, so the next step is a firewall rule lookup, not a call to the application team.\n\n**Decision rule:** SYN sent and SYN/ACK back means the service is reachable, so move to `-sV`. SYN sent and RST back means the host is fine and nothing listens, so check the service. SYN sent and nothing back for three tries means a device in the path is dropping it, so the question goes to the firewall or cloud security group owner with the source address, destination address and port."
+        },
+        {
+          "h": "Version detection buys evidence, not a patch level",
+          "body": "Version detection is where a scan turns into a finding, and where it turns into a false finding equally fast.\n\n```console\n$ sudo nmap -sV --version-light -p 22,443 10.20.30.15\nPORT    STATE SERVICE  VERSION\n22/tcp  open  ssh      OpenSSH 8.9p1 Ubuntu 3ubuntu0.4 (Ubuntu Linux; protocol 2.0)\n443/tcp open  ssl/http nginx 1.18.0 (Ubuntu)\n```\n\n`--version-light` limits the probe set to the most common ones, so it finishes in seconds instead of minutes. That banner is what the service announces, not proof of what is installed: a load balancer or a container image can return any string. Before you write \"outdated OpenSSH\" in a report, confirm the package version on the host.\n\nTiming matters more on a client network than on a lab. `-T4` is the usual choice for a scan with a scheduled window. `-T5` will drop packets, trip an IDS, and produce `filtered` results that look like findings but are your own scan outrunning the path. On a production segment, cap the rate instead: `--max-rate 100` keeps the packet rate predictable and the SOC conversation short.\n\nEvery scan in this lesson runs against the lab range or a host you own. Written authorization is required for anything else, and it names your source address, or your scan is indistinguishable from someone else's."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The handover is the command, the output file, and one sentence per port that matters.\n\n> Scan of 10.20.30.15 from 10.20.14.87 on 24 Nov 09:14, `sudo nmap -sS -p 22,80,443,8080 --reason -oA scan-app01`. 22 and 443 open (syn-ack), 80 closed (reset), 8080 filtered (no-response, three retries). Version probe: nginx 1.18.0 on 443. Files: scan-app01.nmap, .xml, .gnmap.\n\nEscalate to the firewall or cloud security group owner when a port the application owner confirms as open returns `filtered`, and attach the exact source address, destination address, port and timestamp. Escalate to the platform team when `-sV` shows a version the vendor no longer supports, because that is a patch decision and not a network one. If the scan was never authorized in writing, stop and escalate to the engagement lead before you run it, not after."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From question to evidence",
+        "caption": "The scan is chosen after the question, and the output file is written before anyone reads the result. Skipping the first or last step is what makes a scan impossible to defend.",
+        "data": {
+          "steps": [
+            {
+              "label": "Write the question",
+              "detail": "up? port open? version?"
+            },
+            {
+              "label": "Set scope and window",
+              "detail": "authorized range, window"
+            },
+            {
+              "label": "Pick the flags",
+              "detail": "sn, sS/sT, p, sV, reason"
+            },
+            {
+              "label": "Save the output",
+              "detail": "oA gives nmap, xml, gnmap"
+            },
+            {
+              "label": "Read the reason column",
+              "detail": "syn-ack, reset, no-response"
+            }
+          ],
+          "footer": "Filtered is a statement about the path. Closed is a statement about the host."
+        }
+      },
+      "video": {
+        "title": "How Nmap really works // And how to catch it // Stealth scan vs TCP scan // Wireshark analysis",
+        "channel": "David Bombal",
+        "url": "https://www.youtube.com/watch?v=F2PXe_o7KqM",
+        "start": 0,
+        "length": "44:03",
+        "why": "Captures the packets a SYN scan and a connect scan actually send, which is the part of this lesson the text can only describe."
+      },
+      "commands": [
+        {
+          "cmd": "nmap -sn 10.20.30.0/24",
+          "what": "Host discovery only; lists addresses that answer, without scanning ports"
+        },
+        {
+          "cmd": "sudo nmap -sS -p 22,80,443,8080 --reason 10.20.30.15",
+          "what": "Half-open scan of four ports with the reason for each state printed"
+        },
+        {
+          "cmd": "nmap -sT -p 443 10.20.30.15",
+          "what": "Full connect scan without root; works from a Windows workstation, leaves a log on the target"
+        },
+        {
+          "cmd": "sudo nmap -sV --version-light -p 22,443 10.20.30.15",
+          "what": "Turns port numbers into service names and versions, with a short probe set"
+        },
+        {
+          "cmd": "nmap -p- --max-rate 100 -oA scan-all 10.20.30.15",
+          "what": "All 65535 ports at a capped packet rate, written to three output files"
+        },
+        {
+          "cmd": "nmap -sU -p 161 10.20.30.15",
+          "what": "Checks one UDP port; silence is the common answer and is not a finding on its own"
+        }
+      ],
+      "pitfalls": [
+        "Reading \"filtered\" as \"service down\". Filtered says a device in the path dropped the probe; the service may be running perfectly and the rule may be a temporary block.",
+        "Running -T5 on a production segment to save two minutes. It drops packets, produces false \"filtered\" states, and trips the client SOC, which costs more time than the scan saved.",
+        "Quoting a -sV banner as the installed version. Proxies, containers and rewrites change banners, so confirm from the host itself before writing \"outdated\".",
+        "Scanning without -oA. When the change board asks what you ran, a screenshot of a terminal is not reproducible and cannot be attached to the record."
+      ],
+      "takeaways": [
+        "open, closed, filtered and unfiltered are four different claims about two different things: the service and the path.",
+        "The reason column is the evidence; the state column is the summary.",
+        "A scan without -oA and without a written authorization is not a scan you can quote."
+      ],
+      "drill": {
+        "prompt": "On your own machine, scan only localhost: run nmap -sT -p 1-1024 --reason 127.0.0.1, then the same with -sV on any port that shows open. Do not scan your office network, your ISP range, or any address you do not own.",
+        "minutes": 8,
+        "checklist": [
+          "You can name every state that appeared in the output and say which column proved it",
+          "You have a saved output file from -oA and can open the .nmap file in a text editor",
+          "You ran one scan as a normal user and can say why -sS was refused",
+          "You wrote one line stating what the scan did not prove"
+        ]
+      },
+      "sheetTopics": [
+        "Port Scanning",
+        "Nmap"
+      ]
+    },
+    {
+      "id": "l5-3",
+      "moduleId": "m5",
+      "seq": 3,
+      "title": "Wireshark: seeing the conversation instead of guessing",
+      "subtitle": "Capture, filter, follow a stream, and prove where it stopped.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Choose the capture point from the question, and name what a capture taken there cannot prove",
+        "Write a BPF capture filter that keeps the file small and complete for the case",
+        "Apply display filters that each answer one question about a connection",
+        "Use Follow TCP Stream and the SYN retry pattern to prove whether the path or the application failed"
+      ],
+      "ticket": {
+        "from": "Service Desk — application support queue",
+        "subject": "Invoice upload fails after 90 seconds, only from the Pune office",
+        "body": "Users in the Pune office say the invoice upload sits at \"processing\" and then fails after about 90 seconds. Users in the London office upload the same file without a problem. The application team says nothing changed on the server and says the network is the problem. Ping and traceroute to app01 from the Pune office look normal.",
+        "impact": "Twelve finance users in one office cannot upload invoices since Monday; month-end close is on Friday."
+      },
+      "sections": [
+        {
+          "h": "The capture was correct and it still named the wrong team",
+          "body": "Two engineers captured traffic for a slow upload. One captured on the laptop and found retransmissions, and wrote \"packet loss on the WAN\". The other captured on the server and found the request arriving 400 ms after the click, then 90 seconds of nothing while the application wrote its temp file. Both were correct; the first produced the wrong ticket.\n\nA capture is only evidence of what crossed the point where you took it. **Wireshark** reads capture files; on a server you usually produce them with `tcpdump` or `dumpcap` and open them later, because both tools write the same format. Decide which side of the problem the capture sits on, take it there, keep it small, and read the conversation instead of the packet count.\n\nEvery capture in this module is taken on a host you own or in the lab. A mirror port or SPAN session on someone else's network needs written authorization first."
+        },
+        {
+          "h": "Filter at capture time, decide at display time",
+          "body": "The most common failure is not the analysis, it is the capture: no filter, a full disk, and the event you needed overwritten by a Windows update that started at 09:39.\n\nDecide the filter before you start. A **capture filter** is BPF, applied by the kernel, so packets that do not match are never written. A **display filter** is applied by Wireshark to what you already have and can be changed all day. That order is the difference between a 40 MB file you can read and a 4 GB file you cannot.\n\n```console\n$ sudo tcpdump -i eth0 -nn -s 0 -w /tmp/app01-0941.pcap \\\n    'host 10.20.14.87 and tcp port 443' -c 500\ntcpdump: listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes\n500 packets captured\n500 packets received by filter\n0 packets dropped by kernel\n```\n\n`-i` names the interface, `-nn` stops DNS and port-name lookups, `-s 0` keeps the full packet, and `-c` stops at a number you chose. The summary lines are evidence: \"0 packets dropped by kernel\" means the file is complete for that filter. On a busy interface the drop count is never zero, so rotate with `dumpcap -b filesize:102400 -b files:20` instead of filling the disk."
+        },
+        {
+          "h": "One display filter per question, or you are reading noise",
+          "body": "Wireshark's filter bar takes display filters, and each of these answers exactly one question.\n\n| Filter | The question it answers |\n|---|---|\n| `ip.addr == 10.20.30.15 && tcp.port == 443` | one client and one service |\n| `tcp.flags.syn == 1 && tcp.flags.ack == 0` | connection attempts, complete or not |\n| `tcp.analysis.flags` | retransmissions, duplicate ACKs, zero window |\n| `tcp.stream eq 3` | one conversation |\n| `tls.handshake.extensions_server_name` | the hostname the client asked for |\n\nStart with the address pair and count connections, then switch to bare SYNs and compare attempts against completed handshakes. A client that retries five times in 90 seconds is telling you where the wait went.\n\n**Decision rule:** if the SYN leaves the client and no SYN/ACK comes back, the loss is in the path, and no application log will show it, so check the firewall, NAT and route first. If the handshake completes and the server resets 90 seconds later, the path did its job and the finding belongs to the application team."
+        },
+        {
+          "h": "Follow the stream and make the server confess",
+          "body": "Once the right conversation is on screen, right-click a packet and choose Follow, then TCP Stream. Wireshark reassembles the stream: what each side sent, in order, client in one color and server in the other. That view is where \"processing failed\" becomes a status line or a TLS alert.\n\nTLS stops you at the payload. For HTTPS you see the handshake in clear, including the server name and the certificate, then encrypted application data. Do not install a private key on a user's browser to get around that. What the handshake proves is already useful: whether the certificate was accepted, which hostname the client asked for, and whether the connection ended in an alert.\n\n`tshark` runs the same display filters on a saved file without the GUI:\n\n```console\n$ tshark -r /tmp/app01-0941.pcap -Y \"tcp.flags.syn == 1 && tcp.flags.ack == 0\" \\\n    -T fields -e frame.time -e ip.src -e tcp.dstport | head -5\nNov 24, 2025 09:41:02.118402 IST\t10.20.14.87\t443\nNov 24, 2025 09:41:04.219771 IST\t10.20.14.87\t443\nNov 24, 2025 09:41:08.221004 IST\t10.20.14.87\t443\nNov 24, 2025 09:41:16.226118 IST\t10.20.14.87\t443\n```\n\nThose four SYN lines, 2, 4 and 8 seconds apart, are the client's retry backoff. That pattern with no SYN/ACK in between is a path problem, and it is the most useful thing a capture hands you."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note has four parts: where the capture was taken, the exact filter, the one conversation that matters, and what it proves.\n\n> Capture on app01 eth0, 24 Nov 09:41, `tcpdump -i eth0 -nn -s 0 -w /tmp/app01-0941.pcap 'host 10.20.14.87 and tcp port 443' -c 500`, 0 packets dropped. Client 10.20.14.87 sent SYN at 09:41:02 and retried at +2s, +4s and +8s. No SYN/ACK in the file. The handshake never completed, so the request never reached the application.\n\nAttach the pcap file, not a screenshot, and name the stream index if you used Follow TCP Stream. Say which side of the path the capture sits on, because a capture taken on the client cannot prove the server did not answer.\n\nEscalate to the network team when the handshake never completes from a client that otherwise works, with the timestamps and source address. Escalate to the application team when the handshake completes and the server resets or returns 5xx, with the Follow TCP Stream text. If the capture would need a mirror port on a network you do not own, stop: written authorization is required, and the request goes to the engagement lead."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "title": "Where a 90-second upload stops",
+        "caption": "The handshake completes and the request is sent, then the server resets after 90 seconds. That sequence puts the failure above the transport layer, which is the opposite of what the first capture suggested.",
+        "data": {
+          "actors": [
+            {
+              "id": "pc",
+              "label": "Client 10.20.14.87"
+            },
+            {
+              "id": "fw",
+              "label": "fw-edge-1"
+            },
+            {
+              "id": "srv",
+              "label": "app01 10.20.30.15"
+            }
+          ],
+          "messages": [
+            {
+              "from": "pc",
+              "to": "fw",
+              "text": "SYN seq 2174839301",
+              "note": "tcp 443",
+              "tone": "accent"
+            },
+            {
+              "from": "fw",
+              "to": "srv",
+              "text": "SYN forwarded",
+              "note": "NAT + DNAT",
+              "tone": "ok"
+            },
+            {
+              "from": "srv",
+              "to": "pc",
+              "text": "SYN, ACK",
+              "note": "handshake done",
+              "tone": "ok"
+            },
+            {
+              "from": "pc",
+              "to": "srv",
+              "text": "ACK, then POST /upload",
+              "note": "517 bytes",
+              "tone": "ok"
+            },
+            {
+              "from": "srv",
+              "to": "pc",
+              "text": "no data for 90 s",
+              "note": "app writing temp file",
+              "tone": "accent"
+            },
+            {
+              "from": "srv",
+              "to": "pc",
+              "text": "RST",
+              "note": "connection dropped",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "How TCP Works - The Handshake",
+        "channel": "Chris Greer",
+        "url": "https://www.youtube.com/watch?v=HCHFX5O1IaQ",
+        "start": 0,
+        "length": "13:53",
+        "why": "Shows the handshake and its flags in a live capture, so the SYN, SYN/ACK and RST rows you filter for here look familiar before your first real incident."
+      },
+      "commands": [
+        {
+          "cmd": "sudo tcpdump -i eth0 -nn -s 0 -w /tmp/cap.pcap 'host 10.20.30.15 and tcp port 443' -c 500",
+          "what": "Captures full packets for one host and port only, and stops at 500"
+        },
+        {
+          "cmd": "dumpcap -i 1 -b filesize:102400 -b files:20 -w /tmp/cap.pcapng",
+          "what": "Rotating capture on a busy interface so the disk cannot fill"
+        },
+        {
+          "cmd": "tshark -r cap.pcap -Y \"tcp.flags.syn == 1 && tcp.flags.ack == 0\"",
+          "what": "Lists bare SYNs, which shows every connection attempt and its retry spacing"
+        },
+        {
+          "cmd": "tshark -r cap.pcap -Y \"ip.addr == 10.20.30.15 && tcp.port == 443\"",
+          "what": "Narrows a large file to one client-service pair before you open the GUI"
+        },
+        {
+          "cmd": "tshark -r cap.pcap -Y \"tcp.analysis.flags\"",
+          "what": "Surfaces retransmissions, duplicate ACKs and zero-window events in one view"
+        },
+        {
+          "cmd": "tshark -r cap.pcap -Y \"tls.handshake.extensions_server_name\" -T fields -e tls.handshake.extensions_server_name",
+          "what": "Shows the hostname the client asked for during the TLS handshake"
+        }
+      ],
+      "pitfalls": [
+        "Capturing with no filter on a busy interface. The file fills the disk, capture stops, and the packets you needed are the ones that were never written.",
+        "Treating retransmissions as proof of packet loss on the network. A retransmission shows a segment was not acknowledged, which also happens when the receiving application stops reading.",
+        "Reading a capture taken on the client as proof about the server. It proves what left and what came back at that point, and nothing beyond it.",
+        "Using a display filter and assuming the file is small. Display filters hide packets; they do not stop them being captured and they do not reduce disk use."
+      ],
+      "takeaways": [
+        "The capture point is a decision: a file can only prove what crossed that point.",
+        "A BPF capture filter protects the disk; a display filter protects your attention.",
+        "SYN retries with no SYN/ACK are a path problem; a completed handshake followed by a reset is an application problem."
+      ],
+      "drill": {
+        "prompt": "Capture your own traffic while a single web page loads: sudo tcpdump -i any -nn -s 0 -w /tmp/mine.pcap -c 200 \"tcp port 443\", then open the file in Wireshark. Filter to bare SYNs, then to one conversation, and follow the TCP stream. Capture only on your own machine and only your own session.",
+        "minutes": 10,
+        "checklist": [
+          "The file opens in Wireshark and the summary counts match what tcpdump printed",
+          "You can show one completed handshake and the three packets that make it",
+          "You applied tcp.analysis.flags and can explain one row it returned",
+          "You have the Follow TCP Stream text for one connection, and can say what stays encrypted"
+        ]
+      },
+      "sheetTopics": [
+        "Wireshark"
+      ]
+    }
+  ]
+}

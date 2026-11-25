@@ -1,0 +1,54 @@
+name: deploy-staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: staging
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate curriculum and coverage
+        working-directory: app
+        run: |
+          node scripts/build_curriculum.mjs
+          node scripts/build_coverage.mjs
+          node --check server.js
+          node --check oidc.js
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.STAGING_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Sync application
+        run: |
+          rsync -az --delete \
+            --exclude 'data/' --exclude 'node_modules/' --exclude '.DS_Store' \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
+            app/ "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/opt/lms/current/app/"
+
+      - name: Restart and health check
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
+            "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
+            "sudo systemctl restart lms && sleep 2 && curl -fsS https://lms.phoneme.in/api/health"

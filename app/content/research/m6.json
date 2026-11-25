@@ -1,0 +1,137 @@
+{
+  "moduleId": "m6",
+  "items": [
+    {
+      "title": "RFC 3164: The BSD Syslog Protocol",
+      "creator": "C. Lonvick / IETF",
+      "format": "Paper",
+      "url": "https://datatracker.ietf.org/doc/html/rfc3164",
+      "why": "Section 4.1.2 defines the syslog timestamp as 'Mmm dd hh:mm:ss' local time with no year, and section 5.1 concedes that 'neither of these ... addresses the issue of associating a correct timezone with each record' — exactly the gap a parser fills by guessing when it turns 04:10 into 09:40. A 'what is syslog' explainer shows the message shape; this shows why the offset is unknowable from the message itself.",
+      "struggle": "The syslog line has no year and no time zone — how does the SIEM decide what time it was?",
+      "topic": "Log Management",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "What time zone are the description timestamps in Windows Event log (UTC?)",
+      "creator": "Server Fault",
+      "format": "Thread",
+      "url": "https://serverfault.com/questions/629696/what-time-zone-are-the-description-timestamps-in-windows-event-log-utc",
+      "why": "The asker is doing what your learners will do — comparing the Date column in Event Viewer with a timestamp pasted inside the event message — and the answer separates the UTC event record, the local-time display and the string the service wrote. That third distinction is what settles whether the 04:10 log or the 09:40 alert is the one that is wrong.",
+      "struggle": "Are the timestamps written inside a Windows event description UTC or local time?",
+      "topic": "Log Management",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Basic Searching in Splunk Enterprise",
+      "creator": "Splunk How-To (Splunk)",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=GWl-TuAAF-k",
+      "why": "Under nine minutes of the official walkthrough: run a basic search, move the time range picker, and pull fields into the results — the three controls behind most empty or unreadable result grids. It beats a multi-hour SPL course because it stops at 'did my search even look at the right data', which is the question an empty queue cannot answer for you.",
+      "struggle": "I searched and got 'No results found' even though I know the events arrived.",
+      "topic": "Tools",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Write your first query with Kusto Query Language",
+      "creator": "Microsoft Learn",
+      "format": "Course",
+      "url": "https://learn.microsoft.com/en-us/training/modules/write-first-query-kusto-query-language/",
+      "why": "Eleven short units teach take, project, where, count and sort against sample tables, so a learner who only knows Splunk's 'stats count by' can see the same counting question as a KQL pipe without a Sentinel tenant. That port is the point of l6-2; a Splunk-only tutorial leaves half the lesson unlearned.",
+      "struggle": "I can write SPL, but my first Sentinel KQL query returns an empty table and I don't know which part is wrong.",
+      "topic": "Tools",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Elasticsearch term query does not give any results",
+      "creator": "Stack Overflow",
+      "format": "Thread",
+      "url": "https://stackoverflow.com/questions/33053382/elasticsearch-term-query-does-not-give-any-results",
+      "why": "A self-described Elasticsearch beginner's term filter on 'title' returns nothing while the same filter on another field works, and the answers explain analyzed text versus exact keyword terms. This is why a field=value habit carried over from Splunk silently matches zero documents in Elastic instead of raising an error.",
+      "struggle": "My Elasticsearch term query returns no results even though I can see the matching document.",
+      "topic": "Tools",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "SOC Alert Triage Explained: What Most Beginners Get Wrong",
+      "creator": "MyDFIR",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=k9c1PBynVpA",
+      "why": "Four minutes on triage itself rather than on a vendor console, pitched at the mistakes a first-time analyst makes on the way to a disposition. It is short enough to watch before a shift, and it makes the point the l6-3 ticket turns on: a verdict needs evidence, not a rule name.",
+      "struggle": "How do I decide in three minutes whether an alert is a true positive or a false positive?",
+      "topic": "Security Alerts",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Finding the “Goldilocks” Zone: A Practical Approach to Alert Triage",
+      "creator": "Hayden Covington / Black Hills Information Security",
+      "format": "Article",
+      "url": "https://www.blackhillsinfosec.com/the-goldilocks-zone/",
+      "why": "An associate director of security operations writes about the two ways a shift actually fails — spending too long on one 'too hot' alert and too little on a 'too cold' one — and gives a severity-led order for allocating limited time. It beats generic 'triage steps' posts because it is about the queue, not the single alert.",
+      "struggle": "I have 40 alerts in the queue and no idea which one deserves the next 20 minutes.",
+      "topic": "Security Alerts",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "SOC Alert Tuning and False Positive Reduction: Setting Yourself Up for Success",
+      "creator": "SANS Cyber Defense",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=wZBXJGf8OuY",
+      "why": "SANS authors Justin Henderson and John Hubbard break false-positive reduction into a methodical programme — prepare, choose the right tooling, then tune — rather than a bag of tricks, across a recorded live stream. That is the l6-4 shift: a noisy rule is tuning input, not a closure reason.",
+      "struggle": "The same rule fires 40 times a week and everyone just closes it — how do I fix the rule instead of the ticket?",
+      "topic": "Detection Engineering",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Rules | Sigma Detection Format",
+      "creator": "SigmaHQ",
+      "format": "Docs",
+      "url": "https://sigmahq.io/docs/basics/rules.html",
+      "why": "Shows a detection as a small YAML document with logsource, selection, condition, falsepositives and level — the concrete form of 'an alert is a sentence and a detection is a test of it'. The falsepositives field is the artifact beginner rules omit and then drown in.",
+      "struggle": "How do I write a rule that finds the behaviour rather than today's IP address?",
+      "topic": "Detection Engineering",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Brute Force, Technique T1110 - Enterprise | MITRE ATT&CK",
+      "creator": "MITRE ATT&CK",
+      "format": "Docs",
+      "url": "https://attack.mitre.org/techniques/T1110/",
+      "why": "The page a beginner should land on instead of the matrix poster: T1110 with its four sub-techniques (guessing, cracking, spraying, stuffing) shows how one behaviour splits into the log lines actually seen. Naming T1110.003 for a spray across many accounts is a different escalation from calling 412 failures 'a brute force alert'.",
+      "struggle": "Which ATT&CK technique is 412 failed logons for one service account, and does the sub-technique matter?",
+      "topic": "MITRE ATT&CK",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "The Pyramid of Pain",
+      "creator": "David J. Bianco (Enterprise Detection & Response)",
+      "format": "Article",
+      "url": "https://detect-respond.blogspot.com/2013/03/the-pyramid-of-pain.html",
+      "why": "The canonical ranking of why a blocked IP or hash costs an attacker minutes while forcing a TTP change costs days — the shelf-life argument behind judging an indicator by its age. It beats 'IOC vs TTP' listicles because it gives a hierarchy to reason with, not two definitions.",
+      "struggle": "We blocked the IP from the alert — why did the attacker come back the next day from a new one?",
+      "topic": "Threat Intelligence",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Blue Team Handbook: SOC, SIEM, and Threat Hunting (V1.02): A Condensed Guide for the Security Operations Team and Threat Hunter",
+      "creator": "Don Murdoch (GSE #99)",
+      "format": "Book",
+      "url": "https://www.amazon.in/dp/1091493898",
+      "why": "A condensed field guide written for the analyst on shift rather than the architect: SOC workflow, SIEM use and the questions to ask before trusting an alert. It is the only item here that follows a case from queue to escalation to handover, which is why it takes the one paid slot.",
+      "struggle": "What does a competent SOC handover actually contain at the end of a shift?",
+      "topic": "SIEM",
+      "level": "Working",
+      "cost": "Paid"
+    }
+  ]
+}

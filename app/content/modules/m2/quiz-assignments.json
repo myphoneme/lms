@@ -1,0 +1,351 @@
+{
+  "moduleId": "m2",
+  "quiz": {
+    "id": "q2",
+    "moduleId": "m2",
+    "title": "Linux for the desk — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q2-1",
+        "q": "You are about to run a cleanup command with a relative path on a customer server. Which command tells you exactly which directory `./` resolves to?",
+        "options": [
+          "`pwd`",
+          "`ls -la`",
+          "`whoami`",
+          "`history`"
+        ],
+        "answer": 0,
+        "explain": "`pwd` prints the absolute working directory, so `./logs` cannot surprise you. `ls -la` shows what is inside the directory but never where the directory is, and that is the mistake that deletes the wrong tree.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-2",
+        "q": "A user says the config file for their app is gone, but `ls /etc/payments` returns two entries and no error. What is the most likely explanation?",
+        "options": [
+          "The file is owned by root, and plain `ls` hides files owned by other users",
+          "The filesystem is mounted read-only, so the file is not listed",
+          "The file name begins with a dot, and plain `ls` does not show dotfiles",
+          "Plain `ls` only lists files smaller than 1 MB"
+        ],
+        "answer": 2,
+        "explain": "Plain `ls` hides names that begin with a dot, and application config and credential files are often dotfiles. Ownership and mount options do not change what `ls` lists, so `ls -a` settles it in one command.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-3",
+        "q": "Which command shows the last 30 minutes of log lines for the sshd unit only?",
+        "options": [
+          "`journalctl --since \"30 min ago\"`",
+          "`journalctl -u sshd --since \"30 min ago\"`",
+          "`journalctl -f -u sshd`",
+          "`grep -r sshd /var/log --since \"30 min ago\"`"
+        ],
+        "answer": 1,
+        "explain": "`-u` narrows journalctl to one systemd unit and `--since` bounds the window. `-f` follows live output with no time bound, and `grep` has no `--since` option at all.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-4",
+        "q": "You need to cite an exact line from a 4,000-line application log in a handover note. What does adding `-n` to grep give you?",
+        "options": [
+          "Case-insensitive matching",
+          "A recursive search through subdirectories",
+          "Only the names of files that contain a match",
+          "The line number of each matching line"
+        ],
+        "answer": 3,
+        "explain": "`-n` prefixes each match with its line number, which is what makes the citation checkable by the next engineer. `-i` ignores case and `-r` recurses; neither produces a line number.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-5",
+        "q": "A file is set to `640` and owned by `deploy:appteam`. What can a member of the `appteam` group do with it?",
+        "options": [
+          "Read and write it",
+          "Read it only",
+          "Neither read nor write it",
+          "Read and execute it"
+        ],
+        "answer": 1,
+        "explain": "The digits are owner, group, other: 6 is read and write for `deploy`, 4 is read only for `appteam`, and 0 gives everyone else nothing. Reading the 6 as the group value is the common mistake, and it would wrongly grant write access.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-6",
+        "q": "A server reaches some subnets but not 10.20.5.0/24. Which command shows the interface, source address and gateway that would be used for 10.20.5.11?",
+        "options": [
+          "`ip addr`",
+          "`ss -lnt`",
+          "`ip route get 10.20.5.11`",
+          "`ip neigh`"
+        ],
+        "answer": 2,
+        "explain": "`ip route get` answers for one destination and prints the interface, source address and gateway on that path. `ip addr` lists every address on the host but chooses nothing, which is why it is the tempting wrong answer.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-7",
+        "q": "A user gets `Permission denied` when writing to `/opt/app/logs/app.log`. `ls -l` shows `-rw-rw-rw- 1 app app` and the user is in group `app`. What do you check next?",
+        "options": [
+          "The permissions on `/opt/app/logs` and its parent directories",
+          "Whether `chmod 777` on `app.log` is needed to allow the write",
+          "Whether the user account has expired",
+          "Whether the filesystem is mounted read-only"
+        ],
+        "answer": 0,
+        "explain": "Writing a file needs write permission on the containing directory and execute permission on every directory in the path, so the file mode is not the blocker. `chmod 777` on the file changes nothing here, and a read-only mount returns a different error: `Read-only file system`.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-8",
+        "q": "A service on `app01` answers `curl http://127.0.0.1:8080/health` locally. A user on 10.20.30.0/24 gets `Connection refused`. `ss -tulnp` shows `LISTEN 0 4096 127.0.0.1:8080` and the firewall already permits 8080 from that subnet. What is the finding?",
+        "options": [
+          "The firewall is still blocking the subnet, so the network team must open 8080",
+          "The host has no route back to 10.20.30.0/24",
+          "The service has crashed and needs a restart",
+          "The service is bound to loopback only, so its listen address must change"
+        ],
+        "answer": 3,
+        "explain": "A socket bound to 127.0.0.1 accepts only local connections, so a remote client is refused before any firewall rule is evaluated. The firewall answer would fit a socket on 0.0.0.0, and the listen-address change needs the app owner's approval.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-9",
+        "q": "`systemctl restart nginx` returns `Job for nginx.service failed because the control process exited with error code`. Which command shows why it failed?",
+        "options": [
+          "`ps aux | grep nginx`",
+          "`journalctl -u nginx -n 50 --no-pager`",
+          "`ss -tulnp | grep nginx`",
+          "`df -h`"
+        ],
+        "answer": 1,
+        "explain": "The unit journal holds the config-test or bind error that ended the start, and `-n 50` keeps the output readable. `ps` proves the process is gone but never says why, which is the dead end most freshers hit.",
+        "tag": "linux"
+      },
+      {
+        "id": "q2-10",
+        "q": "A checkout service returns 500 errors. `df -h /var` shows 100 percent used, but `du -xsh /var/*` totals 6 GB on a 20 GB volume. `journalctl -u checkout` ends with `no space left on device`. What is the most likely cause?",
+        "options": [
+          "A deleted file is still open, so its blocks are not freed",
+          "The volume is genuinely full and must be grown",
+          "The disk is failing and will need replacement",
+          "The systemd journal has rotated incorrectly and must be vacuumed"
+        ],
+        "answer": 0,
+        "explain": "df counts blocks that are still allocated, including a deleted file a process holds open, so df and du disagree exactly in that case and `lsof +L1` names the holder. Growing the volume would hide the cause for one more night, which is the expensive wrong answer.",
+        "tag": "linux"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a6",
+      "day": 6,
+      "moduleId": "m2",
+      "title": "Find the file that changed before the outage",
+      "level": 1,
+      "minutes": 25,
+      "scenario": "web01 runs the checkout API for a retail customer on 10.20.4.0/24. At 09:52 the API starts returning errors, and the 08:00 handover note says only \"config touched on web01\". The application owner is unavailable until 11:00, and any change under /etc needs a ticket. You rebuild the same tree in the lab at ~/lab/web01.",
+      "task": "1. Confirm the host and your starting directory before you use a relative path. Every later step uses an absolute path or an explicit `~/` path.\n\n```\nhostname\npwd\nwhoami\n```\n\n2. Build the lab tree that mimics `web01`. This is your playground, not a customer host.\n\n```\nmkdir -p ~/lab/web01/etc ~/lab/web01/opt ~/lab/web01/var/log\necho 'listen 0.0.0.0:8080' > ~/lab/web01/etc/app.conf\necho 'upstream 10.20.4.11:5432' > ~/lab/web01/etc/app.conf.bak\necho 'started worker 4' > ~/lab/web01/var/log/app.log\ntouch -d '45 minutes ago' ~/lab/web01/etc/app.conf\ntouch -d '5 minutes ago' ~/lab/web01/var/log/app.log\ntouch -d '2 days ago' ~/lab/web01/etc/app.conf.bak\n```\n\n3. List the tree in long format, including dotfiles.\n\n```\nls -la ~/lab/web01/etc\nls -laR ~/lab/web01 | head -n 30\n```\n\n4. Ask the question that matters on this call: which files changed inside the incident window. Two files will match, and one of them is a log.\n\n```\nfind ~/lab/web01 -type f -mmin -90 -ls\n```\n\n`-mtime -1` answers the last 24 hours; a 90-minute incident window needs `-mmin -90`.\n\n5. Narrow to configuration, then read the candidate.\n\n```\nfind ~/lab/web01 -name '*.conf' -mmin -90 -ls\ncat ~/lab/web01/etc/app.conf\n```\n\n6. Prove the path has no symlink or surprise component in front of it.\n\n```\nls -ld ~/lab/web01/etc\nreadlink -f ~/lab/web01/etc/app.conf\n```\n\n7. Run the same read-only check against the real system directories of your lab VM. This is the version you would run on a host you do not own.\n\n```\nsudo find /etc -xdev -type f -mmin -240 -ls | head -n 20\n```\n\n8. Write the handover line: absolute path, the time the file changed, and one sentence on what the change did. Name the application owner as the next team if the change has no ticket.\n\nSafety: every command here is read-only. Do not edit, move, or delete a file under `/etc` or `/opt`; a configuration change needs an approved ticket and a backup copy.",
+      "deliverable": "One line naming the absolute path and modification time of the only changed `.conf` file, quoting the `find` line it came from.",
+      "tools": [
+        "find",
+        "ls",
+        "pwd",
+        "cat",
+        "readlink"
+      ],
+      "rubric": [
+        {
+          "criterion": "Path discipline",
+          "weight": 30,
+          "lookFor": "the answer names a path starting with `/home/` or `~/lab/`, and every command uses a path starting with `/` or `~/` or follows a checked `pwd`; a bare `app.conf` does not score"
+        },
+        {
+          "criterion": "Timestamp from the tool, not from the story",
+          "weight": 40,
+          "lookFor": "quotes a `find` line whose date and time are about 45 minutes before the run, and identifies `var/log/app.log` as the newer file that is not the config"
+        },
+        {
+          "criterion": "Handover with a routing decision",
+          "weight": 30,
+          "lookFor": "states the path and time in one sentence and names the application owner as the next team when the change has no ticket"
+        }
+      ],
+      "hints": [
+        "`-mmin -90` means modified within the last 90 minutes; `-mtime -1` means within the last day, which will return far more than you want.",
+        "The path comes before the tests in a find expression: `find ~/lab/web01 -name '*.conf' -mmin -90` lists matches, while the reverse order tests the wrong tree.",
+        "`readlink -f` prints the path the kernel actually uses, so a symlinked directory shows up before the path goes into a ticket."
+      ]
+    },
+    {
+      "id": "a7",
+      "day": 7,
+      "moduleId": "m2",
+      "title": "Read the journal before you restart anything",
+      "level": 1,
+      "minutes": 30,
+      "scenario": "Since 07:15 the payments API on app01 has returned 502 through the load balancer. payments.service restarts about every 90 seconds, and the on-call has already restarted it twice. The application connects to PostgreSQL on db01 at 10.30.4.12:5432. You have the host console and no permission to change the database.",
+      "task": "1. Build the failing unit in your lab. Run this on an Ubuntu 22.04 or 24.04 host with systemd, as a free VirtualBox or UTM VM or WSL2 with systemd enabled. The unit is a stand-in for `payments.service` and reproduces the symptom: the process starts, cannot reach the database, and exits. It restarts every 5 seconds so the loop is visible inside the drill; production restarts every 90 seconds.\n\n```\nsudo tee /etc/systemd/system/payments.service >/dev/null <<'EOF'\n[Unit]\nDescription=Payments API (training fixture)\nAfter=network.target\n\n[Service]\nExecStart=/usr/local/bin/payments-start.sh\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\nEOF\n```\n\n2. Add the start script and load the unit. The error string is the one from the incident, and the application writes it to its own log as well as to stderr.\n\n```\nsudo mkdir -p /var/log/payments\nsudo tee /usr/local/bin/payments-start.sh >/dev/null <<'EOF'\n#!/bin/bash\necho 'dial tcp 10.30.4.12:5432: connect: connection refused' >&2\necho 'payments start failed: dial tcp 10.30.4.12:5432: connect: connection refused' >> /var/log/payments/app.log\nsleep 2\nexit 1\nEOF\nsudo chmod 755 /usr/local/bin/payments-start.sh\nsudo systemctl daemon-reload\nsudo systemctl enable --now payments\n```\n\n3. Read the state and the restart count before you change anything.\n\n```\nsystemctl status payments --no-pager\nsystemctl show payments -p NRestarts\n```\n\n4. Pull the incident window and read the last lines of the unit journal.\n\n```\njournalctl -u payments --since '10 min ago' --no-pager | tail -n 40\n```\n\n5. Filter to errors for this boot, and count the start attempts.\n\n```\njournalctl -u payments -p err -b --no-pager | tail -n 20\njournalctl -u payments --since '10 min ago' --no-pager | grep -c 'Starting'\n```\n\n6. Find the line that names a dependency rather than a symptom, in both sources the lesson names.\n\n```\njournalctl -u payments --since '10 min ago' --no-pager | grep -iE 'refused|timeout|dial|panic'\ngrep -n 'refused' /var/log/payments/app.log | tail -n 5\n```\n\nThe journal records what the unit did; the application log records what the app saw. Quote the line with the timestamp and, from the file, the line number.\n\n7. Prove the database port is closed, and prove your test method works against a port that is open.\n\n```\ntimeout 3 bash -c '</dev/tcp/10.30.4.12/5432' && echo '5432 open' || echo '5432 closed or filtered'\ntimeout 3 bash -c '</dev/tcp/127.0.0.1/22' && echo '22 open' || echo '22 closed'\n```\n\n8. Show what a healthy listener looks like, so the note can state what is missing.\n\n```\npython3 -m http.server 8080 --bind 127.0.0.1 &\nHTTP_PID=$!\nsleep 1\nss -tulnp | grep ':8080'\nkill \"$HTTP_PID\"\n```\n\n9. Write one line for the ticket: the quoted journal error, the port result, and the team that owns port 5432 on 10.30.4.12.\n\nSafety: do not restart `payments` again while you investigate; each restart overwrites the journal lines that explain the exit. Stop the fixture with `sudo systemctl disable --now payments` when you are done.",
+      "deliverable": "One line with the unit name, the quoted `connection refused` string, the port test result from step 7, and the team the ticket routes to.",
+      "tools": [
+        "systemctl",
+        "journalctl",
+        "grep",
+        "ss",
+        "timeout",
+        "python3"
+      ],
+      "rubric": [
+        {
+          "criterion": "Unit and incident window",
+          "weight": 25,
+          "lookFor": "cites `payments.service` with `-u payments` and a bounded window such as `--since '10 min ago'` or `-b`"
+        },
+        {
+          "criterion": "Cause quoted from the journal",
+          "weight": 45,
+          "lookFor": "quotes the line containing `connect: connection refused` for 10.30.4.12:5432 with its timestamp, and gives the closed-port result as supporting evidence"
+        },
+        {
+          "criterion": "Routing and restraint",
+          "weight": 30,
+          "lookFor": "routes to the database team, states that no further restart was performed, and does not claim the Linux host is faulty"
+        }
+      ],
+      "hints": [
+        "`-p err` keeps error priority and above, so the steady `Starting` and `Stopped` lines stop hiding the failure.",
+        "A 502 from the load balancer means the proxy reached nothing on the backend, so the backend journal is the first place to read, not the proxy access log.",
+        "If step 7 prints closed, the listener is missing or the path is filtered; the journal line already names the address, so the note needs no port scan."
+      ]
+    },
+    {
+      "id": "a8",
+      "day": 8,
+      "moduleId": "m2",
+      "title": "Fix access with the smallest change, not 777",
+      "level": 1,
+      "minutes": 30,
+      "scenario": "The deploy account on app01 cannot read files that the intake process drops into /srv/uploads, so the 02:00 import fails and 340 orders stay unprocessed. A colleague on the shift suggests `chmod -R 777 /srv/uploads`. The directory holds customer uploads from the last 30 days and is covered by the data-handling policy.",
+      "task": "1. Create the account the ticket names and reproduce the denial. The file is owned by `root` and readable only by its owner, which matches the production condition.\n\n```\nsudo useradd -m -s /bin/bash deploy 2>/dev/null || true\nmkdir -p /tmp/m2perm/uploads\necho 'id,name' | sudo tee /tmp/m2perm/uploads/report.csv >/dev/null\nsudo chown root:root /tmp/m2perm/uploads/report.csv\nsudo chmod 600 /tmp/m2perm/uploads/report.csv\nsudo -u deploy cat /tmp/m2perm/uploads/report.csv; echo \"exit=$?\"\n```\n\n2. Read the mode in a form you can quote in the ticket, and check every directory in the path.\n\n```\nls -ld /tmp/m2perm /tmp/m2perm/uploads\nls -l /tmp/m2perm/uploads/report.csv\n```\n\n3. Decide who needs what before you type a mode. The intake process writes new files into the directory, the deploy account reads them, and no other account needs either.\n\n4. Create the group and apply the smallest sufficient change. The setgid bit is what makes new files inherit `appteam`.\n\n```\nsudo groupadd -f appteam\nsudo usermod -aG appteam deploy\nsudo chgrp appteam /tmp/m2perm/uploads /tmp/m2perm/uploads/report.csv\nsudo chmod 640 /tmp/m2perm/uploads/report.csv\nsudo chmod 2750 /tmp/m2perm/uploads\n```\n\n5. Prove it with an account that should succeed, one that should fail, and one write that must still be refused.\n\n```\nsudo -u deploy cat /tmp/m2perm/uploads/report.csv\nsudo -u nobody cat /tmp/m2perm/uploads/report.csv; echo \"exit=$?\"\nsudo -u deploy touch /tmp/m2perm/uploads/deploy-was-here; echo \"exit=$?\"\n```\n\n6. Show what 777 would have allowed. In a world-writable directory, any local account can delete a file it does not own.\n\n```\nmkdir -p /tmp/m2perm/open && chmod 777 /tmp/m2perm/open\necho 'customer row' | sudo tee /tmp/m2perm/open/export.csv >/dev/null\nsudo chown deploy:appteam /tmp/m2perm/open/export.csv\nsudo -u nobody rm -f /tmp/m2perm/open/export.csv && echo 'deleted by nobody: yes'\n```\n\n7. Write the change line for the ticket: old mode, new mode, who gained what, and what 777 would have exposed.\n\nSafety: use the lab tree only. On the real host, `chmod -R 777 /srv/uploads` would let any local account read and delete 30 days of customer files; a mode change on customer data needs the change ticket, the data owner's approval, and the old mode recorded.",
+      "deliverable": "One line with the before and after `ls -l` line for `report.csv` and the mode that changed between them.",
+      "tools": [
+        "chmod",
+        "chgrp",
+        "ls",
+        "sudo",
+        "useradd"
+      ],
+      "rubric": [
+        {
+          "criterion": "Failure reproduced and recorded",
+          "weight": 35,
+          "lookFor": "shows the `Permission denied` output from `sudo -u deploy cat` and the `ls -l` line from before the fix, with `-rw-------` and owner `root`"
+        },
+        {
+          "criterion": "Smallest sufficient fix",
+          "weight": 35,
+          "lookFor": "sets group `appteam`, gives the directory 2750 and the file 640, and no step applies 777 or a recursive 777"
+        },
+        {
+          "criterion": "Reason stated in one sentence",
+          "weight": 30,
+          "lookFor": "explains that intake needs write on the directory while deploy needs read on the file, and names what 777 would have exposed to every local account"
+        }
+      ],
+      "hints": [
+        "The three digits are owner, group, other: 640 is read and write for the owner, read for the group, and nothing for anyone else.",
+        "If `cat` fails even though the file looks readable, run `ls -ld` on each parent directory and check for the execute bit before you touch the file mode.",
+        "`chmod 2750` sets the setgid bit on the directory, so new files inherit the `appteam` group instead of the creating user primary group."
+      ]
+    },
+    {
+      "id": "a9",
+      "day": 9,
+      "moduleId": "m2",
+      "title": "Find the process before someone reboots the host",
+      "level": 1,
+      "minutes": 35,
+      "scenario": "At 10:20 the checkout page on web01 slowed from 300 ms to 6 s per request. `top` shows one process pinning a core, and a senior colleague messages \"just reboot it\". The host also runs a nightly report rebuild that normally takes 40 minutes, and the business report is due at 12:00.",
+      "task": "1. Start a stand-in for the nightly report job as a transient systemd unit. It burns one core, so you have a real process to investigate.\n\n```\nsudo systemd-run --unit=report-rebuild --working-directory=/tmp /usr/bin/python3 -c 'while True: pass'\nuptime\n```\n\n2. Find the top CPU consumer and note the difference between elapsed time and CPU time.\n\n```\nps -eo pid,ppid,pcpu,pmem,etime,args --sort=-pcpu | head -n 8\ntop -b -n1 | head -n 15\n```\n\n3. Take the PID of `python3` and get its full story.\n\n```\nps -o pid,ppid,user,etime,time,pcpu,cmd -p <PID>\n```\n\n4. Find which unit owns the process.\n\n```\ncat /proc/<PID>/cgroup\nsystemctl status report-rebuild --no-pager\n```\n\n5. Check whether a scheduled job explains it.\n\n```\nsystemctl list-timers --all --no-pager | head -n 15\nls -l /etc/cron.d\n```\n\n6. Check what is listening and how many sessions are open, because CPU alone does not explain slow responses.\n\n```\nsudo ss -tulnp | grep -E ':(80|8080|5432)'\nsudo ss -Htan state established | wc -l\n```\n\n7. Decide between throttle and stop. Lowering priority is reversible and keeps the job alive; stopping it needs approval and a note of what work is lost.\n\n```\nsudo renice 10 -p <PID>\nps -o pid,ni,pcpu,args -p <PID>\n```\n\n8. Record the decision and what a reboot would have discarded: the running job progress and the process state that explains the slowdown.\n\nSafety: `renice` and `kill` change a running host. Capture the `ps` and `ss` output before either, and get approval before any `kill` or `systemctl restart`; a reboot erases the state that explains the slowdown. Stop the fixture with `sudo systemctl stop report-rebuild`.",
+      "deliverable": "One line with the PID, its unit, its elapsed time, and the decision (renice, stop with approval, or escalate) with the reason.",
+      "tools": [
+        "ps",
+        "top",
+        "systemd-run",
+        "systemctl",
+        "ss",
+        "renice",
+        "uptime"
+      ],
+      "rubric": [
+        {
+          "criterion": "Process identified by PID and unit",
+          "weight": 30,
+          "lookFor": "gives a PID that matches the `ps` output and names `report-rebuild.service` from `/proc/<PID>/cgroup` or `systemctl status`"
+        },
+        {
+          "criterion": "Elapsed time read correctly",
+          "weight": 40,
+          "lookFor": "compares `etime` with `time` and says whether the job is busy or stuck, instead of calling any high-CPU process a leak"
+        },
+        {
+          "criterion": "Decision that avoids the reboot",
+          "weight": 30,
+          "lookFor": "rejects the reboot with a reason tied to the running job, and names the exact next action plus who approves it"
+        }
+      ],
+      "hints": [
+        "`etime` is wall-clock time since start and `time` is CPU time used. A job with 20 minutes of `etime` and 19 minutes of `time` is spinning; one with 7 hours of `etime` and 12 minutes of `time` is mostly waiting.",
+        "`ps -eo ... --sort=-pcpu` sorts descending; drop the minus sign and the idle processes come first.",
+        "`systemd-run --unit=NAME` creates a transient unit, so `systemctl status` and `/proc/<PID>/cgroup` both name it; stop it with `sudo systemctl stop report-rebuild`."
+      ]
+    },
+    {
+      "id": "a10",
+      "day": 10,
+      "moduleId": "m2",
+      "title": "Run the four-check triage on an unknown fault",
+      "level": 1,
+      "minutes": 45,
+      "scenario": "It is 08:45 on app02, the checkout host. Two users report timeouts and one reports an error page, but no dashboard panel is red. The customer call is at 09:30 and the L2 engineer is on another bridge. You own the lab host and the next 45 minutes.",
+      "task": "1. Build a healthy baseline first, so later evidence has something to compare against.\n\n```\nsudo mkdir -p /srv/checkout\necho 'checkout ok' | sudo tee /srv/checkout/index.html >/dev/null\nsudo chmod 644 /srv/checkout/index.html\nsudo systemd-run --unit=checkout --working-directory=/srv/checkout /usr/bin/python3 -m http.server 8080 --bind 0.0.0.0\ncurl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/; echo\n```\n\n2. Record the baseline. These are the values a healthy host returns, and the note will quote them later.\n\n```\ndate\nip -br addr\nip route\ndf -h / /var\ndf -i /var\nsudo ss -tulnp | grep ':8080'\nsystemctl status checkout --no-pager | head -n 5\n```\n\n3. Inject exactly one fault and write down the time. Pick one and do not read the others.\n\nFault A, service stopped:\n\n```\nsudo systemctl stop checkout\n```\n\nFault B, service bound to loopback only:\n\n```\nsudo systemctl stop checkout\nsudo systemctl reset-failed checkout 2>/dev/null || true\nsudo systemd-run --unit=checkout --working-directory=/srv/checkout /usr/bin/python3 -m http.server 8080 --bind 127.0.0.1\n```\n\nFault C, port 8080 already owned by another process:\n\n```\nsudo systemctl stop checkout\nsudo systemctl reset-failed checkout 2>/dev/null || true\nsudo systemd-run --unit=stray-web /usr/bin/python3 -m http.server 8080 --bind 0.0.0.0\nsudo systemd-run --unit=checkout --working-directory=/srv/checkout /usr/bin/python3 -m http.server 8080 --bind 0.0.0.0\n```\n\n4. Leave the host for 10 minutes. When you return, do not read your note of which fault you chose. Run the checks in the order you choose and state why that order.\n\n5. Run the four-check runbook plus the network checks.\n\n```\ndf -h /var\ndf -i /var\nsudo lsof +L1 | head -n 5\nsystemctl --failed --no-pager\nsystemctl status checkout --no-pager | tail -n 15\njournalctl -u checkout --since '20 min ago' -p warning --no-pager | tail -n 20\nsudo ss -tulnp | grep ':8080'\nnamei -l /srv/checkout/index.html\nstat -c '%a %U:%G %n' /srv/checkout/index.html\nip -br addr\nip route\ngetent hosts \"$(hostname)\"\ncurl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/; echo\n```\n\nIf `lsof` is not installed, add it once with `sudo apt install -y lsof`; the package is in the standard Ubuntu repository.\n\n6. Write the note: symptom, start time, the check that failed with one line of its output, at least two checks that passed, and the close-or-escalate line naming the team.\n\n7. Revert the fault and confirm the baseline returns.\n\n```\nsudo systemctl stop checkout stray-web 2>/dev/null || true\nsudo systemctl reset-failed checkout stray-web 2>/dev/null || true\nsudo chmod 644 /srv/checkout/index.html\nsudo systemd-run --unit=checkout --working-directory=/srv/checkout /usr/bin/python3 -m http.server 8080 --bind 0.0.0.0\ncurl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/; echo\n```\n\n8. Write the five-line runbook a colleague can follow without you: one command per check, in the order you would run them, plus the condition that turns the ticket into an escalation.\n\nSafety: break only the lab host, and record every command with its revert line in the ticket. On a production host, `chmod` on customer files and any change to a running service need the change ticket before you type the command.",
+      "deliverable": "One triage note with the failing check and its output, at least two checks named as passed, the close-or-escalate line with the team, and the five-command runbook.",
+      "tools": [
+        "df",
+        "systemctl",
+        "journalctl",
+        "ss",
+        "namei",
+        "stat",
+        "ip",
+        "getent",
+        "curl"
+      ],
+      "rubric": [
+        {
+          "criterion": "Coverage and order",
+          "weight": 25,
+          "lookFor": "runs the disk, service, port and permission checks plus address and route, and gives one sentence on why the order is cheapest-first"
+        },
+        {
+          "criterion": "Evidence with negative results",
+          "weight": 45,
+          "lookFor": "quotes one output line per check, names the failing check, and names at least two checks that passed instead of reporting only the failure"
+        },
+        {
+          "criterion": "Escalation judgment",
+          "weight": 30,
+          "lookFor": "closes with the fix when the fault is inside L1 scope, or escalates with the failing check, the evidence, and the named team; never a bare request for L2 to look at the server"
+        }
+      ],
+      "hints": [
+        "Negative evidence is evidence: 'disk at 41 percent, no failed units, 8080 listening on 0.0.0.0' is what stops an unnecessary escalation.",
+        "Use `journalctl -u checkout --since '20 min ago'` rather than the whole journal; the incident window is the only part the note needs.",
+        "Read the socket before you guess: `ss` showing 127.0.0.1:8080 means the listen address, nothing on 8080 means the process is gone, and 8080 held by a process you did not start means something else owns the port."
+      ]
+    }
+  ]
+}

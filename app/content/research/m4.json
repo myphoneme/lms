@@ -1,0 +1,137 @@
+{
+  "moduleId": "m4",
+  "items": [
+    {
+      "title": "SP 800-12 Rev. 1, An Introduction to Information Security",
+      "creator": "NIST",
+      "format": "Docs",
+      "url": "https://csrc.nist.gov/pubs/sp/800/12/r1/final",
+      "why": "Section 1.4 defines confidentiality, integrity and availability as three separate properties with three different failure modes, which is exactly the sort the finance-share ticket needs: renamed files break availability, replaced contents break integrity, and reading each file before encrypting it breaks confidentiality. It beats a CIA-triad blog because these are the definitions auditors and incident forms actually cite.",
+      "struggle": "The folder is restored but the ticket still says security incident — which property broke, and which queue owns it?",
+      "topic": "Security Principles",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "Security Engineering: A Guide to Building Dependable Distributed Systems — Chapter 2: Who Is the Opponent?",
+      "creator": "Ross Anderson (University of Cambridge)",
+      "format": "Book",
+      "url": "https://www.cl.cam.ac.uk/~rja14/book.html",
+      "why": "Chapter 2 works through who actually attacks systems — state actors, the cybercrime ecosystem and the specialist markets inside it — and what each one is after, so an agent can ask who benefits from this symptom on a normal call. It beats a hacker-stereotype video because the motive explains the symptom, and the chapter is a free PDF from the author.",
+      "struggle": "How do I ask what an attacker would do next on a support call without accusing the user or probing the host?",
+      "topic": "Security Principles",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Authentication vs. authorization",
+      "creator": "Microsoft Learn",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/authentication-vs-authorization",
+      "why": "Puts the two checks side by side: authentication proves who the caller is, authorization decides what that identity may open. That is the only way to explain a sign-in that succeeds while the finance share still returns Access denied, and it uses the same sign-in and consent vocabulary as the Entra logs the learner will read.",
+      "struggle": "The password worked and the MFA prompt was approved, so how can the user still be denied access to the share?",
+      "topic": "Identity Security",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "Permission denied when accessing VirtualBox shared folder when member of the vboxsf group",
+      "creator": "Super User",
+      "format": "Thread",
+      "url": "https://superuser.com/questions/307853/permission-denied-when-accessing-virtualbox-shared-folder-when-member-of-the-vbo",
+      "why": "The accepted answer is the lesson: the account was already in the group, a restart changed nothing, and access only worked after logging out and back in, because group membership is read when the session is created. That is the token-age check the lesson asks for, reported by someone who hit it, where a permissions how-to would only tell you how to add the group.",
+      "struggle": "I added the account to the group and even rebooted — why does it still say permission denied?",
+      "topic": "Access Security",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Hashing Algorithms and Security - Computerphile",
+      "creator": "Computerphile",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=b4b8ktEV4Bg",
+      "why": "Eight minutes separating a one-way hash from reversible encryption, with collision and password-cracking examples that make the vendor published a SHA-256 so the download is safe claim visibly wrong. A learner who watches this stops treating a matching hash as proof of encryption or of malware-free contents, which is the muddle in the lesson's three-tools section.",
+      "struggle": "The download page lists a SHA-256 value and my hash matches — does that mean the file is encrypted, or that it is safe?",
+      "topic": "Cryptography",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "What does a Let's Encrypt (or other DV) certificate prove?",
+      "creator": "Information Security Stack Exchange",
+      "format": "Thread",
+      "url": "https://security.stackexchange.com/questions/202702/what-does-a-lets-encrypt-or-other-dv-certificate-prove",
+      "why": "The answer states it plainly: a DV certificate proves only that whoever requested it controlled the domain at that moment, so a lookalike domain gets the same padlock. That kills the the padlock means the site is legitimate reassurance learners give users, and it beats a TLS explainer because it answers the exact question the lesson's four-things and three-things list is built around.",
+      "struggle": "The phishing site shows a valid green padlock — doesn't the certificate prove the company is real?",
+      "topic": "Cryptography",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Hacking Websites with SQL Injection - Computerphile",
+      "creator": "Computerphile",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=_jKylhJtPmI",
+      "why": "Tom Scott takes a deliberately vulnerable PHP login and shows that the username is pasted straight into the SQL string, so a quote ends the string and the rest of the input is read as SQL — the mechanism behind the lesson's apostrophe-broke-the-order-search ticket. It beats an OWASP category definition because it starts from the string-concatenation mistake instead of a taxonomy.",
+      "struggle": "A customer typed an apostrophe into the order search and got a database error — why does punctuation break the query?",
+      "topic": "Application Protection",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "What is cross-site scripting (XSS) and how to prevent it?",
+      "creator": "PortSwigger Web Security Academy",
+      "format": "Course",
+      "url": "https://portswigger.net/web-security/cross-site-scripting",
+      "why": "The free apprentice labs make the learner put a harmless-looking payload into a search box and watch the page execute it, separating the app stored my text from the app executed my text — the exact gap in the lesson's XSS section. It beats a cheat sheet because the learner reproduces the defect and then sees which output encoding removes it.",
+      "struggle": "The page just prints my name back to me — how is that a security bug if the only person affected is me?",
+      "topic": "Application Protection",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "How can I check from the command line if a reboot is required on RHEL or CentOS?",
+      "creator": "Server Fault",
+      "format": "Thread",
+      "url": "https://serverfault.com/questions/122178/how-can-i-check-from-the-command-line-if-a-reboot-is-required-on-rhel-or-centos",
+      "why": "The top answers give needs-restarting -r with its 0 or 1 exit code, the /var/run/reboot-required flag and the running-versus-installed kernel check, so installed can be turned into effective with a command whose output goes into the ticket. That is the pending-reboot gap the lesson calls out, and it beats a patch-management overview because it is the check itself.",
+      "struggle": "The patch installed and the scanner says compliant — why is the server still running the old kernel?",
+      "topic": "Device Protection",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Take response actions on a device in Microsoft Defender for Endpoint",
+      "creator": "Microsoft Learn",
+      "format": "Docs",
+      "url": "https://learn.microsoft.com/en-us/defender-endpoint/respond-machine-alerts",
+      "why": "Shows isolate, contain and restrict app execution as separate remote actions and spells out the proxy case where full isolation can strand a device, which is the difference between containing one laptop and cutting off a site. It beats an EDR explainer because these are the console decisions an L1 will be asked to approve, including when each one is the wrong call.",
+      "struggle": "EDR flagged the laptop but the user is still working — do I isolate it, and what does isolation actually cut off?",
+      "topic": "Device Protection",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Why are the CVSS scores differ so much between Redhat and NVD page?",
+      "creator": "Information Security Stack Exchange",
+      "format": "Thread",
+      "url": "https://security.stackexchange.com/questions/167679/why-are-the-cvss-scores-differ-so-much-between-redhat-and-nvd-page",
+      "why": "The answer puts the two vectors side by side and shows the disagreement sits in human-chosen inputs — attack complexity, scope of impact — not in the arithmetic, so one CVE is 10.0 at NVD and 8.8 at the vendor. That is the lesson's severity-is-the-bug-risk-is-this-host argument with real numbers, and a CVSS calculator cannot settle it.",
+      "struggle": "NVD says 10.0 and the vendor says 8.8 for the same CVE — which number goes on the ticket?",
+      "topic": "Risk Management",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "CVSS v3.1 Specification Document",
+      "creator": "FIRST",
+      "format": "Paper",
+      "url": "https://www.first.org/cvss/v3-1/specification-document",
+      "why": "The normative text says the Base score reflects intrinsic severity assuming the reasonable worst case and must be adjusted by Temporal and Environmental metrics for a specific environment, the documented reason a 9.8 on an isolated lab host need not be first on the list. It beats a blog summary because it is what the scanners implement and what an exception register has to argue against.",
+      "struggle": "The scanner says 9.8 critical but the host is an isolated lab box — why isn't this the first thing I patch?",
+      "topic": "Risk Management",
+      "level": "Deep",
+      "cost": "Free"
+    }
+  ]
+}

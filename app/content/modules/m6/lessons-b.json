@@ -1,0 +1,437 @@
+{
+  "moduleId": "m6",
+  "lessons": [
+    {
+      "id": "l6-4",
+      "moduleId": "m6",
+      "seq": 4,
+      "title": "Correlation and detection engineering: writing a use case",
+      "subtitle": "Turn one alert into a rule that finds the behaviour, not the symptom.",
+      "minutes": 18,
+      "level": "Diagnosing",
+      "objectives": [
+        "Split an alert into the behavior it names and the data that can prove it",
+        "Write a correlation search that joins two event types on one key inside a time window",
+        "Set a threshold from a week of real events instead of from a guess",
+        "Hand a rule to another analyst with an owner, a test event and a version"
+      ],
+      "ticket": {
+        "from": "Service Desk — security queue, overnight",
+        "subject": "Same account, 30 failed logons, and nobody saw the two that worked",
+        "body": "The overnight queue took 41 Windows logon alerts from dc01, dc02 and fs01. Each one was a single bad-password event, triaged alone and closed. The 07:00 review found the same service account had 30 failures across both domain controllers and then two successful logons from a workstation. No rule in the console groups those records, so nobody received one alert that said so.",
+        "impact": "A possible credential compromise sat closed in the queue for nine hours."
+      },
+      "sections": [
+        {
+          "h": "Forty-one alerts, and the one that mattered was split into four",
+          "body": "The queue handed over at 07:00 held 41 Windows logon alerts. Each alert was one event: a 4625 bad-password record on dc01, dc02 or fs01. Each was triaged on its own, judged not worth escalation, and closed. The queue was empty by 07:10, which looked like a quiet night.\n\nThe pattern was never on the screen. One service account, `svc_backup`, failed 30 times across the two domain controllers between 03:04 and 03:26, then authenticated successfully to fs01 at 03:27 from 10.20.14.87 — a user workstation, not a backup server. The successful logon arrived as a separate alert. It was closed too, because a success is not a failure.\n\nThat is what per-event alerting costs: the signal exists, spread over records nobody joins. **Correlation** is the join. **Detection engineering** is deciding what to join, on which field, over how long, and writing it down so the next analyst gets one alert instead of forty."
+        },
+        {
+          "h": "An alert is a sentence, and a detection is a test of that sentence",
+          "body": "Write the behavior as a sentence before you touch the query language: `One account fails authentication on more than one server and then succeeds within ten minutes.` That sentence has a subject (the account), a condition (failures on more than one host), a second condition (a success) and a window. Every clause maps to a field you either have or do not have.\n\nIf you cannot write that sentence, you are not ready to write a rule. A query you copied from someone else is not a detection until you can say what it would look like when it is wrong.\n\nA use case has six parts: the sentence, the data sources that can witness it, the join key, the threshold, the time window, and an owner who answers when it fires.\n\nDecision rule for a call: if the alert describes one event but the behavior needs two, you are looking at a symptom. Go to the raw search before you decide anything."
+        },
+        {
+          "h": "The join key is where most rules fail quietly",
+          "body": "Correlation joins records on a shared field inside a bounded window. That shared field is the **join key**: the account, the host, the source address. If the key is spelled differently in two indexes — `user`, `Account`, `TargetUserName` — the join returns nothing, and nothing reads to a tired analyst as \"no activity\".\n\nSPL does this with `stats` grouped by the key. Grouping is cheaper than `join` and has no subsearch row limit:\n\n```console\nindex=win sourcetype=WinEventLog:Security (EventCode=4624 OR EventCode=4625)\n| bin _time span=10m\n| stats count(eval(EventCode=4625)) AS fails,\n        count(eval(EventCode=4624)) AS oks,\n        values(ComputerName) AS targets\n        BY _time, user\n| where fails >= 10 AND oks > 0\n| table _time, user, fails, oks, targets\n\n_time                 user          fails  oks  targets\n2025-11-24 03:10:00   svc_backup       14    0   dc01, dc02\n2025-11-24 03:20:00   svc_backup       16    2   fs01\n```\n\nTwo rows, one bucket apart: failures on both domain controllers, then two successes on a file server. The alert that should have reached the queue is one line, and it names the account, the hosts and the count.\n\nSentinel does the same join with `summarize ... by`: `SecurityEvent | where EventID in (4624, 4625) | summarize fails=countif(EventID==4625), oks=countif(EventID==4624), hosts=make_set(Computer) by Account, bin(TimeGenerated, 10m) | where fails >= 10 and oks > 0`. Same key, same window, different words."
+        },
+        {
+          "h": "Tune on a week of real events, not on a guess",
+          "body": "Run the rule backwards before you enable it: add `earliest=-7d latest=now` and count the rows. If it returns 900, the threshold is wrong, the field is wrong, or the data is wrong, and you have to find out which before it becomes 900 alerts. Read twenty of the hits in full. They split into two groups.\n\nThe first group is real but expected: `svc_backup` fails every night at 03:10 because the job starts before DNS is up. That needs a threshold or a scoped exclusion with an expiry date, not a permanent silence. The second group is artifacts: `user` is empty because that forwarder does not send it. That needs a field fix, and an exclusion would hide the next real event.\n\nShip the rule the way you ship code: in version control, with the sentence in the description, the search or analytics rule itself, a sample event you can replay, and a changelog line. Detection-as-code is not a product you buy. A folder of YAML in git is enough.\n\nDecision rule: a rule that fires more than 20 times a day with no confirmed true positive in a week is queue filler. Raise the threshold, add a scoped exclusion, or delete it, and write down which one you chose."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Your note has seven lines: rule name, the sentence, the data sources, the join key, the threshold and window, the seven-day hit count split into true and false positives, and the owner. Add the saved-search name or the file path in git. Another analyst should be able to re-run the rule from that note without asking you a question.\n\nClosing note for the overnight ticket: \"svc_backup had 30 failed logons on dc01 and dc02 between 03:04 and 03:26, then two successful logons to fs01 from 10.20.14.87 at 03:27. Source is a user workstation and the account is a backup service account. Correlation search corr-logon-fail-then-success enabled; historical baseline 3 hits per week, 1 confirmed true positive.\"\n\nEscalation criterion: escalate to L2 the moment the correlated result shows a successful logon for a service account or a domain admin after failures from a host that should never run that account. Password typos do not succeed on a file server at 03:27."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From one alert to a rule with an owner",
+        "caption": "Six steps. The fourth is the one people skip: a rule is not shipped until it has been run backwards over a week of real events and someone has read the hits.",
+        "data": {
+          "steps": [
+            {
+              "label": "Name the behavior",
+              "detail": "one sentence, subject + count"
+            },
+            {
+              "label": "Find the witness",
+              "detail": "index, sourcetype, field"
+            },
+            {
+              "label": "Join on one key",
+              "detail": "account, host, or address"
+            },
+            {
+              "label": "Run it over 7 days",
+              "detail": "count hits, read twenty"
+            },
+            {
+              "label": "Set threshold + owner",
+              "detail": "one number, one team"
+            },
+            {
+              "label": "Ship in version control",
+              "detail": "rule, event, changelog"
+            }
+          ],
+          "footer": "A rule with no owner is muted in week one and never returns."
+        }
+      },
+      "video": {
+        "title": "SIEM Correlation Rules for Beginners",
+        "channel": "Prabh Nair",
+        "url": "https://www.youtube.com/watch?v=Esvve_BWmBw",
+        "start": 0,
+        "length": "15:07",
+        "why": "Walks correlation rules from the rule logic to the events they group, which is the step this text can only describe in prose."
+      },
+      "commands": [
+        {
+          "cmd": "splunk search 'index=win EventCode=4625 | stats count AS fails BY user' -auth admin:changeme",
+          "what": "run the detection from the CLI before you save it as a search"
+        },
+        {
+          "cmd": "curl -k -u admin:changeme https://splunk01:8089/services/saved/searches -d name=corr-logon-fail-then-success --data-urlencode 'search=index=win (EventCode=4624 OR EventCode=4625) | bin _time span=10m | stats count(eval(EventCode=4625)) AS fails BY _time, user'",
+          "what": "create the scheduled correlation search from a script so every site gets the same object"
+        },
+        {
+          "cmd": "az monitor log-analytics query -w 00000000-0000-0000-0000-000000000000 --analytics-query 'SecurityEvent | where EventID in (4624,4625) | summarize count() by Account, bin(TimeGenerated, 10m)'",
+          "what": "run the same join in Sentinel without opening the portal"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime=(Get-Date).AddHours(-1)} | Group-Object {$_.Properties[5].Value} | Sort-Object Count -Descending",
+          "what": "which account is failing on this host, asked of the host itself"
+        }
+      ],
+      "pitfalls": [
+        "Joining on a field name that exists in only one index: `user` is populated in the Windows log and empty in the VPN log, so the join returns nothing and the ticket is closed as \"no matching activity\".",
+        "Trying to correlate inside one alert: the rule sees a single event, so 30 failures and a success can never appear in the same record, and no threshold will ever fix that.",
+        "Shipping with no baseline: the rule fires 600 times on day one, someone adds a blanket exclusion for `svc_*`, and the rule is blind to the next compromise of exactly that account."
+      ],
+      "takeaways": [
+        "A detection is a sentence plus a data source plus a threshold plus an owner; the query is the easy part.",
+        "`stats ... BY` is the correlation: one key, one window, then filter on the counts.",
+        "Run the rule backwards over a week before you enable it, and put that hit count in your note."
+      ],
+      "drill": {
+        "prompt": "In your training Splunk instance, take the sentence \"one account fails on more than one host and then succeeds within ten minutes\" and build the correlation search for it. Run it with `earliest=-7d`, count the hits, open the top three, and write the sentence, the join key, the threshold and the hit count into a four-line note.",
+        "minutes": 10,
+        "checklist": [
+          "A written sentence with a subject, a count and a window",
+          "The search returns a table with one row per account and time bucket",
+          "A seven-day hit count, with at least three hits read in full",
+          "One line naming the field you had to fix or the threshold you had to raise"
+        ]
+      },
+      "sheetTopics": [
+        "Incident Correlation",
+        "Detection Engineering"
+      ]
+    },
+    {
+      "id": "l6-5",
+      "moduleId": "m6",
+      "seq": 5,
+      "title": "MITRE ATT&CK and threat intelligence: mapping what you see",
+      "subtitle": "Where IOCs fit, where they fail, and how to use ATT&CK for coverage.",
+      "minutes": 17,
+      "level": "Diagnosing",
+      "objectives": [
+        "Separate an indicator of compromise from the behavior that produced it",
+        "Name the technique and sub-technique behind an alert, with the ATT&CK ID",
+        "Judge an indicator by its shelf life before you block anything with it",
+        "Turn a technique list into a coverage check with a rule or a documented gap against each"
+      ],
+      "ticket": {
+        "from": "Service Desk — security queue",
+        "subject": "VirusTotal says 3 of 70 and the application team says the file is theirs",
+        "body": "A user reported an attachment that would not open. The analyst submitted its SHA256 to VirusTotal, saw 3 of 70 engines flag it, and escalated the ticket as malware. The application team says the file is their own installer, signed last week. The user has been off the network since the escalation and cannot work.",
+        "impact": "One user offline since 11:20, with the SOC and the application team disagreeing about the same file."
+      },
+      "sections": [
+        {
+          "h": "Three of seventy is a question, not a verdict",
+          "body": "The ticket said malware because a file scanner showed 3 of 70. That number has no denominator of trust. The engines are not independent, a week-old installer built in-house trips heuristic engines that have never seen it, and a file that was never submitted shows 0 of 70 for a different reason: nothing has looked at it yet.\n\nTwo hours went into an argument about a verdict. Nobody opened the endpoint log to see whether the document ran, what it spawned, or where the host connected. An **indicator of compromise (IOC)** — a hash, an address, a domain — is a fact about a file or a host. It is not a fact about intent.\n\nThe work on the call is to walk from the indicator to the behavior: what executed, under whose account, with which parent process, and what touched the network. ATT&CK gives you the vocabulary for that sentence."
+        },
+        {
+          "h": "A tactic is why, a technique is how, a sub-technique is the log line",
+          "body": "**MITRE ATT&CK** is a public knowledge base of adversary behavior, built from observed incidents and maintained by MITRE. Three levels matter at L1.\n\nA **tactic** is the goal: Initial Access, Execution, Persistence, Credential Access, Exfiltration. Enterprise ATT&CK has 14 of them.\n\nA **technique** is how the goal is reached, and it has an ID: T1566 Phishing, T1059 Command and Scripting Interpreter, T1547 Boot or Logon Autostart Execution.\n\nA **sub-technique** is the level that matches a log field: T1059.001 PowerShell, T1547.001 Registry Run Keys / Startup Folder, T1566.001 Spearphishing Attachment.\n\nThat last level is the useful one. \"Execution\" does not tell you which field to alert on. \"T1059.001, `powershell.exe` whose parent is `WINWORD.EXE`\" does. When you write a ticket, name the sub-technique and the field that showed it, and the L2 analyst can check your work in one search."
+        },
+        {
+          "h": "An indicator is only as good as its shelf life",
+          "body": "The useful question about any indicator is how long it stays true. David Bianco's pyramid of pain ranks them by how much it costs an adversary to change them.\n\n| Indicator | Stays true for | What it proves |\n| SHA256 of a file | until the file is rebuilt | that exact file |\n| IP address | days to weeks | a host that was reachable |\n| Domain name | weeks | a name someone resolved |\n| Technique | years | behavior, after a rebuild |\n\nRead it as a shelf life. A hash match answers a question about one file. It does not clear the host, because the loader that dropped the file can be recompiled in a minute. An address match can be worse than useless: CDN ranges, cloud egress ranges and shared hosting are used by thousands of unrelated customers, and blocking one takes a business service down with it.\n\nDecision rule: if the only thing tying an alert to an adversary is a hash or an address, treat it as enrichment and keep the ticket open on behavior. If you can name the technique and show it in your own logs, you have a detection."
+        },
+        {
+          "h": "Map the activity, then look for the gap",
+          "body": "Take one phish and walk it. The attachment is opened: T1566.001. The document spawns a shell: T1204.002 User Execution, then T1059.001. A Run key is written: T1547.001. The host talks to 203.0.113.66 on 443: T1071.001 Application Layer Protocol.\n\nNow the part that earns its keep: for each of those four IDs, ask whether a rule exists that would have fired. Each answer is either a detection or a documented gap, and the four lines together are a coverage review. That is why ATT&CK is used for defense. It is not a way to name an attacker.\n\nThe knowledge base is a downloadable bundle, so you can check an ID on a machine with no internet access:\n\n```console\n$ curl -s https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json \\\n    | jq -r '.objects[] | select(.type==\"attack-pattern\" and .revoked==false)\n             | [.external_references[0].external_id, .name] | @tsv' \\\n    | grep '^T1059' | sort\nT1059\tCommand and Scripting Interpreter\nT1059.001\tPowerShell\nT1059.002\tAppleScript\nT1059.003\tWindows Command Shell\nT1059.004\tUnix Shell\n```\n\nMapping is not emulation. Running Atomic Red Team, Caldera or any technique against a host is an offensive act. It requires written authorization that names the hosts, the window and the person accountable, and in this course it stays inside the lab range."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Six things go in the note: the hash with its size and signer, the scanner ratio plus the first and last submission dates, whether the file executed (parent, child, account), the technique IDs you can show in the logs, the rule that did or did not fire, and the gap that leaves behind.\n\nClosing note: \"SHA256 of installer.docm, 3/70 on VirusTotal, first submitted 2025-11-20, signed by the app team build certificate. Endpoint log shows WINWORD.EXE spawning powershell.exe -enc on ws-0412 at 09:13; no rule exists for T1059.001. Releasing the file is not the same as clearing the host.\"\n\nEscalation criterion: escalate to L2 when you can name a sub-technique and show the log line that proves it. Do not escalate on a scanner ratio alone. That is the ticket that burned two hours and took a user offline for an installer."
+        }
+      ],
+      "diagram": {
+        "type": "timeline",
+        "title": "One attachment, four technique IDs",
+        "caption": "Read the times as evidence order rather than as a story: the Run key at 09:18 is what makes the earlier PowerShell persistent, and 09:22 is the first moment data may have left.",
+        "data": {
+          "events": [
+            {
+              "t": "09:12",
+              "title": "Macro document opened",
+              "detail": "T1566.001, Word opens file",
+              "actor": "attacker"
+            },
+            {
+              "t": "09:13",
+              "title": "Encoded PowerShell",
+              "detail": "T1059.001 child of WINWORD",
+              "actor": "attacker"
+            },
+            {
+              "t": "09:18",
+              "title": "Run key written",
+              "detail": "T1547.001, HKCU autostart",
+              "actor": "attacker"
+            },
+            {
+              "t": "09:22",
+              "title": "TLS to 203.0.113.66",
+              "detail": "T1071.001, 41 MB out",
+              "actor": "system"
+            },
+            {
+              "t": "09:44",
+              "title": "Analyst maps, closes gap",
+              "detail": "rule added for T1059.001",
+              "actor": "defender"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "MITRE ATT&CK® Framework",
+        "channel": "mitrecorp (The MITRE Corporation)",
+        "url": "https://www.youtube.com/watch?v=Yxv1suJYMI8",
+        "start": 0,
+        "length": "3:42",
+        "why": "The maintainer of ATT&CK shows the tactic column and the technique entry side by side, which fixes the shape of the matrix faster than a written description."
+      },
+      "commands": [
+        {
+          "cmd": "curl -s https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json | jq -r '.objects[] | select(.type==\"attack-pattern\" and .revoked==false) | [.external_references[0].external_id, .name] | @tsv' | grep '^T1059'",
+          "what": "look up a technique ID and its name without internet access to the ATT&CK site"
+        },
+        {
+          "cmd": "curl -s -H \"x-apikey: $VT_KEY\" https://www.virustotal.com/api/v3/files/<sha256> | jq '.data.attributes.last_analysis_stats'",
+          "what": "the detection ratio, and how old the first submission is"
+        },
+        {
+          "cmd": "curl -s -H \"Authorization: $MISP_KEY\" -H \"Accept: application/json\" -X POST https://misp.lab.example/attributes/restSearch -d '{\"value\":\"203.0.113.66\",\"type\":\"ip-dst\"}'",
+          "what": "what your own intelligence platform already knows about the address"
+        },
+        {
+          "cmd": "Get-FileHash .\\invoice.docm -Algorithm SHA256",
+          "what": "the hash of the file that is actually on the endpoint, not the one in the email"
+        }
+      ],
+      "pitfalls": [
+        "Blocking a shared address because it appeared in an alert: CDN and cloud egress ranges serve unrelated customers, so the block takes a business service down and the real traffic keeps flowing elsewhere.",
+        "Calling a 0/70 ratio clean: a private build has never been submitted, so the scanner has nothing to compare and returns zero for lack of evidence.",
+        "Mapping an incident to a tactic only, such as \"Execution\": without a sub-technique you cannot check whether a rule exists, so the gap you found stays open."
+      ],
+      "takeaways": [
+        "A tactic is why, a technique is how, and a sub-technique is the level that matches a field in your logs.",
+        "An IOC has a shelf life measured in days; a technique stays true after the file is rebuilt.",
+        "Coverage is a list of technique IDs, each with a rule or a documented gap against it."
+      ],
+      "drill": {
+        "prompt": "Take the four IDs from the diagram and, for each one, search your lab SIEM for the field that would prove it. Write one line per ID in the form \"T-ID, field, rule name or GAP\". Then look up T1059.001 in the downloaded bundle and confirm the name matches what you wrote.",
+        "minutes": 10,
+        "checklist": [
+          "Four lines, each with a technique ID and a named field",
+          "At least two lines that say GAP and name the data source that is missing",
+          "The jq lookup returns T1059.001 with its official name",
+          "One sentence on why an indicator alone would not have changed any of the four answers"
+        ]
+      },
+      "sheetTopics": [
+        "MITRE ATT&CK",
+        "Threat Intelligence"
+      ]
+    },
+    {
+      "id": "l6-6",
+      "moduleId": "m6",
+      "seq": 6,
+      "title": "A SOC shift: five alerts, one incident",
+      "subtitle": "Walk a shift: triage, correlate, escalate, hand over.",
+      "minutes": 20,
+      "level": "Complex",
+      "objectives": [
+        "Triage five related alerts as one timeline instead of five tickets",
+        "Pivot on the host and the account across SIEM, EDR and firewall data",
+        "Choose containment you can reverse, and record it with a time and a console",
+        "Write a handover that an L2 analyst can act on without calling you"
+      ],
+      "ticket": {
+        "from": "Service Desk — SOC queue, 06:00 to 14:00 shift",
+        "subject": "Five alerts on one laptop between 09:12 and 09:40, all closed separately",
+        "body": "The shift took five alerts on ws-0412 within half an hour: a macro-enabled document, an encoded PowerShell command, a registry Run key, an outbound connection to 203.0.113.66 and failed logons on fs01 from the same host. Two were closed as benign and three went to two different L2 queues as separate tickets. The user called at 10:05 to say the laptop was slow.",
+        "impact": "One host, three tickets and two queues, with no single timeline since 09:12."
+      },
+      "sections": [
+        {
+          "h": "Five alerts, one host, and no timeline anywhere",
+          "body": "Between 09:12 and 09:40 the queue took five alerts on ws-0412. A macro-enabled document opened. An encoded PowerShell command ran. A registry Run key was written. The firewall logged 41 MB outbound to 203.0.113.66:443. And fs01 recorded six failed logons from 10.20.120.42, which is ws-0412.\n\nTwo of the five were closed as benign. Three went to two different L2 queues as separate tickets. The user called at 10:05 because the laptop was slow. Nobody had put the five records in one place, so nobody could see that the same host had executed a payload, made it persistent, and then tried a file server.\n\nA shift is not a list of alerts. It is one timeline per entity, and the entity is usually a host or an account. The ticket number is the one thing that will not help you."
+        },
+        {
+          "h": "Read the event, not the rule name",
+          "body": "Rule names carry verdicts written weeks ago by someone who is not on your call: \"Suspicious PowerShell\", \"Malware Detected\". The verdict is a summary. The event is the evidence.\n\nOpen the raw event and answer four questions: which account, which parent process, which command line, and when this rule last fired for this host. A rule that has fired 40 times for ws-0412 in a month is either badly tuned or watching something normal. Either way, its name tells you nothing about this event.\n\nTwo minutes on the raw event saves the twenty you would spend arguing about a rule name that never mentioned the parent process.\n\nDecision rule: when the alert name contains a verdict, ignore the verdict and read the command line. `powershell.exe -nop -w hidden -enc SQBFAFgA...` under `WINWORD.EXE` is not the same event as `powershell.exe -File \\\\fs01\\share\\login.ps1` under `explorer.exe`, and only the command line separates them."
+        },
+        {
+          "h": "Correlate across the queue, not inside the alert",
+          "body": "Pivot on the entity, not the alert ID. Pull every index that mentions the host or its address for the hour, and sort by time:\n\n```console\nindex=edr OR index=proxy OR index=win (host=ws-0412 OR src=10.20.120.42) earliest=09:00 latest=10:00\n| eval t=strftime(_time,\"%H:%M:%S\")\n| table t, index, sourcetype, EventCode, Image, dest, url\n| sort t\n\nt         index  sourcetype    event\n09:12:04  win    Security      4624 logon ws-0412\\a.sharma\n09:12:51  edr    Security      WINWORD.EXE spawned powershell.exe\n09:13:02  edr    Security      -nop -w hidden -enc SQBFAFgA...\n09:18:37  win    Security      Run key HKCU\\Software\\...\\Run\\OneDriveSync\n09:22:10  fw     pan:traffic   203.0.113.66:443 out, 41 MB\n09:31:48  win    Security      4625 x6 on fs01 from 10.20.120.42\n```\n\nOne line changes the incident, and it is not the PowerShell alert. The 41 MB went out on 443 with no proxy record at all, so either the host bypassed the proxy or it had a direct egress path. That is a finding about your network, not about the user, and it goes in the ticket.\n\nThe six 4625 records on fs01 matter for the same reason. They are the only evidence that the host had credentials and was reaching for more, and they are the point where an incident stays contained instead of becoming a file server problem."
+        },
+        {
+          "h": "Contain only what you can undo",
+          "body": "At L1 you may isolate and you may disable. You may not reimage, and you should not shut the machine down. A powered-off host loses its memory and its open channels, and L2 loses the process tree that proves what ran.\n\nIsolation from the EDR console keeps the management channel open, so collection continues and the user sees a message explaining why the network is gone. Disabling the switch port is the fallback when the agent is not responding. It also kills remote collection, and on most sites it needs the network team to approve it.\n\nRecord the action with a time and a console. \"Isolated ws-0412 at 09:52 from the EDR console, agent still checking in, user notified by phone\" is a containment record. \"Contained\" is a word.\n\nYou are not solving the incident on this call. You are stopping the spread and keeping the evidence, in that order, and anything that serves neither is L2 work.\n\nDecision rule: if the host is encrypting files or pushing data out, isolate first and investigate second. If it is a macro document that never spawned a shell, collect the evidence and leave the machine running for L2."
+        },
+        {
+          "h": "What you hand over",
+          "body": "One timeline, one host, five alerts, and the evidence paths. State what changed and what did not: isolated at 09:52, account a.sharma still enabled, fs01 logons failed so no session was established, no data confirmed leaving.\n\nClosing note: \"5 alerts 09:12 to 09:40 on ws-0412 (10.20.120.42). WINWORD.EXE spawned powershell.exe -enc at 09:13, Run key written 09:18, 41 MB to 203.0.113.66:443 at 09:22, six 4625 on fs01 at 09:31. Host isolated 09:52, EDR agent live. a.sharma password reset pending. Proxy has no record of the 41 MB.\"\n\nEscalation criterion: raise it to P1 immediately, without waiting for shift end, if the account that succeeded holds write access to a file server or if traffic to 203.0.113.66 is still rising. Otherwise it stays P2 with the timeline attached."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "title": "From first alert to isolation",
+        "caption": "The analyst asks the SIEM about the entity, not the ticket. The two answers that changed the severity came from the EDR console and the firewall, both outside the alert that started the work.",
+        "data": {
+          "actors": [
+            {
+              "id": "siem",
+              "label": "SIEM"
+            },
+            {
+              "id": "analyst",
+              "label": "L1 analyst"
+            },
+            {
+              "id": "edr",
+              "label": "EDR console"
+            },
+            {
+              "id": "l2",
+              "label": "L2 on-call"
+            }
+          ],
+          "messages": [
+            {
+              "from": "siem",
+              "to": "analyst",
+              "text": "5 alerts, all ws-0412",
+              "note": "09:12-09:40, four rules",
+              "tone": "accent"
+            },
+            {
+              "from": "analyst",
+              "to": "siem",
+              "text": "All events for the host",
+              "note": "60 min, all indexes",
+              "tone": "accent"
+            },
+            {
+              "from": "siem",
+              "to": "analyst",
+              "text": "3 indexes, 1 egress record",
+              "note": "41 MB to 203.0.113.66",
+              "tone": "bad"
+            },
+            {
+              "from": "analyst",
+              "to": "edr",
+              "text": "Process tree for ws-0412",
+              "note": "who is the parent",
+              "tone": "accent"
+            },
+            {
+              "from": "edr",
+              "to": "analyst",
+              "text": "WINWORD.EXE is the parent",
+              "note": "-enc at 09:13:02",
+              "tone": "bad"
+            },
+            {
+              "from": "analyst",
+              "to": "edr",
+              "text": "Isolate ws-0412",
+              "note": "keep agent channel",
+              "tone": "ok"
+            },
+            {
+              "from": "analyst",
+              "to": "l2",
+              "text": "P2 handover with timeline",
+              "note": "5 alerts, 1 host",
+              "tone": "ok"
+            },
+            {
+              "from": "l2",
+              "to": "analyst",
+              "text": "Account has fs01 write: P1",
+              "note": "a.sharma, active",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "A Day in the Life of a SOC Analyst: Coffee, Alerts, Repeat",
+        "channel": "TryHackMe",
+        "url": "https://www.youtube.com/watch?v=aNnFC7me4vM",
+        "start": 0,
+        "length": "44:26",
+        "why": "A former analyst describes what a critical alert does to the rest of a shift, which shows the queue pressure this lesson can only state as a timeline."
+      },
+      "commands": [
+        {
+          "cmd": "index=edr OR index=proxy OR index=win (host=ws-0412 OR src=10.20.120.42) earliest=09:00 latest=10:00 | eval t=strftime(_time,\"%H:%M:%S\") | table t, index, sourcetype, EventCode, Image, dest, url | sort t",
+          "what": "one timeline for the entity across every index in the hour"
+        },
+        {
+          "cmd": "Get-MpComputerStatus | Select-Object AMServiceEnabled, RealTimeProtectionEnabled, AntivirusSignatureLastUpdated",
+          "what": "whether the endpoint agent was actually protecting the host when the payload ran"
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624,4625; StartTime=(Get-Date).AddHours(-2)} | Where-Object {$_.Properties[5].Value -like '*sharma*'}",
+          "what": "the logon records behind the alert, including the ones no rule saw"
+        },
+        {
+          "cmd": "show interfaces status | include 1/0/12",
+          "what": "whether the access port is up before you ask the network team to shut it"
+        }
+      ],
+      "pitfalls": [
+        "Keeping five tickets open on one host: the L2 analyst who receives the third one has no idea the other two exist, and rebuilds the timeline from scratch.",
+        "Shutting the laptop down to stop the malware: memory and the process tree go with it, and the parent process can no longer be proved.",
+        "Writing \"isolated\" without a time or a console: nobody can tell whether containment happened before or after the 41 MB left."
+      ],
+      "takeaways": [
+        "The unit of work is the entity, host or account, not the alert.",
+        "Isolation is reversible and keeps the agent channel; a port shutdown is not, so it needs approval.",
+        "A handover is a timeline with times, not a summary paragraph."
+      ],
+      "drill": {
+        "prompt": "Build the timeline by hand. Take the five alerts from the diagram and put them in one table with three columns: time, system, evidence. Then write the two-sentence handover you would send to L2, including one thing you did not do and why.",
+        "minutes": 10,
+        "checklist": [
+          "Five rows ordered by time, each with the system it came from",
+          "One row that only appears because two sources were joined",
+          "A containment action written with a time and a console name",
+          "One line stating the escalation criterion you applied"
+        ]
+      },
+      "sheetTopics": []
+    }
+  ]
+}

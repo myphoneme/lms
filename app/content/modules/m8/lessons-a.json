@@ -1,0 +1,452 @@
+{
+  "moduleId": "m8",
+  "lessons": [
+    {
+      "id": "l8-1",
+      "moduleId": "m8",
+      "seq": 1,
+      "title": "Python you actually need: values, loops, functions, files",
+      "subtitle": "Enough Python to read a log, count things and write a CSV.",
+      "minutes": 18,
+      "level": "Core",
+      "objectives": [
+        "Read a sixty-line Python script and name what each block does",
+        "Parse a real nginx access log into timestamp and status code with one regex",
+        "Count events per hour and write the result to a CSV that another team can open",
+        "Prove the count is right before you put the number in a ticket"
+      ],
+      "ticket": {
+        "from": "Service Desk - queue 2, afternoon shift",
+        "subject": "Need 5xx count per hour for yesterday, app team is blocked",
+        "body": "The app team asked for 5xx responses per hour on 23 November so they can point at the window that broke. The log is on web01 at /var/log/nginx/access.log. A colleague ran grep -c for 500, got 1,204, and put it in the ticket. The app team says their dashboard shows 1,880 for the same day and wants to know which number is real. The log rotates at midnight, so part of yesterday is in access.log.1, and nobody on the shift knows how long this should take.",
+        "impact": "One app team is holding a fix until it has a trustworthy hourly number; the afternoon shift is doing the count by hand between calls."
+      },
+      "sections": [
+        {
+          "h": "The hourly count took a shift and still came back wrong",
+          "body": "The app team asked for one thing: how many 5xx responses per hour on 23 November. The log is on `web01` at `/var/log/nginx/access.log`. A colleague ran `grep -c '\" 500 ' access.log`, got 1,204, put it in the ticket and moved to the next call. Three hours later the app team replied that their dashboard showed 1,880 for the same day, and asked which number was real.\n\nNeither was. `grep -c` counts one code and gives no hour. It reads one file, and nginx rotated at midnight, so most of the day was already in `access.log.1`. And 502, 503 and 504 come from the same failure as 500, so one pattern was never going to answer the question.\n\nSplitting 40,000 lines by hour by hand is four hours of a shift. It cannot be re-run for the previous day, and nobody can check the result. This lesson is the smallest amount of Python that replaces it."
+        },
+        {
+          "h": "Six constructs cover almost every floor script",
+          "body": "You need to recognize these, not master the language.\n\n- **Values** are strings (`\"500\"`), integers (`500`), or `None`. A line read from a file is always a string, so a status code stays text until you call `int()` on it.\n- **A list** keeps order: `rows = [\"500\", \"502\", \"200\"]`.\n- **A dict** maps a key to a value, which is how you count by hour: `counts[\"14\"] = 486`.\n- **A loop** runs the body once per line: `for line in fh:`.\n- **A function** is a named block you call twice instead of pasting it twice.\n- **`with open(path) as fh:`** closes the file even when the loop raises.\n\nTwo standard-library modules do the boring parts. `collections.Counter` is a dict that counts for you, and `csv.writer` handles quoting and commas inside a field. Both ship with Python, so a server with no internet access runs your script unchanged.\n\nOne habit matters more than the syntax: open the file with `encoding=\"utf-8\", errors=\"replace\"`. A log with one bad byte otherwise kills the run at line 31,000, and you spend the shift finding out why."
+        },
+        {
+          "h": "Read every rotation, count per hour, write the CSV",
+          "body": "The script reads every rotation, pulls the timestamp and status code out of each line with one regular expression, and counts codes per hour.\n\n```python\n#!/usr/bin/env python3\nimport csv, glob, re\nfrom collections import Counter\n\nLINE = re.compile(r'\\[(?P<ts>[^\\]]+)\\] \"(?P<req>[^\"]*)\" (?P<code>\\d{3})')\n\ncounts = {}\nfor path in sorted(glob.glob(\"/var/log/nginx/access.log*\")):\n    with open(path, encoding=\"utf-8\", errors=\"replace\") as fh:\n        for line in fh:\n            m = LINE.search(line)\n            if not m:\n                continue\n            hour = m[\"ts\"].split(\":\")[1] + \":00\"\n            counts.setdefault(hour, Counter())[m[\"code\"]] += 1\n\nwith open(\"/tmp/5xx-by-hour.csv\", \"w\", newline=\"\", encoding=\"utf-8\") as out:\n    w = csv.writer(out)\n    w.writerow([\"hour\", \"requests\", \"errors_5xx\"])\n    for hour in sorted(counts):\n        c = counts[hour]\n        err = sum(n for code, n in c.items() if code.startswith(\"5\"))\n        w.writerow([hour, sum(c.values()), err])\n```\n\nTwo lines carry the accuracy. `m[\"ts\"].split(\":\")[1]` is the hour, because the nginx timestamp is `23/Nov/2025:14:02:11 +0000` and the hour sits between the first and second colon. The code comes from the field after the quoted request, which is where nginx puts it. The rest is counting.\n\n```text\n$ python3 count5xx.py\n$ head -5 /tmp/5xx-by-hour.csv\nhour,requests,errors_5xx\n00:00,1841,3\n01:00,1702,1\n02:00,1655,0\n03:00,1608,2\n```\n\nBefore you send that file anywhere, add up the `requests` column and compare it with `wc -l` over the same two files. If the numbers differ, the regex skipped lines, and the CSV is wrong in a way that still looks tidy."
+        },
+        {
+          "h": "Two runs is the line for writing the script",
+          "body": "If the same count is asked for again this week, write the script. If you need one number once, `grep -c` is faster and the number goes straight into the ticket. What the script costs is not the writing; it is proving it is right.\n\nThree checks take two minutes:\n\n1. **Row count.** `wc -l /var/log/nginx/access.log*` against the sum of your totals.\n2. **One hour by hand.** Pick 14:00, run `grep -c '23/Nov/2025:14:' /var/log/nginx/access.log`, compare with the CSV row.\n3. **Timezone.** nginx writes `+0000`. The app team's dashboard may show local time. State which one your CSV uses.\n\nThe decision rule for the call: when the totals disagree, stop recounting and find the lines the parser skipped. `grep -vc '\\[[^]]*:[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' access.log` counts lines with no timestamp. On a healthy file that number is zero; anything else is a format you have not handled."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Four lines close this ticket: script path, output path, window with timezone, totals.\n\n> Ran `/home/ops/count5xx.py` on web01 at 16:40 UTC over `access.log` and `access.log.1` for 23 Nov. Output `/tmp/5xx-by-hour.csv`, 24 rows, 41,208 requests, 1,884 5xx. Peak 14:00 with 486 errors, first non-zero row after the 13:40 deploy. Row total matches `wc -l` on both files.\n\nAttach the file instead of pasting 24 rows into the ticket body, because the app team needs to sort it.\n\nEscalate to the app team when the row total still differs from the line count after both files are included, or when the disputed window contains lines the regex cannot parse. Send the script path, both numbers, and three sample lines that did not parse. That is a log format change, and guessing at it is how a second wrong number reaches the customer."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From a repeated question to a checked CSV",
+        "caption": "The script is the middle of this, not the whole of it. Step 5 is what turns a number into an answer you can defend.",
+        "data": {
+          "steps": [
+            {
+              "label": "See the question twice",
+              "detail": "same count asked again this week"
+            },
+            {
+              "label": "Pick the fields",
+              "detail": "hour from timestamp, status code"
+            },
+            {
+              "label": "Read every rotation",
+              "detail": "glob access.log* not one file"
+            },
+            {
+              "label": "Count in a dict",
+              "detail": "Counter per hour"
+            },
+            {
+              "label": "Check the total",
+              "detail": "sum equals wc -l on inputs"
+            },
+            {
+              "label": "Write the CSV",
+              "detail": "header row, one row per hour"
+            }
+          ],
+          "footer": "A count you cannot check is a number, not an answer."
+        }
+      },
+      "video": {
+        "title": "Python Tutorial: File Objects - Reading and Writing to Files",
+        "channel": "Corey Schafer",
+        "url": "https://www.youtube.com/watch?v=Uh2ebFW8OYM",
+        "start": 0,
+        "length": "24:33",
+        "why": "Shows a file being iterated line by line, the open modes, and why the with block closes the handle, which the text can only name in one line."
+      },
+      "commands": [
+        {
+          "cmd": "python3 -V",
+          "what": "which interpreter your script actually runs under; the syntax here needs 3.6 or later"
+        },
+        {
+          "cmd": "wc -l /var/log/nginx/access.log*",
+          "what": "raw line count per file, the total your CSV has to add up to"
+        },
+        {
+          "cmd": "grep -c '\" 500 ' /var/log/nginx/access.log",
+          "what": "one code, one file, no hour: the number that started the argument"
+        },
+        {
+          "cmd": "python3 count5xx.py && head -5 /tmp/5xx-by-hour.csv",
+          "what": "the run and its first rows, one per hour"
+        },
+        {
+          "cmd": "grep -vc '\\[[^]]*:[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' /var/log/nginx/access.log",
+          "what": "lines the regex cannot parse; zero on a healthy file"
+        }
+      ],
+      "pitfalls": [
+        "Counting only access.log and forgetting the rotation. Half the day is in access.log.1, and the missing hours are exactly the ones the app team is asking about.",
+        "Matching the code with a loose pattern like ' 5' . It also catches byte counts and URLs, and it inflates the error total in a way nobody notices until the numbers are quoted in a postmortem.",
+        "Sending the CSV without a line-count check. A skipped format produces plausible rows and a wrong total, and you will be the person who confirmed it."
+      ],
+      "takeaways": [
+        "A line read from a file is a string; convert before you compare or add.",
+        "Counter plus csv.writer covers nearly every count-and-report task on the floor.",
+        "A number is only finished when it reconciles with an independent count."
+      ],
+      "drill": {
+        "prompt": "On your own machine, create a fake log of 200 lines in the nginx format with three status codes, then write a ten-line script that prints a count per code and the total, and save the same data as a CSV. Break one line on purpose and confirm your script skips it instead of crashing.",
+        "minutes": 10,
+        "checklist": [
+          "The script prints one count per code and a total, and the total equals 200 minus the broken line",
+          "The broken line is skipped, not silently counted as a 200",
+          "The CSV opens in a spreadsheet with two columns and a header row",
+          "You can name the line that reads the hour, and say what happens at 00:00"
+        ]
+      },
+      "sheetTopics": [
+        "Python"
+      ]
+    },
+    {
+      "id": "l8-2",
+      "moduleId": "m8",
+      "seq": 2,
+      "title": "Python for operations: requests, JSON, APIs and logging",
+      "subtitle": "Pull a ticket list, parse it, and leave a trail when it fails.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Call a REST endpoint with requests and decide from the status code whether to retry, stop or escalate",
+        "Recognize a JSON body that is not the shape your code expects, including an HTML login page",
+        "Page through a result set until it is exhausted and report the total",
+        "Write a log line for every step so the next person can reconstruct the run"
+      ],
+      "ticket": {
+        "from": "Service Desk - queue 1, morning shift",
+        "subject": "Morning ticket export is missing the reopened ones",
+        "body": "Every morning someone exports open tickets from the service management tool and pastes them into a spreadsheet. Today the export had 96 rows and the queue badge said 137. The tool has an API and the previous L2 left a note with a token and the word page. Nobody knows whether the missing rows are reopened tickets, a pagination problem or a filter. Handover is at 09:00 and the shift lead wants a number that matches the queue before it starts.",
+        "impact": "Two analysts are triaging from an incomplete list, and tickets reopened overnight have no owner."
+      },
+      "sections": [
+        {
+          "h": "The export said 96 and the queue badge said 137",
+          "body": "The morning handover starts with a list of open tickets. Someone opens the service management tool, sets the filter to Open, exports CSV and pastes it into a shared spreadsheet. The badge on the queue says 137. The sheet has 96 rows. Overnight reopened tickets are missing from it, and two analysts are already triaging from that sheet.\n\nThe tool has an API. The previous L2 left a note with a token and one word, `page`. That word is the ticket: the API returns 100 rows per request and expects a second request for the rest, and the export only ever read page one.\n\nA copied export cannot be checked or repeated. A script can, and its log says what it asked for and what came back."
+        },
+        {
+          "h": "A 200 says the request was understood, not that it worked",
+          "body": "`raise_for_status()` turns the status class into a decision you can make on a call:\n\n- **401** means the token is missing, expired or revoked. It will not fix itself.\n- **403** means the token is valid but the account lacks the scope for this endpoint or this queue.\n- **429** means you asked too often, and the `Retry-After` header says the wait in seconds.\n- **5xx** means the server failed. Retry once, then escalate.\n- **200** means the request was understood. Nothing more.\n\nThree further checks decide whether a 200 is real data. The `Content-Type` header should be `application/json`; if it says `text/html`, the API sent a login page or a proxy error page, and `r.json()` raises `JSONDecodeError`, which is a `ValueError`. The body shape has to match your code: `{\"data\": [...]}` is not the same as a bare list, and reaching for a key that is not there returns nothing at all. The count has to agree with the `total` the API reports.\n\nThen pagination. If the response carries a `Link` header with `rel=\"next\"`, there is more data. If it does not, and you asked for 100 rows and received exactly 100, assume there is more data anyway."
+        },
+        {
+          "h": "Fetch, page, and leave a trail when it breaks",
+          "body": "The script keeps a session so the token header is set once, loops until a page comes back short, and writes each step to a log file.\n\n```python\n#!/usr/bin/env python3\nimport json, logging, os, time\nimport requests\n\nlogging.basicConfig(filename=\"/var/log/l1/tickets-pull.log\",\n                    level=logging.INFO,\n                    format=\"%(asctime)s %(levelname)s %(message)s\")\nBASE = \"https://sm.example.com/api/v1/tickets\"\n\ndef fetch(session, params):\n    for attempt in (1, 2):\n        r = session.get(BASE, params=params, timeout=10)\n        if r.status_code == 429 and attempt == 1:\n            wait = int(r.headers.get(\"Retry-After\", \"30\"))\n            logging.warning(\"429, sleeping %ss\", wait)\n            time.sleep(wait)\n            continue\n        r.raise_for_status()\n        return r\n    raise RuntimeError(\"rate limited twice\")\n\ndef main():\n    s = requests.Session()\n    s.headers.update({\"Authorization\": f\"Bearer {os.environ['SM_TOKEN']}\",\n                      \"Accept\": \"application/json\"})\n    page, rows = 1, []\n    while True:\n        batch = fetch(s, {\"state\": \"open\", \"page\": page, \"per_page\": 100}).json()[\"data\"]\n        rows.extend(batch)\n        logging.info(\"page %s: %s rows\", page, len(batch))\n        if len(batch) < 100:\n            break\n        page += 1\n    logging.info(\"done, %s rows\", len(rows))\n    with open(\"/tmp/open-tickets.json\", \"w\", encoding=\"utf-8\") as out:\n        json.dump(rows, out, indent=1)\n\nif __name__ == \"__main__\":\n    main()\n```\n\n`timeout=10` is not optional. Without it a stalled API holds the shift until TCP gives up, which can take minutes. The token comes from the environment, so a colleague can read the script without being handed a credential. Log the wait, never `s.headers`, because that log file is readable by the whole ops group.\n\n```text\n$ SM_TOKEN=$(cat ~/.sm_token) python3 pull_tickets.py\n$ tail -4 /var/log/l1/tickets-pull.log\n2026-03-11 08:41:02,113 INFO page 1: 100 rows\n2026-03-11 08:41:03,240 WARNING 429, sleeping 30s\n2026-03-11 08:41:34,905 INFO page 2: 37 rows\n2026-03-11 08:41:35,010 INFO done, 137 rows\n```\n\n137 is the number on the badge. The 41 missing rows were on page two, and the count line is the only reason you can say so."
+        },
+        {
+          "h": "Retry once, then escalate with the evidence",
+          "body": "Decision rules for the call:\n\n- **401 or 403:** stop. Retrying with the same token produces the same answer and can trip an account lockout. The token owner issues a new one, which is a two-minute request, not an investigation.\n- **429:** read `Retry-After`, sleep that long, retry once. A second 429 means another job is pulling the same endpoint. Tell your lead, because two scripts competing will keep each other rate-limited all morning.\n- **5xx:** retry once after 30 seconds. If it fails again, escalate with the timestamp, the endpoint and the `X-Request-Id` header, which the API team uses to find that request in its own logs.\n- **200 with an empty list:** not an outage. Print the parameters you sent. A typo in `state=open`, or a token scoped to another team's queue, returns `[]` with a perfectly happy status code.\n\nThe rule that keeps the script honest: it must exit non-zero when it did not get the rows it came for. A script that prints a stack trace and exits 0 is ignored by cron and by the next person."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Hand over the log lines, the row count and the file.\n\n> Pulled open tickets at 08:41 UTC with `/home/ops/pull_tickets.py`. 137 rows to `/tmp/open-tickets.json`, matches the queue badge. One 429 on page 2 with `Retry-After: 30`, retried once, succeeded. Log: `/var/log/l1/tickets-pull.log`.\n\nEscalate to the API owner when the same non-2xx comes back twice, when the `total` the API reports disagrees with the rows you received after the last page, or when a 200 arrives with HTML. Send the endpoint, the query parameters, the status code, the `X-Request-Id` and the log lines. Never send the token, and never paste it into a ticket comment."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "title": "One morning pull, including the 429",
+        "caption": "The retry is one attempt, not a loop. The log line is written before the retry, so the delay is explained even if the run dies there.",
+        "data": {
+          "actors": [
+            {
+              "id": "job",
+              "label": "pull_tickets.py"
+            },
+            {
+              "id": "api",
+              "label": "Ticket API"
+            },
+            {
+              "id": "log",
+              "label": "run.log"
+            }
+          ],
+          "messages": [
+            {
+              "from": "job",
+              "to": "api",
+              "text": "GET state=open, page 1",
+              "note": "Bearer token, timeout 10 s",
+              "tone": "accent"
+            },
+            {
+              "from": "api",
+              "to": "job",
+              "text": "200, 100 rows in data[]",
+              "note": "application/json",
+              "tone": "ok"
+            },
+            {
+              "from": "job",
+              "to": "log",
+              "text": "INFO page 1: 100 rows",
+              "note": "UTC timestamp",
+              "tone": "accent"
+            },
+            {
+              "from": "job",
+              "to": "api",
+              "text": "GET page 2",
+              "note": "100 rows means maybe more",
+              "tone": "accent"
+            },
+            {
+              "from": "api",
+              "to": "job",
+              "text": "429 Too Many Requests",
+              "note": "Retry-After: 30",
+              "tone": "bad"
+            },
+            {
+              "from": "job",
+              "to": "log",
+              "text": "WARNING 429, sleeping 30s",
+              "note": "one retry only",
+              "tone": "bad"
+            },
+            {
+              "from": "job",
+              "to": "api",
+              "text": "GET page 2 again",
+              "note": "after the wait",
+              "tone": "accent"
+            },
+            {
+              "from": "api",
+              "to": "job",
+              "text": "200, 37 rows",
+              "note": "short page, stop here",
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Master Python Requests In 15 Minutes. Call Any API",
+        "channel": "Tech With Tim",
+        "url": "https://www.youtube.com/watch?v=Xnbef8F_Yfc",
+        "start": 0,
+        "length": "16:52",
+        "why": "Shows the request and response objects live, including query parameters and reading a JSON body, which is the part the text describes but cannot demonstrate."
+      },
+      "commands": [
+        {
+          "cmd": "python3 -c \"import requests; print(requests.__version__)\"",
+          "what": "which library version is installed; the 2.x API used here, no upgrade needed"
+        },
+        {
+          "cmd": "curl -s -o /dev/null -w \"%{http_code}\\n\" -H \"Authorization: Bearer $SM_TOKEN\" \"https://sm.example.com/api/v1/tickets?state=open\"",
+          "what": "the status code alone, before you write any Python"
+        },
+        {
+          "cmd": "curl -s -D - -o /dev/null -H \"Authorization: Bearer $SM_TOKEN\" \"https://sm.example.com/api/v1/tickets?state=open&page=1&per_page=100\"",
+          "what": "response headers: Content-Type, Retry-After, Link for the next page"
+        },
+        {
+          "cmd": "python3 -m json.tool /tmp/open-tickets.json | head -40",
+          "what": "pretty-print the saved body so the field names are readable"
+        },
+        {
+          "cmd": "python3 -c \"import json;print(len(json.load(open('/tmp/open-tickets.json'))))\"",
+          "what": "row count in the file you are about to hand over"
+        },
+        {
+          "cmd": "tail -n 20 /var/log/l1/tickets-pull.log",
+          "what": "every step of the last run, with timestamps"
+        }
+      ],
+      "pitfalls": [
+        "Retrying a 401 in a loop. The token is dead, the loop burns the retry budget and can lock the service account, and the fix is a new token from its owner.",
+        "Calling r.json() and assuming a dict. An HTML error page raises JSONDecodeError, and a bare list where you expected {\"data\": []} raises TypeError on the key lookup; both are diagnosed by reading Content-Type first.",
+        "Logging the Authorization header or the token in a URL. The log file outlives the incident and is readable by anyone in the ops group."
+      ],
+      "takeaways": [
+        "Status class decides the action: 401 stop, 429 wait once, 5xx retry once then escalate, 200 with an empty list means check your parameters.",
+        "A 200 with text/html is a login page, not data, and the JSON parser is where you find out.",
+        "Pagination is the usual reason an export has fewer rows than the queue badge."
+      ],
+      "drill": {
+        "prompt": "Against a test API you are allowed to call, pull a list with page size 10 and log each page. Then force a failure by removing the token, and confirm the script stops with a non-zero exit code and one clear log line.",
+        "minutes": 10,
+        "checklist": [
+          "Two or more pages are logged with a row count each",
+          "The final log line states the total, and it equals the sum of the pages",
+          "With the token removed the script exits non-zero and logs the 401 once",
+          "No credential appears anywhere in the log file"
+        ]
+      },
+      "sheetTopics": [
+        "Integrations",
+        "requests",
+        "json",
+        "logging"
+      ]
+    },
+    {
+      "id": "l8-3",
+      "moduleId": "m8",
+      "seq": 3,
+      "title": "Bash: turning ten commands into one script",
+      "subtitle": "Arguments, loops, exit codes, and the safety line before rm.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Write a script with set -euo pipefail and explain what each part stops",
+        "Take an argument, refuse bad input with a usage message and exit code 2",
+        "Loop over a host list and return a non-zero exit code when any host fails",
+        "Add a dry run and a guard against an empty variable before any destructive command"
+      ],
+      "ticket": {
+        "from": "Service Desk - NOC queue, night shift",
+        "subject": "Disk check script reported all green and dc02 filled up",
+        "body": "The nightly disk check is a script the previous admin wrote. Last night it printed done for all eighteen hosts and exited 0. At 06:00 the backup job failed because dc02 had been at 96 percent on /var since 02:00. The script reads /root/hosts.txt, loops over ssh, sends errors to /dev/null and ends with echo done, so it always looks successful. The night lead wants a failure to be visible and the host list passed as an argument instead of a hardcoded path.",
+        "impact": "A datastore filled overnight; the morning backup failed and two VMs on that host are degraded while the storage team clears space."
+      },
+      "sections": [
+        {
+          "h": "All green at 03:00 while /var was at 96 percent",
+          "body": "The nightly script looked at eighteen hosts and reported nothing wrong. At 06:00 the backup failed because `dc02` had been at 96 percent on `/var` since 02:00. The script had checked that host and printed `done`, because of three lines:\n\n```bash\nwhile IFS= read -r host; do\n  ssh \"$host\" 'df -P /var | tail -1' 2>/dev/null || true\ndone < /root/hosts.txt\necho done\n```\n\n`2>/dev/null` threw away the message that said the host was unreachable. `|| true` turned a failed check into a success. `echo done` as the last line made the exit code 0 no matter what happened, and cron has nothing to alert on.\n\nA check that cannot fail is not a check. The fix is not a longer script. It is five lines at the top, a real exit code at the bottom, and a dry run in between."
+        },
+        {
+          "h": "The first four lines decide what the rest may do",
+          "body": "```bash\n#!/usr/bin/env bash\nset -euo pipefail\nIFS=$'\\n\\t'\n```\n\n`-e` stops at the first failing command instead of walking into the next one with broken state. `-u` makes an unset variable an error, which is the cheapest defense against `rm -rf \"$DIR\"/` with an empty `DIR`. `-o pipefail` makes a pipeline fail when any part fails, not only the last one; without it, `df | awk` hides a broken `df`. `IFS` narrows word splitting to newline and tab, so a path containing a space stays one item.\n\nThen take the input as an argument and refuse to run without it:\n\n```bash\n[[ $# -ge 1 ]] || { printf 'usage: %s <hostlist> [--dry-run]\\n' \"${0##*/}\" >&2; exit 2; }\nLIST=$1\n[[ -r $LIST ]] || { printf 'cannot read %s\\n' \"$LIST\" >&2; exit 2; }\n```\n\nExit code 2 for bad usage is a convention worth keeping, because it separates three outcomes: 0 means the check passed, 1 means the check found a problem, 2 means the script was called wrong. Cron, an alert rule and a person holding the ticket can all tell those apart, and they route to different places."
+        },
+        {
+          "h": "Loop over the hosts and keep each result",
+          "body": "The loop reads the file line by line instead of expanding it, so a comment can be skipped and a hostname is never split.\n\n```bash\nfail=0\nok=0\nwhile IFS= read -r host; do\n  [[ -z $host || $host == \\#* ]] && continue\n  if [[ ${2:-} == --dry-run ]]; then\n    printf 'would check %s\\n' \"$host\"\n    continue\n  fi\n  if ssh -o BatchMode=yes -o ConnectTimeout=5 \"$host\" \\\n       'df -P /var | awk \"NR==2 && \\$5+0 > 90 {exit 1}\"'; then\n    printf 'ok   %s\\n' \"$host\"\n    ok=$((ok + 1))\n  else\n    printf 'FAIL %s /var over 90%% or unreachable\\n' \"$host\" >&2\n    fail=$((fail + 1))\n  fi\ndone < \"$LIST\"\nprintf 'checked %d, failed %d\\n' \"$((ok + fail))\" \"$fail\" >&2\n(( fail == 0 ))\n```\n\n`BatchMode=yes` fails immediately instead of prompting for a password nobody is there to type at 03:00, and `ConnectTimeout=5` keeps one dead host from stalling the run. The `\\$5` is escaped because that string is read by a second shell on the remote side; without the backslash the local shell substitutes it.\n\n```text\n$ bash -n check-var.sh && echo syntax ok\nsyntax ok\n$ ./check-var.sh hosts.txt --dry-run\nwould check dc01\nwould check dc02\nchecked 0, failed 0\n$ ./check-var.sh hosts.txt; echo \"exit=$?\"\nok   dc01\nFAIL dc02 /var over 90% or unreachable\nok   dc03\nchecked 3, failed 1\nexit=1\n```\n\n`FAIL` goes to stderr and the exit code is 1, so the person reading the output and the cron job that ran it see the same fact."
+        },
+        {
+          "h": "The line before rm, and the authorization line",
+          "body": "These scripts read state. The moment a script changes state, by restarting a service, moving a file or removing a directory, three rules apply.\n\n1. **Refuse an empty target.** `${TARGET:?}` aborts when the variable is unset or empty. A script that runs `rm -rf \"$TARGET\"/*` with an empty `TARGET` runs `rm -rf /*`, and it does not ask twice.\n2. **Default to a dry run.** Print every target and change nothing unless the caller passes `--yes`.\n3. **Print what you will touch before you touch it.** Twelve hostnames take four seconds to read and are the only thing that catches a typo in the host file.\n\nAnything that reaches hosts outside your own lab needs written authorization from the system owner, naming the hosts and the time window, before the first run. That is the same boundary as any other security automation: a loop reading `df` on hosts you own is inventory work, and the identical loop pointed at a range nobody signed for is not. Build and test against lab hosts, keep the host list in the repository with the script, and do not run a new script from a shift account without a second pair of eyes.\n\n`shellcheck -S warning check-var.sh` catches most of this class of bug. SC2086 fires on an unquoted variable, SC2181 on checking `$?` instead of testing the command directly. Run it before you ask anyone else to run your script."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Hand over the script, the host list and the last run.\n\n> `check-var.sh` at `/home/ops/bin/`, takes the host list as `$1`, supports `--dry-run`. Last run 03:10 UTC: 18 hosts checked, `dc02` failed at 96 percent on /var, exit 1. Cron: `10 3 * * * /home/ops/bin/check-var.sh /home/ops/hosts.txt >> /var/log/check-var.log 2>&1`.\n\nEscalate to the storage team when the same host fails twice in one night, because that is growth rather than a one-off. Escalate to the platform team when a host reports `FAIL` because `ssh` could not authenticate, since a `BatchMode` failure is a key problem and not a disk problem. Sending those two to the wrong team is how a filled datastore waits another day."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "Rebuilding a check so it can fail",
+        "caption": "Every step exists because the old script skipped it. Step 6 is the one that made the difference at 03:00.",
+        "data": {
+          "steps": [
+            {
+              "label": "Find the hidden failure",
+              "detail": "stderr dropped, exit 0"
+            },
+            {
+              "label": "Add the guards",
+              "detail": "set -euo pipefail, IFS"
+            },
+            {
+              "label": "Pass the list in",
+              "detail": "argument, or exit 2 with usage"
+            },
+            {
+              "label": "Count per-host results",
+              "detail": "ok and fail, stderr"
+            },
+            {
+              "label": "Dry run, then run",
+              "detail": "--dry-run prints targets"
+            },
+            {
+              "label": "Exit with the count",
+              "detail": "non-zero if any host failed"
+            }
+          ],
+          "footer": "A check that exits 0 cannot fail, so nobody is ever told."
+        }
+      },
+      "video": {
+        "title": "you need to learn BASH Scripting RIGHT NOW!! // EP 1",
+        "channel": "NetworkChuck",
+        "url": "https://www.youtube.com/watch?v=SPwyp2NG-bE",
+        "start": 0,
+        "length": "12:13",
+        "why": "Writes and runs a first script with a variable, a conditional and a positional argument, which is the same shape as the disk check and faster to watch than to type."
+      },
+      "commands": [
+        {
+          "cmd": "bash -n check-var.sh",
+          "what": "syntax check with nothing executed, the first thing to run after an edit"
+        },
+        {
+          "cmd": "shellcheck -S warning check-var.sh",
+          "what": "static check for unquoted variables (SC2086) and misuse of $? (SC2181)"
+        },
+        {
+          "cmd": "ssh -o BatchMode=yes -o ConnectTimeout=5 dc01 'df -P /var'",
+          "what": "the single check the loop wraps, and proof that key auth works"
+        },
+        {
+          "cmd": "df -P /var | awk 'NR==2 {print $5}'",
+          "what": "capacity of /var as one field, readable by the script"
+        },
+        {
+          "cmd": "./check-var.sh hosts.txt --dry-run",
+          "what": "prints the target list without touching a host"
+        },
+        {
+          "cmd": "echo $?",
+          "what": "the exit code cron and the alert rule will read: 0 pass, 1 failed check, 2 bad usage"
+        }
+      ],
+      "pitfalls": [
+        "Ending the script with echo or an unconditional exit 0. The exit code is the only signal cron has, and this makes every run look successful.",
+        "Redirecting ssh errors to /dev/null. A host that is down and a host with a full disk print different messages, and you deleted the one that tells them apart.",
+        "Running rm -rf with a variable that may be empty. There is no confirmation prompt and no undo; ${VAR:?} costs nothing and prevents the whole class."
+      ],
+      "takeaways": [
+        "set -euo pipefail turns silent failures into stops, and pipefail is the part people forget.",
+        "Exit 0 is a claim the check passed; a script that always exits 0 makes no claim at all.",
+        "Anything that changes state needs a dry run, a printed target list, and an authorization line if it leaves your lab."
+      ],
+      "drill": {
+        "prompt": "Write a script that takes a directory as its only argument, counts files larger than 1 MB in it, and exits 1 if there are none. Then add a dry-run flag that lists the matching files without counting, and run shellcheck on the result.",
+        "minutes": 10,
+        "checklist": [
+          "Running it with no argument prints usage and exits 2",
+          "An empty directory gives exit 1, not exit 0",
+          "The dry run lists paths and does not print a count",
+          "shellcheck reports no warnings, or you can explain the ones left"
+        ]
+      },
+      "sheetTopics": [
+        "Linux Automation",
+        "Security Automation"
+      ]
+    }
+  ]
+}

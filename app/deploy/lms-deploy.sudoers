@@ -1,0 +1,4 @@
+# /etc/sudoers.d/lms-deploy
+# Lets the deploy user restart only this service and read its log.
+lms-deploy ALL=(root) NOPASSWD: /bin/systemctl restart lms, /bin/systemctl status lms
+lms-deploy ALL=(root) NOPASSWD: /usr/bin/journalctl -u lms -n 50 --no-pager

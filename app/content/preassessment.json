@@ -1,0 +1,176 @@
+{
+  "title": "What do you already know?",
+  "intro": "Fifteen questions, about ten minutes. This is not a test you can fail: it decides which modules get more of your time and what your mentor should watch. Answer honestly — a confident wrong answer costs you more than an admitted gap.",
+  "questions": [
+    {
+      "id": "q1",
+      "tag": "networking",
+      "q": "A user can ping 8.8.8.8 successfully, but every website fails to load. What is the most likely cause?",
+      "options": [
+        "Name resolution is failing",
+        "The default gateway is missing",
+        "The network cable is unplugged",
+        "The firewall is blocking all outbound traffic"
+      ],
+      "answer": 0,
+      "explain": "Ping to a literal IP proves the path and routing work. Browser failures after that usually mean DNS cannot turn a name into an address."
+    },
+    {
+      "id": "q2",
+      "tag": "networking",
+      "q": "Which of these is a private (RFC 1918) IPv4 address?",
+      "options": ["172.32.4.10", "192.168.10.4", "8.8.4.4", "100.64.0.1"],
+      "answer": 1,
+      "explain": "Private ranges are 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16. 172.32.x.x is outside the 172.16–172.31 block, and 100.64.0.0/10 is carrier-grade NAT, not RFC 1918."
+    },
+    {
+      "id": "q3",
+      "tag": "networking",
+      "q": "How many usable host addresses does a /26 subnet provide?",
+      "options": ["62", "64", "30", "126"],
+      "answer": 0,
+      "explain": "A /26 has 6 host bits: 2^6 = 64 addresses, minus the network and broadcast address = 62 usable."
+    },
+    {
+      "id": "q4",
+      "tag": "linux",
+      "q": "On a Linux server, which command shows which process is listening on a TCP port?",
+      "options": ["ps aux", "ip addr", "ss -tulnp", "journalctl -xe"],
+      "answer": 2,
+      "explain": "ss -tulnp lists listening TCP and UDP sockets with the owning process, which is exactly the 'is the service up, and what owns it' question."
+    },
+    {
+      "id": "q5",
+      "tag": "linux",
+      "q": "What does `chmod 644 report.txt` allow?",
+      "options": [
+        "Everyone can read and write the file",
+        "The owner can read and write; group and others can only read",
+        "The owner can execute; everyone else can read",
+        "Only the owner can read the file"
+      ],
+      "answer": 1,
+      "explain": "6 = read+write for the owner, 4 = read for the group, 4 = read for others. No execute bit is set."
+    },
+    {
+      "id": "q6",
+      "tag": "windows",
+      "q": "A Windows laptop can reach a file server by IP address but not by hostname. What should you check first?",
+      "options": [
+        "Whether the disk is full",
+        "The DNS server and suffix configuration",
+        "The local administrator password",
+        "Whether the printer spooler is running"
+      ],
+      "answer": 1,
+      "explain": "IP works, name does not — that is a name-resolution problem. Check ipconfig /all for the DNS servers and suffix, then nslookup the hostname."
+    },
+    {
+      "id": "q7",
+      "tag": "windows",
+      "q": "Windows Security event ID 4625 indicates which event?",
+      "options": ["A successful logon", "A process was created", "A failed logon", "The audit log was cleared"],
+      "answer": 2,
+      "explain": "4625 is a failed logon. 4624 is success, 4688 is process creation, and 1102 is the audit log being cleared."
+    },
+    {
+      "id": "q8",
+      "tag": "security",
+      "q": "Which statement about hashing and encryption is correct?",
+      "options": [
+        "Hashing is reversible with the right key",
+        "Encryption hides data but is reversible; hashing is one-way",
+        "They are the same operation with different names",
+        "Hashing is only used for network traffic"
+      ],
+      "answer": 1,
+      "explain": "Encryption is reversible with a key. Hashing is a one-way fingerprint used for integrity and password storage, not for recovering the original data."
+    },
+    {
+      "id": "q9",
+      "tag": "security",
+      "q": "Multi-factor authentication mainly protects against which failure?",
+      "options": [
+        "A stolen or guessed password",
+        "A hard disk failure",
+        "A slow network link",
+        "A misconfigured default gateway"
+      ],
+      "answer": 0,
+      "explain": "MFA adds a second, independent factor, so a password alone is no longer enough. It does not stop phishing that captures the second factor in real time, which is why passkeys and number matching matter."
+    },
+    {
+      "id": "q10",
+      "tag": "security",
+      "q": "The principle of least privilege means:",
+      "options": [
+        "Give every admin the same rights so nothing blocks them",
+        "Grant only the access needed for the task, for as long as it is needed",
+        "Remove all administrator accounts",
+        "Log every action a user takes"
+      ],
+      "answer": 1,
+      "explain": "Least privilege is about scope and duration: enough access to do the job, no more, and removed when the job ends."
+    },
+    {
+      "id": "q11",
+      "tag": "soc",
+      "q": "What is a SIEM primarily for?",
+      "options": [
+        "Blocking malware at the endpoint",
+        "Collecting and correlating logs from many systems to detect and investigate events",
+        "Encrypting disks on servers",
+        "Replacing the firewall"
+      ],
+      "answer": 1,
+      "explain": "A SIEM centralises logs, normalises them, correlates across sources and raises alerts. It detects and investigates; it does not block by itself."
+    },
+    {
+      "id": "q12",
+      "tag": "soc",
+      "q": "MITRE ATT&CK is best described as:",
+      "options": [
+        "A firewall rule set",
+        "A knowledge base of adversary tactics and techniques based on real observations",
+        "A patch management tool",
+        "A password hashing standard"
+      ],
+      "answer": 1,
+      "explain": "ATT&CK is a structured catalogue of how adversaries behave, used to map detections and find coverage gaps. It is not a control or a product."
+    },
+    {
+      "id": "q13",
+      "tag": "ir",
+      "q": "A colleague reports a laptop is encrypting files and showing a ransom note. What is the first action?",
+      "options": [
+        "Run a full antivirus scan and wait for the result",
+        "Disconnect the laptop from the network, then report it as an incident",
+        "Reboot the laptop into safe mode",
+        "Pay the ransom to recover the files"
+      ],
+      "answer": 1,
+      "explain": "Contain first: cut the network path so the infection cannot spread or reach file shares. Then report and preserve evidence. A scan or reboot can destroy evidence and let it spread."
+    },
+    {
+      "id": "q14",
+      "tag": "automation",
+      "q": "In Python, which library is the standard choice for calling a REST API over HTTP?",
+      "options": ["socket", "requests", "hashlib", "logging"],
+      "answer": 1,
+      "explain": "requests handles HTTP methods, headers, JSON and timeouts. socket is raw networking, hashlib makes hashes, logging writes logs."
+    },
+    {
+      "id": "q15",
+      "tag": "automation",
+      "q": "In a regular expression, what does `\\d+` match?",
+      "options": [
+        "Exactly one digit",
+        "One or more digits",
+        "Any non-digit character",
+        "A literal backslash followed by d"
+      ],
+      "answer": 1,
+      "explain": "\\d matches a digit and + means one or more repetitions, so it matches runs of digits such as a port number or a timestamp."
+    }
+  ]
+}

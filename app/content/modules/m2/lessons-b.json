@@ -1,0 +1,426 @@
+{
+ "moduleId": "m2",
+ "lessons": [
+  {
+   "id": "l2-4",
+   "moduleId": "m2",
+   "seq": 4,
+   "title": "Processes and listening ports: ps, top, ss",
+   "subtitle": "Find what is running, what is eating the CPU, and what owns port 8080.",
+   "minutes": 16,
+   "level": "Applying",
+   "objectives": [
+    "Read a process table and name the process consuming CPU or memory",
+    "Map a listening port to a PID and a bind address with ss",
+    "Tell a CPU-bound host from an I/O-bound host using the top header",
+    "Hand over a process finding with PID, unit and bind address"
+   ],
+   "ticket": {
+    "from": "Service Desk / NOC — monitoring queue",
+    "subject": "web01 at 96 percent CPU and the portal takes 20 seconds to save",
+    "body": "The monitoring system raised a CPU alert on web01 at 09:12 and it is still firing. The user who called says the internal portal hangs for about 20 seconds when saving a form. Restarting the portal service at 09:20 fixed it for ten minutes and the alert returned. No deployment is recorded this week.",
+    "impact": "About 40 staff cannot save forms reliably in the portal since 09:12."
+   },
+   "sections": [
+    {
+     "h": "The alert says CPU, and the app team says it feels slow",
+     "body": "The alert fires on a CPU threshold, so the ticket arrives already labeled. It does not say which process, for how long, or whether the host is working or waiting. On a shared host such as `web01`, a web front end, a queue worker, the monitoring agent and a nightly job run as separate processes, and any can hold the CPU.\n\nRestarting the service feels helpful and costs the most. A restart clears the process list, resets the thread state and usually rotates the log line that named the loop, so the next person inherits a green graph and no evidence. Capture two command outputs first, then restart.\n\nTwo questions settle these calls. Which process is consuming the host? Is the host busy or waiting? `ps` and `top` answer both, and `ss` answers the part nobody asks until later: which process owns the port the user is calling."
+    },
+    {
+     "h": "ps lists everything, so sort it before you read it",
+     "body": "The default `ps aux` prints several hundred lines on a production host and the useful one sits in the middle. Add a sort key and a column set that answers the question.\n\n```\n$ ps -eo pid,ppid,pcpu,pmem,etime,args --sort=-pcpu | head -4\n    PID    PPID %CPU %MEM     ELAPSED COMMAND\n   3122    3098 96.4  2.1       03:12 python3 /opt/portal/worker.py --queue=save\n   1044       1  4.2  0.8 21-08:02:33 /usr/lib/systemd/systemd-journald\n    902       1  1.1  0.4 21-08:02:33 /usr/bin/containerd\n   3098    3095  0.9  0.3       03:14 gunicorn: master [portal]\n```\n\nThree columns carry the story. `%CPU` is a share of one core, so 96.4 is one core saturated. `ELAPSED` at 03:12 says this worker started three minutes ago, which is after the 09:12 alert, so something respawns it and the CPU is a symptom of a restart loop rather than a runaway calculation. `PPID` 3098 is the gunicorn master, so the worker belongs to the portal stack and not to the monitoring agent.\n\n`pgrep -af portal` is faster when you only need to know a process exists. `ps -ef | grep portal` also works, but it matches its own `grep` line."
+    },
+    {
+     "h": "top tells you busy from waiting",
+     "body": "`top` in batch mode prints one snapshot and exits, which is what a ticket needs:\n\n```\n$ top -b -n1 | head -8\ntop - 09:41:12 up 21 days,  3:14,  2 users,  load average: 8.42, 6.90, 4.11\nTasks: 214 total,   2 running, 211 sleeping,   0 stopped,   1 zombie\n%Cpu(s): 94.3 us,  2.1 sy,  0.0 ni,  2.9 id,  0.6 wa,  0.0 hi,  0.1 si,  0.0 st\nMiB Mem :  16045.2 total,    512.4 free,   9210.7 used,   6322.1 buff/cache\nMiB Swap:   4096.0 total,     12.0 used,   4084.0 avail Mem\n\n    PID USER      PR  NI    VIRT    RES  S  %CPU  %MEM     TIME+ COMMAND\n   3122 app       20   0 2841304 341220  R  391.2   2.1  62:38.11 python3\n```\n\nA load average of 8.42 on a 4-vCPU host means about twice as many runnable tasks as cores. The CPU line says where the time went: `us` 94.3 is user-space compute and `wa` 0.6 is disk wait. A host at 94 `us` is working; a host at 60 `wa` is waiting on storage and the process list is not the problem.\n\nThe 391.2 in the process row is not a bug: a multithreaded process can use several cores and `top` sums them against one. Divide by the vCPU count before calling it abnormal.\n\nDecision rule: if `wa` is above 20 while `us` is low, the host is waiting on disk, and killing the top process will not fix the call. Check `df -h` and the volume latency instead."
+    },
+    {
+     "h": "ss -tulnp: the port, the PID and the address",
+     "body": "`ss` replaces `netstat`, which is deprecated on current distributions. The flag string is worth memorizing: `-t` TCP, `-u` UDP, `-l` listening only, `-n` numeric ports, `-p` process.\n\n```\n$ sudo ss -tulnp\nNetid State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process\nudp   UNCONN 0      0        127.0.0.53:53       0.0.0.0:*     users:((\"systemd-resolve\",pid=812,fd=13))\ntcp   LISTEN 0      128          0.0.0.0:22       0.0.0.0:*     users:((\"sshd\",pid=914,fd=3))\ntcp   LISTEN 0      128          0.0.0.0:80       0.0.0.0:*     users:((\"nginx\",pid=1204,fd=6))\ntcp   LISTEN 0      511      127.0.0.1:8080     0.0.0.0:*     users:((\"java\",pid=4412,fd=128))\n```\n\nRead the `Local Address` column first. Port 80 sits on `0.0.0.0`, so any interface accepts it. Port 8080 sits on `127.0.0.1`, so only a process on this host can reach it: nginx proxies to java over loopback and no client on the network can call 8080 directly. That column explains a large share of tickets that read as \"the service is down but the process is running\".\n\n`-p` needs root or `CAP_NET_ADMIN`; without it the Process column is empty, which is not the same as nobody owning the socket.\n\nOn a `LISTEN` socket, `Recv-Q` is the number of connections waiting to be accepted and `Send-Q` is the backlog limit. When `Recv-Q` reaches `Send-Q`, clients time out in the kernel before the application sees them.\n\nDecision rule: if the socket is listed, the address matches what the client uses, and `Recv-Q` is at the `Send-Q` limit, this is an application capacity problem, not a network one. Send it to the app owner with the PID and both numbers."
+    },
+    {
+     "h": "What you hand over",
+     "body": "Write the note in the order the next person reads it: host, process, port, decision.\n\n- `web01`, `portal-worker@1` (PID 3122), respawned 09:38, 96 percent of one core\n- `ss`: java on `127.0.0.1:8080`, nginx on `0.0.0.0:80`, `Recv-Q` 0 of 128\n- `top`: load 8.42 on 4 vCPU, `wa` 0.6, so CPU-bound and not disk\n\nClosing note: \"Worker respawn loop on web01 since 09:12. One core saturated, no disk wait, java loopback-only behind nginx. Worker dies after the save queue drains. Restart holds ten minutes. Handing to the portal app owner with `journalctl -u portal-worker@1` attached.\"\n\nEscalation criterion: escalate when the process is the customer's application and the evidence points inside it, which means a crash loop, an accept queue at its limit, or a bind address that contradicts the design. Fix and close when the cause is a unit you restarted or a second process holding the port."
+    }
+   ],
+   "diagram": {
+    "type": "flow",
+    "title": "From a slow portal to an owned port",
+    "caption": "Each step produces one line of evidence. The bind address is the step L1 most often skips.",
+    "data": {
+     "steps": [
+      {
+       "label": "List the processes",
+       "detail": "ps -eo pid,ppid,pcpu,etime,args"
+      },
+      {
+       "label": "Rank the load",
+       "detail": "top -b -n1, read us and wa"
+      },
+      {
+       "label": "Find the listener",
+       "detail": "sudo ss -tulnp"
+      },
+      {
+       "label": "Read the bind address",
+       "detail": "0.0.0.0 accepts, 127.0.0.1 does not"
+      },
+      {
+       "label": "Record PID and unit",
+       "detail": "systemctl status <unit>"
+      }
+     ],
+     "footer": "Stop at the first step that produces a contradiction with the ticket."
+    }
+   },
+   "video": {
+    "title": "How to Use the ss Command (Linux Crash Course Series)",
+    "channel": "Learn Linux TV",
+    "url": "https://www.youtube.com/watch?v=phY8Q7Woxsw",
+    "start": 0,
+    "length": "6:56",
+    "why": "Shows the real ss output columns and how the state filter changes them, which the text can only describe."
+   },
+   "commands": [
+    {
+     "cmd": "ps -eo pid,ppid,pcpu,pmem,etime,args --sort=-pcpu",
+     "what": "Processes ranked by CPU, with parent PID and how long each has been running"
+    },
+    {
+     "cmd": "top -b -n1",
+     "what": "One batch snapshot of load average, CPU breakdown and top processes, safe to paste in a ticket"
+    },
+    {
+     "cmd": "sudo ss -tulnp",
+     "what": "Every listening TCP and UDP socket with the owning PID and bind address"
+    },
+    {
+     "cmd": "ss -tan state established",
+     "what": "Live sessions to the box, which shows whether clients are actually connecting"
+    },
+    {
+     "cmd": "pgrep -af portal",
+     "what": "Confirms a named process exists without matching your own grep line"
+    }
+   ],
+   "pitfalls": [
+    "Restarting the service to clear the CPU alert destroys the process list, the thread state and the last log line; capture ps and journalctl output first or you have nothing to escalate with.",
+    "Treating the 391.2 percent CPU in top as an error; it is nearly four cores busy on a multithreaded process, and quoting 391 percent to the app team gets the ticket sent back.",
+    "Running ss -tulnp without sudo and reporting that no process owns the port; the Process column stays empty without root or CAP_NET_ADMIN."
+   ],
+   "takeaways": [
+    "ps with --sort produces a ticket-ready snapshot, and %CPU above 100 means several cores, not a bad number.",
+    "ss -tulnp ties a port to a PID, and the Local Address column decides who can reach it.",
+    "A listening socket is not a working service; the accept queue and the application log decide that."
+   ],
+   "drill": {
+    "prompt": "On your lab VM, start a throwaway listener, prove which PID owns it, and capture one top snapshot while it runs.",
+    "minutes": 8,
+    "checklist": [
+     "python3 -m http.server 8080 runs in one terminal and ss -tulnp shows python3 on port 8080",
+     "You can say which hosts could reach the port given its Local Address value",
+     "ps -eo pid,ppid,pcpu,etime,args --sort=-pcpu names the same PID",
+     "top -b -n1 output pasted into a note with the load average and wa value read out"
+    ]
+   },
+   "sheetTopics": [
+    "ps",
+    "top",
+    "ss -tulnp"
+   ]
+  },
+  {
+   "id": "l2-5",
+   "moduleId": "m2",
+   "seq": 5,
+   "title": "Networking from Linux: addresses, routes and DNS checks",
+   "subtitle": "Prove the interface, the route and the resolver before you escalate.",
+   "minutes": 15,
+   "level": "Applying",
+   "objectives": [
+    "Read interface, address and link state with ip addr and ip -br addr",
+    "Use ip route get to prove the interface, source and gateway for one destination",
+    "Separate resolver failure from lookup-path failure with getent hosts and dig",
+    "Hand over the failing hop instead of the phrase network down"
+   ],
+   "ticket": {
+    "from": "Service Desk / NOC — infrastructure queue",
+    "subject": "app02 cannot reach the billing API since this morning",
+    "body": "The app team reports that app02 cannot reach the billing API at 10.20.5.11 port 8443 and that invoice jobs have failed since 06:00. Ping from app02 to its gateway 10.20.4.1 answers. Ping from app02 to 10.20.5.11 fails. No firewall change is recorded for this window.",
+    "impact": "The morning invoice batch is halted; nothing else on app02 is affected."
+   },
+   "sections": [
+    {
+     "h": "Ping by IP works, ping by name does not, and the ticket says network",
+     "body": "Two different failures hide inside the phrase \"the network is down\". One is reachability: the packet never arrives. The other is resolution: the name never becomes an address. They look identical to the caller and share nothing on the wire.\n\nA third one is more common on servers. The host reaches its gateway and cannot reach a host in another subnet, which means the local stack is fine and something in the middle drops the traffic. All three separate in about two minutes.\n\nThree commands, run on the affected host and not on your laptop, tell you which one you have: `ip -br addr` for the local address and link state, `ip route get <destination>` for the path the kernel chooses, and `getent hosts <name>` for resolution through the same lookup path applications use."
+    },
+    {
+     "h": "The interface says UP and the address is still wrong",
+     "body": "Interface names are not portable. `eth0` is a habit from older images; current systems use predictable names such as `ens192` or `enp0s3`, and typing the old one returns `Device \"eth0\" does not exist` and costs a minute.\n\n```\n$ ip -br addr\nlo               UNKNOWN        127.0.0.1/8 ::1/128\nens192           UP             10.20.4.31/24 fe80::250:56ff:fe8c:1a2b/64\ndocker0          DOWN           172.17.0.1/16\n```\n\n`-br` is the brief format, one line per interface, and it needs iproute2 4.x or newer. `ip addr show ens192` prints the full detail, including MTU, MAC address and the byte counters on each address, when the brief form is not enough. The state word matters. `UP` means the link is up and the interface is enabled. `DOWN` means it is administratively disabled. `NO-CARRIER` means there is no link at all. A `DOWN` docker0 bridge is normal on a host with no containers running, and calling that a fault is a fast way to lose the app team's attention.\n\nDecision rule: if `ip -br addr` shows `NO-CARRIER` or an address in the wrong subnet, stop. Nothing above layer 2 can work, and routing or DNS checks will not change the finding."
+    },
+    {
+     "h": "ip route get: the one line to quote",
+     "body": "`ip route` prints the table. `ip route get` answers the question you actually have: for this destination, which interface, which source address, which gateway.\n\n```\n$ ip route\ndefault via 10.20.4.1 dev ens192 proto static metric 100\n10.20.4.0/24 dev ens192 proto kernel scope link src 10.20.4.31\n172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown\n\n$ ip route get 10.20.5.11\n10.20.5.11 via 10.20.4.1 dev ens192 src 10.20.4.31 uid 0\n```\n\nThe second output is the evidence line for the ticket. Traffic to 10.20.5.11 leaves `ens192`, sourced from 10.20.4.31, through 10.20.4.1. If the destination were inside 10.20.4.0/24, the same command would print `dev ens192 src 10.20.4.31` with no `via`, because the host would resolve the MAC address directly.\n\nTwo `default` lines with the same metric are a finding worth recording, not a formatting quirk: the kernel can use either, and the return path can come back through the other one, which breaks stateful firewalls. `ip neigh` shows which layer 2 neighbors answered and in what state, such as `REACHABLE`, `STALE` or `FAILED`."
+    },
+    {
+     "h": "Three DNS tools, three different questions",
+     "body": "`getent hosts` asks the same question an application asks. It reads `/etc/nsswitch.conf` and follows that order: `files` for `/etc/hosts`, then `dns`, and on some fleets `sss` for the directory. If `getent` resolves, the application can resolve.\n\n`dig +short` sends a query straight to the resolver and ignores nsswitch and `/etc/hosts`. It answers \"is the DNS server working\", not \"can this host resolve\". `resolvectl status` shows which resolver systemd-resolved is using when it is in the path; on minimal images the same information is in `/etc/resolv.conf`.\n\n```\n$ getent hosts intranet.example\n10.20.9.14      intranet.example\n$ dig +short intranet.example\n10.20.9.14\n$ resolvectl status ens192\nLink 2 (ens192)\n    Current DNS Server: 10.20.0.10\n       DNS Servers: 10.20.0.10 10.20.0.11\n         DNS Domain: corp.example\n```\n\nDecision rule: when `dig` resolves and `getent hosts` does not, the DNS server is healthy and the lookup path on this host is broken. Check `/etc/nsswitch.conf` and `/etc/hosts` before opening a DNS ticket.\n\nDecision rule: when both fail and the resolver is `127.0.0.53`, the local stub is the one not answering. Check `systemctl status systemd-resolved` before blaming the upstream servers."
+    },
+    {
+     "h": "What you hand over",
+     "body": "Attach the outputs. They are the difference between a ticket the network team can act on and one they send back.\n\n- `ip -br addr` from the affected host, pasted whole\n- `ip route get` with the real destination address, not the name\n- `getent hosts` and `dig +short` for the same name when the two disagree\n- the source host and the destination host, because a one-sided test proves little\n\nClosing note: \"app02 10.20.4.31 routes to 10.20.5.11 via 10.20.4.1 on ens192 and the gateway answers ping. 10.20.5.11 does not answer from app02 and does answer from a host inside 10.20.5.0/24. Local interface, address and route are correct. Requesting a check of the inter-subnet rule between 10.20.4.0/24 and 10.20.5.0/24.\"\n\nEscalation criterion: escalate to the network team when the interface, the source address and the route are correct and the far side does not answer, with those four outputs attached. Escalate to identity or DNS when `getent` fails for the name while `dig` against every configured resolver succeeds."
+    }
+   ],
+   "diagram": {
+    "type": "topology",
+    "title": "What app02's route actually says",
+    "caption": "The box knows the way to the gateway. Everything past the core gateway is outside its routing table.",
+    "data": {
+     "nodes": [
+      {
+       "id": "app02",
+       "label": "app02",
+       "tier": 0,
+       "type": "host"
+      },
+      {
+       "id": "sw",
+       "label": "Access switch",
+       "tier": 1,
+       "type": "switch"
+      },
+      {
+       "id": "gw",
+       "label": "Core gateway",
+       "tier": 2,
+       "type": "router"
+      },
+      {
+       "id": "dns",
+       "label": "DNS 10.20.0.10",
+       "tier": 3,
+       "type": "server"
+      },
+      {
+       "id": "api",
+       "label": "Billing API",
+       "tier": 3,
+       "type": "server"
+      }
+     ],
+     "links": [
+      {
+       "from": "app02",
+       "to": "sw",
+       "label": "10.20.4.31/24",
+       "dashed": false,
+       "tone": "accent"
+      },
+      {
+       "from": "sw",
+       "to": "gw",
+       "label": "VLAN 40",
+       "dashed": false,
+       "tone": "accent"
+      },
+      {
+       "from": "gw",
+       "to": "dns",
+       "label": "UDP 53",
+       "dashed": false,
+       "tone": "accent"
+      },
+      {
+       "from": "gw",
+       "to": "api",
+       "label": "TCP 8443",
+       "dashed": true,
+       "tone": "warn"
+      }
+     ]
+    }
+   },
+   "video": {
+    "title": "How to Use the ip Command in Linux: A Beginner’s Guide",
+    "channel": "Learn Linux TV",
+    "url": "https://www.youtube.com/watch?v=wHfIFZlDxtU",
+    "start": 0,
+    "length": "16:44",
+    "why": "Shows ip addr and ip route on a live host, including what the output looks like when an interface goes down."
+   },
+   "commands": [
+    {
+     "cmd": "ip -br addr",
+     "what": "One line per interface: name, state, IPv4 and IPv6 address"
+    },
+    {
+     "cmd": "ip route get 10.20.5.11",
+     "what": "Interface, source address and gateway this host would use for one destination"
+    },
+    {
+     "cmd": "getent hosts intranet.example",
+     "what": "Resolves the name through nsswitch, the same path applications use"
+    },
+    {
+     "cmd": "dig +short intranet.example",
+     "what": "Asks the configured resolver directly, bypassing nsswitch and /etc/hosts"
+    },
+    {
+     "cmd": "ip neigh",
+     "what": "Layer 2 neighbors that answered, with MAC address and state"
+    }
+   ],
+   "pitfalls": [
+    "Running the checks on the jump host or your laptop instead of the affected server; different routes and different resolvers produce a confident, wrong answer.",
+    "Restarting NetworkManager or systemd-networkd over SSH to fix an address; the session dies with the interface and the box may not come back reachable. Use nmcli connection up only when console or out-of-band access exists.",
+    "Reading a successful dig as proof that applications can resolve names; applications go through nsswitch, and /etc/hosts or a directory module can still break them."
+   ],
+   "takeaways": [
+    "Interface state, address and route are three separate facts, and ip -br addr plus ip route get gives all three.",
+    "getent hosts and dig answer different questions, and the disagreement between them is the diagnosis.",
+    "A correct route with no answer from the far side is a middle-of-path finding, not a local one."
+   ],
+   "drill": {
+    "prompt": "Prove three facts about your own machine's path and write the three lines a ticket would need.",
+    "minutes": 8,
+    "checklist": [
+     "ip -br addr output pasted, with the state word for the active interface explained",
+     "ip route get for a public address shows interface, source and gateway",
+     "getent hosts and dig +short agree for one name, and you can state what a disagreement would mean",
+     "You can name the first check you would run if the default route were missing"
+    ]
+   },
+   "sheetTopics": [
+    "ip addr"
+   ]
+  },
+  {
+   "id": "l2-6",
+   "moduleId": "m2",
+   "seq": 6,
+   "title": "The Linux triage runbook: disk, service, port, permission",
+   "subtitle": "A repeatable order for the four calls that look different and are not.",
+   "minutes": 18,
+   "level": "Diagnosing",
+   "objectives": [
+    "Run four checks in an order where each one rules out the next",
+    "Separate real disk use from deleted open files and inode exhaustion",
+    "Read a systemd exit code and map it to a failing layer",
+    "Test file access as the account that actually runs the service"
+   ],
+   "ticket": {
+    "from": "Service Desk / NOC — monitoring queue",
+    "subject": "Nightly report service has failed three nights in a row",
+    "body": "The report service on report01 fails around 02:10 and a manual restart makes it work until the next night. The app team says nothing changed and points at the server. Disk on / was 78 percent when the alert was raised. The 02:00 compliance report has not been delivered since Monday.",
+    "impact": "The compliance team has not received the daily report for three days."
+   },
+   "sections": [
+    {
+     "h": "The service fails at 02:10 and the restart buys one day",
+     "body": "The alert names a failed unit. The app team says nothing changed and points at the server. A restart works until the next night: something on a schedule fills something up, and the unit dies when the next write fails.\n\nFour checks cover almost every Linux ticket at this desk, and the order matters more than the commands. Disk first, because a full filesystem makes units fail and logs disappear. Then the unit, because systemd records an exit code that names the failing layer. Then the port, because a healthy unit nobody can reach is usually a bind or backlog problem. Then permission, tested as the account that runs the service, not as you.\n\nThe sequence is short enough to run on every call, and it stops you from restarting things and calling that a diagnosis."
+    },
+    {
+     "h": "Check one: disk, and the space df cannot see",
+     "body": "```\n$ df -h /\nFilesystem                       Size  Used Avail Use% Mounted on\n/dev/mapper/vg_root-lv_root       40G   39G  1.0G  98% /\n\n$ sudo du -xh --max-depth=1 /var 2>/dev/null | sort -rh | head -3\n12G     /var/log\n3.1G    /var/lib\n780M    /var/cache\n```\n\n`df` reports 39G used and `du` accounts for 15G. The difference is a deleted file a process still holds open: the blocks return only when the descriptor closes. `lsof +L1` lists them, because `+L1` selects link counts below one.\n\n```\n$ sudo lsof +L1 | head -2\nCOMMAND  PID USER   FD   TYPE DEVICE  SIZE/OFF NLINK    NODE NAME\njava    4412 app    47w   REG  253,1 8589934592     0 1048657 /var/log/portal/app.log (deleted)\n```\n\nRestarting that process frees the space. Growing the volume does not, and hides the cause until it happens again.\n\nDecision rule: if `df -h` shows usage that `du` cannot find, look for deleted open files before adding storage.\n\n`df -i` is the other half: a filesystem can have gigabytes free and no inodes left, and the application still gets `No space left on device`. At 100 percent inodes the fix is deleting many small files, not resizing."
+    },
+    {
+     "h": "Check two: the unit and the exit code it recorded",
+     "body": "```\n$ systemctl status report.service --no-pager\nreport.service - Nightly compliance report\n     Loaded: loaded (/etc/systemd/system/report.service; enabled; preset: disabled)\n     Active: failed (Result: exit-code) since Wed 2025-11-19 02:10:44 UTC; 6h ago\n    Process: 28841 ExecStart=/opt/report/bin/run.sh (code=exited, status=203/EXEC)\n   Main PID: 28841 (code=exited, status=203/EXEC)\n```\n\nThe `status=` value is a layer name, not a number to memorize:\n\n| code | meaning | first check |\n|---|---|---|\n| 203/EXEC | ExecStart binary missing or not executable | `ls -l /opt/report/bin/run.sh` |\n| 209/STDOUT | process could not write to stdout or stderr | `df -h` and the log target |\n| 217/USER | the `User=` account does not exist | `id <account>` |\n\n`journalctl -u report.service --since today --no-pager` gives the last lines the unit wrote, and that text is what the owner needs. A `203/EXEC` after a package update is a path change, not an application bug.\n\nDecision rule: read the exit code before the log, because the code tells you which log matters."
+    },
+    {
+     "h": "Check three: the port and its queue",
+     "body": "When the unit is `active (running)` and the caller still gets nothing, the port is the next question.\n\n```\n$ sudo ss -tlnp 'sport = :8443'\nState  Recv-Q Send-Q Local Address:Port Peer Address:Port Process\nLISTEN 129    128          0.0.0.0:8443      0.0.0.0:*     users:((\"java\",pid=5510,fd=91))\n```\n\nThree facts come out of one line: the socket exists, it binds all addresses, and the accept queue is full. `Recv-Q` 129 against a `Send-Q` limit of 128 means connections wait in the kernel and clients time out before the application reads them. A restart clears the queue for a minute and adds no capacity.\n\nDecision rule: if `ss` shows `LISTEN` on the address the client uses and `Recv-Q` sits at the `Send-Q` limit, stop checking the host and give the numbers to the application owner.\n\nIf the port is not listed, check the unit's configuration for a different port or a loopback bind before opening a firewall ticket."
+    },
+    {
+     "h": "Check four: permission, as the account that runs it",
+     "body": "`ls -l` on the file is not enough, because every directory in the path must also be traversable by the service account. `namei -l` walks the whole path and prints each component:\n\n```\n$ namei -l /var/report/out/nightly.csv\nf: /var/report/out/nightly.csv\ndrwxr-xr-x root   root   /\ndrwxr-xr-x root   root   var\ndrwxr-x--- root   report report\ndrwxr-x--- root   report out\n-rw-r----- report report nightly.csv\n```\n\nThe first component without `x` for the service account is where the failure is. Test as that account instead of reading mode strings: `sudo -u report test -r /var/report/out/nightly.csv; echo $?` returns 1 when the account cannot read it, whatever the modes suggest.\n\nOn an SELinux host, a correct mode can still be denied by a label: `ls -Z` shows the context and `ausearch -m AVC -ts recent` shows recent denials. `setenforce 0` is not an L1 test; it changes the host's security state."
+    },
+    {
+     "h": "What you hand over",
+     "body": "The note has four lines, one per check, each with the output that proves it, so a reader sees which checks passed without rerunning them.\n\n- `df -h`, `df -i`, and `lsof +L1` when the two disk numbers disagree\n- `systemctl status` with the `status=` code and last journal lines\n- `ss -tlnp` for the port, with `Recv-Q` and `Send-Q`\n- `namei -l` on the path the service writes, plus the `sudo -u` result\n\nClosing note: \"report.service fails nightly at 02:10 with 203/EXEC. /opt/report/bin/run.sh is missing after the 11-17 package update, so the unit cannot start. Disk at 78 percent, no deleted open files, port 8443 listening on the right address. Handing to the report application owner to restore the binary path.\"\n\nEscalation criterion: escalate when the four checks are clean and the failure is inside the application's own logic or data, and escalate immediately when the cause is disk exhaustion or an ownership decision outside your change authority. Close when the unit starts, the port answers, and the scheduled run writes the expected output file."
+    }
+   ],
+   "diagram": {
+    "type": "tree",
+    "title": "Four checks, in the order that saves time",
+    "caption": "Each branch is a check with the finding it can produce. The disk branch explains most of the tickets that look like application faults.",
+    "data": {
+     "root": "Service reported down",
+     "branches": [
+      {
+       "label": "df -h and df -i",
+       "result": "Full disk or no inodes",
+       "tone": "bad"
+      },
+      {
+       "label": "systemctl status",
+       "result": "Exit code names the layer",
+       "tone": "warn"
+      },
+      {
+       "label": "ss -tlnp on the port",
+       "result": "Bind address and queue depth",
+       "tone": "ok"
+      },
+      {
+       "label": "namei -l and sudo -u",
+       "result": "First component that denies",
+       "tone": "ok"
+      }
+     ]
+    }
+   },
+   "video": {
+    "title": "Troubleshooting Linux Disk Space Issues at 2 AM?",
+    "channel": "Red Hat Enterprise Linux",
+    "url": "https://www.youtube.com/watch?v=Tky5uCQUZPQ",
+    "start": 0,
+    "length": "6:11",
+    "why": "Walks a disk-full call the way a support engineer actually takes it, which reinforces the first check in the runbook."
+   },
+   "commands": [
+    {
+     "cmd": "df -h / && df -i /",
+     "what": "Blocks used and inodes used, which fail with the same application error"
+    },
+    {
+     "cmd": "sudo lsof +L1",
+     "what": "Deleted files still held open by a process, which df counts and du cannot see"
+    },
+    {
+     "cmd": "systemctl status report.service --no-pager",
+     "what": "Unit state plus the numeric exit code that names the failing layer"
+    },
+    {
+     "cmd": "ss -tlnp 'sport = :8443'",
+     "what": "One port only: bind address, accept queue size and owning PID"
+    },
+    {
+     "cmd": "namei -l /var/report/out/nightly.csv",
+     "what": "Permissions on every path component, not only the file"
+    }
+   ],
+   "pitfalls": [
+    "Matching df to du and assuming the volume is genuinely full; the gap is usually a deleted file still open, and growing the volume hides the cause for one more night.",
+    "Reading the exit code only after scrolling the journal; 203/EXEC points at the executable path, and chasing the application log for that code wastes the call.",
+    "Testing file access as your own account, which owns sudo and often the file; the service account is the one that gets denied, so the test must run as that account."
+   ],
+   "takeaways": [
+    "Order is the runbook: disk, unit, port, permission, because each check removes a layer of the next.",
+    "df and du disagree only when a deleted file is still open, and lsof +L1 names it.",
+    "systemd exit codes name the layer: 203 is exec, 209 is stdout, 217 is the account."
+   ],
+   "drill": {
+    "prompt": "Run the four checks against your lab VM in order and record one line of evidence for each, including the checks that pass.",
+    "minutes": 10,
+    "checklist": [
+     "df -h and df -i both recorded with the use percentage visible",
+     "systemctl status on one unit quoted with its status= code or active (running)",
+     "ss -tlnp line for one listening port with the PID that owns it",
+     "namei -l on a file the service writes, plus the sudo -u test exit code"
+    ]
+   },
+   "sheetTopics": []
+  }
+ ]
+}

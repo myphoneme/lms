@@ -1,0 +1,479 @@
+{
+  "moduleId": "m1",
+  "lessons": [
+    {
+      "id": "l1-1",
+      "moduleId": "m1",
+      "seq": 1,
+      "title": "Why packets fail: the two network models you will actually use",
+      "subtitle": "A packet's journey, layer by layer, and how to name the layer that broke.",
+      "minutes": 14,
+      "level": "Core",
+      "objectives": [
+        "Name the layer where a failure sits, in OSI terms, before touching a device.",
+        "Map each OSI layer to the TCP/IP layer and the protocol that implements it.",
+        "Collect link, address, route and name evidence in the order that isolates the fault.",
+        "Write a handover note that states which layers were proven good and which one failed."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC queue",
+        "subject": "Sales app will not open, but the intranet loads",
+        "body": "Since 08:20 the user at 10.20.14.87 cannot open the sales app in the browser. Email and the intranet load normally. They restarted the laptop and cleared the browser cache. Ping to 10.20.4.15 answers, but the app name in the browser does not resolve.",
+        "impact": "One order-entry user blocked from quoting since 08:20; the month-end price list is due at noon."
+      },
+      "sections": [
+        {
+          "h": "The call where 40 minutes of guessing missed a 30-second check",
+          "body": "A user cannot open the sales app. The first forty minutes go to restarting the laptop, clearing the cache and swapping the network cable. None of that touches the layer that actually failed.\n\nTwo commands would have found it in a minute:\n\n```console\nC:\\> ping 10.20.4.15\nPinging 10.20.4.15 with 32 bytes of data:\nReply from 10.20.4.15: bytes=32 time=2ms TTL=62\nReply from 10.20.4.15: bytes=32 time=1ms TTL=62\nC:\\> ping app01.corp.example\nPing request could not find host app01.corp.example. Please check the name and try again.\n```\n\nThe cable is fine, the switch port is fine, and the address, mask and gateway are fine: an ICMP echo crossed to another subnet and came back. What failed is the name-to-address step, which sits in the application layer. That is a different ticket in a different queue.\n\nWithout a shared vocabulary the call becomes a hunt: one person checks the switch, another reads firewall rules, a third restarts the server. The cost is not the forty minutes; it is that three people touched the platform and none wrote down what they proved."
+        },
+        {
+          "h": "Two models, one sentence each",
+          "body": "**OSI** is a seven-layer reference model. It exists so two engineers can agree on a sentence like \"that is a layer 2 problem\" without describing the whole design. Nothing in the network is built out of seven boxes; the model is vocabulary.\n\n**TCP/IP** is the four-layer model the operating system actually implements: network access, internet, transport, application. When you read `ipconfig` or `ip route`, you are reading that stack.\n\nThe mapping is what you use on a call:\n\n| OSI | TCP/IP | What a failure there looks like |\n|---|---|---|\n| 7 Application, 6 Presentation, 5 Session | Application | The name does not resolve, TLS fails, the app returns an error |\n| 4 Transport | Transport | A port is closed or filtered, the handshake never completes |\n| 3 Network | Internet | An address, mask, gateway or route is wrong |\n| 2 Data link, 1 Physical | Network access | No link light, wrong VLAN, ARP goes unanswered |\n\nTwo things follow: three OSI layers collapse into one TCP/IP layer, so \"application problem\" covers both a missing DNS record and a broken login; and the bottom two layers, where the cable and the VLAN tag live, are the ones you can fix by walking to the rack.\n\nSay the number when it is certain, and the TCP/IP layer when the number would start an argument. \"Layer 1, no link light on port 12\" beats \"the network is down\"."
+        },
+        {
+          "h": "The four checks that cut the problem in half",
+          "body": "Four checks, run in order, each remove half the remaining possibilities.\n\n1. **Link.** Does the interface report up? `ipconfig /all` names the adapter; on Linux `ip -br link` shows `UP` and the carrier state. No link means stop.\n2. **Address.** Is the host in the subnet you expect, with the gateway inside it? `ipconfig /all` prints address, mask, gateway and DHCP server together. A `169.254` address means DHCP never answered.\n3. **Route.** Can the host reach the gateway, and the destination beyond it? `ping 10.20.14.1`, then `ping 10.20.4.15`. `tracert -d 10.20.4.15` shows the hop where replies stop.\n4. **Name.** Can the host turn a name into an address? `nslookup app01.corp.example` returns an address or a DNS error code, and those are different findings.\n\nThe output that matters is not \"it works\". It is which of the four failed first.\n\n```console\nC:\\> nslookup app01.corp.example\nServer:  dns01.corp.example\nAddress:  10.20.0.10\n*** dns01.corp.example can't find app01.corp.example: Non-existent domain\n```\n\nThat single block proves two things: the resolver answered, and the name does not exist in the zone it asked. The resolver is not down. The record is missing."
+        },
+        {
+          "h": "Which end of the ladder to start from",
+          "body": "**Decision rule:** if `ping` by IP succeeds and the name fails, stop checking cables, VLANs and firewall rules. The fault is in an application-layer service and your next move is the resolver. If `ping` by IP fails and the name fails too, work bottom-up: link, address, route, name.\n\n**Second rule:** one user is a host or application problem; a whole VLAN is a network problem. Ask who else is affected. Five callers on one floor point at a shared switch or uplink; one caller points at their own machine.\n\n**Third rule:** when you escalate, name the layer you ruled out, not only the one you suspect. \"ICMP to 10.20.4.15 answers from the user's host, so layers 1 to 3 are proven, and `nslookup` returns NXDOMAIN from the resolver\" is a note an L2 engineer can act on in one step.\n\nWorking top-down is not wrong: walk down from the application when one app is broken and everything else on the machine works. Work bottom-up when the host reaches nothing at all."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Close with the evidence, not with the action you tried. The note should read:\n\n```text\nws-3142 (10.20.14.87): link up, mask /24, gateway 10.20.14.1 answers,\nping 10.20.4.15 replies in 2 ms. ping app01.corp.example fails with\n\"could not find host\". nslookup app01.corp.example against 10.20.0.10\nreturns Non-existent domain. Layers 1 to 3 proven good; the name is not\nin the zone. Action: reassign to the DNS queue with the hostname and the\nresolver address.\n```\n\nIf the resolver returns NXDOMAIN, the record is missing or misspelled, and that belongs to the DNS queue. If one resolver answers and another does not, you have a stale or split zone, and that goes to L2 with both outputs pasted.\n\n**Escalate to L2 when** the name resolves to an address the host still cannot reach, or when the resolver times out instead of answering. A resolver that answers nothing, or a name that resolves to the wrong address inside a zone you do not administer, is not an L1 fix."
+        }
+      ],
+      "diagram": {
+        "type": "layers",
+        "title": "The seven names, and what lives at each one",
+        "caption": "The application row is where the failed name lookup sits, three rows above the cable. The bottom two rows are the only ones a cable change can repair.",
+        "data": {
+          "layers": [
+            {
+              "n": "7",
+              "name": "Application",
+              "fn": "what the app speaks; DNS names live here",
+              "example": "HTTP, DNS, SMTP"
+            },
+            {
+              "n": "6",
+              "name": "Presentation",
+              "fn": "encoding, compression, the TLS handshake",
+              "example": "TLS, UTF-8, JPEG"
+            },
+            {
+              "n": "5",
+              "name": "Session",
+              "fn": "which conversation belongs to whom",
+              "example": "RPC, SMB session setup"
+            },
+            {
+              "n": "4",
+              "name": "Transport",
+              "fn": "port-to-port delivery, order, retransmit",
+              "example": "TCP 443, UDP 53"
+            },
+            {
+              "n": "3",
+              "name": "Network",
+              "fn": "IP addressing and routing between subnets",
+              "example": "IPv4, ICMP, IPsec"
+            },
+            {
+              "n": "2",
+              "name": "Data link",
+              "fn": "one hop: MAC addresses on the local wire",
+              "example": "Ethernet, ARP, VLAN tag"
+            },
+            {
+              "n": "1",
+              "name": "Physical",
+              "fn": "volts, light, pinout, the cable itself",
+              "example": "1000BASE-T, fiber"
+            }
+          ],
+          "footer": "Troubleshoot bottom-up, and name the layer before you touch a device.",
+          "highlight": 0
+        }
+      },
+      "video": {
+        "title": "OSI Model: A Practical Perspective - Networking Fundamentals - Lesson 2a",
+        "channel": "Practical Networking",
+        "url": "https://www.youtube.com/watch?v=LkolbURrtTs",
+        "start": 0,
+        "length": "13:25",
+        "why": "Shows the same seven layers with a packet being encapsulated on screen, which the table can only name."
+      },
+      "commands": [
+        {
+          "cmd": "ipconfig /all",
+          "what": "Adapter state, IPv4 address, mask, gateway, DHCP and DNS servers on one screen."
+        },
+        {
+          "cmd": "ping 10.20.14.1",
+          "what": "Proves the host can reach its default gateway at layer 3."
+        },
+        {
+          "cmd": "ping 10.20.4.15",
+          "what": "Proves routing across subnets, ruling out layers 1 to 3 for that destination."
+        },
+        {
+          "cmd": "ping app01.corp.example",
+          "what": "Separates name resolution from reachability in one step."
+        },
+        {
+          "cmd": "nslookup app01.corp.example",
+          "what": "Names the resolver that answered and the answer code it returned."
+        },
+        {
+          "cmd": "tracert -d 10.20.4.15",
+          "what": "Shows the hop where replies stop, without reverse lookups slowing it down."
+        }
+      ],
+      "pitfalls": [
+        "Restarting or reconnecting the laptop before capturing `ipconfig /all`. The lease changes, and the address in your screenshot is no longer the one that failed.",
+        "Reading only \"request timed out\" from a ping to a hostname. That message cannot tell you whether DNS failed or the route failed, so `nslookup` has to be run separately.",
+        "Treating \"application layer\" as \"not my problem\". DNS, TLS and the proxy all live there, and the resolver check is an L1 check."
+      ],
+      "takeaways": [
+        "OSI is vocabulary for the handover; TCP/IP is what the operating system actually runs.",
+        "Ping by IP tests layers 1 to 3; ping by name adds the resolver to the test.",
+        "A good note names the layer that was proven good, not only the one you suspect."
+      ],
+      "drill": {
+        "prompt": "On a machine you are allowed to test, run the four checks in order against a destination you own, and write the four-line note. Do not test against a customer network or a host you were not given.",
+        "minutes": 8,
+        "checklist": [
+          "You wrote down the address, mask and gateway from `ipconfig /all` or `ip -br addr`.",
+          "Ping to the gateway returned replies and you recorded the round-trip time.",
+          "Ping by name either resolved to the same address as ping by IP, or failed with a distinct message.",
+          "`nslookup` showed a `Server:` line and you can say which resolver answered.",
+          "You can point at one row of the diagram for each of the four outputs."
+        ]
+      },
+      "sheetTopics": [
+        "OSI Model",
+        "TCP/IP Model"
+      ]
+    },
+    {
+      "id": "l1-2",
+      "moduleId": "m1",
+      "seq": 2,
+      "title": "IP addresses and subnets without panic",
+      "subtitle": "Read an address plan, spot an overlap, and stop guessing whether two hosts can talk.",
+      "minutes": 18,
+      "level": "Core",
+      "objectives": [
+        "Convert a subnet mask between dotted decimal and CIDR and state its block size.",
+        "Compute the network and broadcast address for a host in under a minute.",
+        "Decide whether two addresses share a subnet before anyone checks a firewall.",
+        "Identify an overlapping range in an address plan and describe who it breaks."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC queue",
+        "subject": "Half the third floor cannot reach the finance app",
+        "body": "Users in 10.20.14.130 to 10.20.14.254 lost the finance app this morning; users in 10.20.14.2 to 10.20.14.126 are working. Affected users can still ping their gateway but not the app server at 10.20.4.15. A new server VLAN was built over the weekend.",
+        "impact": "About 60 users in the upper half of VLAN 20 blocked from the finance app since 09:05; month-end close is today."
+      },
+      "sections": [
+        {
+          "h": "The outage that looked like a firewall ticket and was a /25",
+          "body": "A new server VLAN went in over the weekend as `10.20.14.128/25`. On Monday, every user above `10.20.14.127` on VLAN 20 loses the finance app. The lower half of the same VLAN is fine. Ping from an affected host to its own gateway still answers, which convinces the floor that routing is healthy and pushes the ticket to the firewall team.\n\nThe mechanism is visible in the address plan. The core switch now holds two routes that cover `10.20.14.150`: `10.20.14.0/24` on VLAN 20 and `10.20.14.128/25` on VLAN 40. Routers pick the most specific match, so return traffic for every address above .127 is delivered to VLAN 40, where no host owns that address. The packet is dropped and the user sees a hang.\n\nA /25 carved out of an existing /24 is not a routing bug. It is an address-plan defect, no firewall rule will fix it, and two minutes with a mask and a pencil will prove it."
+        },
+        {
+          "h": "Three numbers on every interface",
+          "body": "**Address** identifies the host. **Mask** defines the size of the block the host believes it belongs to. **Gateway** is the router that carries traffic out of that block. Get one wrong and the host fails differently, which is why they are read together.\n\nThe mask, written `/24` (CIDR) or `255.255.255.0` (dotted decimal), splits the address into network bits and host bits. A `/24` leaves 8 host bits, so the block is 256 addresses. The lowest is the **network address**, the highest the **broadcast**, and 254 are usable. Using the first usable address as the gateway is a habit, not a rule.\n\nPrivate ranges you will meet on customer plans:\n\n| Range | Common mask | Typical use |\n|---|---|---|\n| 10.0.0.0/8 | /24 or /26 inside it | Enterprise sites, carved small |\n| 172.16.0.0/12 | /24 inside it | Mid-size sites, VPN pools |\n| 192.168.0.0/16 | /24 | Small offices, home routers, labs |\n\nTwo hosts talk without a router only when their masked addresses match. `10.20.14.87/24` lands in `10.20.14.0` and `10.20.15.20/24` in `10.20.15.0`, so they need a gateway, and the gateway needs a route back to both."
+        },
+        {
+          "h": "Mask math you can do without a calculator",
+          "body": "Block size is 256 minus the mask octet. A `/26` is `255.255.255.192`, so 256 - 192 = 64. Blocks start at 0, 64, 128 and 192, and each ends one before the next begins.\n\n| CIDR | Mask | Block | Usable |\n|---|---|---|---|\n| /24 | 255.255.255.0 | 256 | 254 |\n| /25 | 255.255.255.128 | 128 | 126 |\n| /26 | 255.255.255.192 | 64 | 62 |\n| /27 | 255.255.255.224 | 32 | 30 |\n| /28 | 255.255.255.240 | 16 | 14 |\n\nRound the last octet down to the nearest multiple of the block size. `.87` under a `/26` falls in `.64` to `.127`, so the network is `.64` and the broadcast `.127`. That is the whole skill, and it is faster than a subnet calculator.\n\n```bash\n$ ip -4 addr show dev enp3s0\n2: enp3s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000\n    inet 10.20.15.20/26 brd 10.20.15.63 scope global dynamic enp3s0\n       valid_lft 86312sec preferred_lft 86312sec\n$ ip route\ndefault via 10.20.15.1 dev enp3s0 proto dhcp src 10.20.15.20 metric 100\n10.20.15.0/26 dev enp3s0 proto kernel scope link src 10.20.15.20\n```\n\nThe `brd` field is the broadcast the host computed, and the route line is the block it thinks it owns. If the plan says /24, the server is the one that misbehaves.\n\nRanges overlap when their network-to-broadcast spans intersect. `10.20.14.128/25` spans .128 to .255 and `10.20.14.0/24` spans .0 to .255, so they cannot both exist on one routed network. Compare spans, never host addresses."
+        },
+        {
+          "h": "What you decide before you ask for a firewall change",
+          "body": "**Decision rule:** mask both addresses first. If the network addresses differ, the packet must cross a gateway; if they match, it must not. A ping that fails inside one block will never be repaired by a firewall rule.\n\n**Second rule:** if the two masks differ, stop and compare them. An asymmetric mask, /24 on the host and /26 on the server, produces one-way traffic and timeouts that read like a firewall. Raise it as a configuration defect.\n\n**Third rule:** read the message. `Destination host unreachable` printed with your own address as the source means the local stack could not deliver the frame: no route, or ARP went unanswered. `Request timed out` means the packet left and nothing came back. The first is local or layer 2; the second is a path, a filter, or a dead service.\n\n**Fourth rule:** before escalating an overlap, look for a more-specific route. `tracert -d` from an affected host plus the address plan will show the packet leaving the VLAN it belongs to. That evidence turns \"VLAN 20 is broken\" into a change request with a target."
+        },
+        {
+          "h": "What you hand over",
+          "body": "A subnet ticket closes or escalates on four lines:\n\n```text\nAffected: 10.20.14.130 to 10.20.14.254 on VLAN 20, about 60 users.\nWorking: 10.20.14.2 to 10.20.14.126. From 10.20.14.150: ping 10.20.14.1\nreplies; ping 10.20.4.15 times out. Core has 10.20.14.0/24 on VLAN 20\nand 10.20.14.128/25 on VLAN 40. The /25 overlaps the top half of the\n/24. Action: address-plan change, not a firewall rule. Move VLAN 40 to a\nfree range such as 10.20.16.0/24 and re-test.\n```\n\nIf both hosts are in the same block and one cannot reach the other, hand it over as a layer 2 ticket: switch port, VLAN membership, ARP, port security. If the block and the gateway are correct and traffic dies at a single hop, hand it over as routing.\n\n**Escalate to L2 when** an overlap is confirmed in the plan, or when the two ends disagree about the mask and you cannot change either one. Re-IP a production VLAN and you own the outage that follows."
+        }
+      ],
+      "diagram": {
+        "type": "tree",
+        "title": "Two hosts that cannot talk: the first question to ask",
+        "caption": "Most unreachable-host tickets stop at the first two branches. The overlap branch is the one that gets misread as a firewall problem.",
+        "data": {
+          "root": "Two hosts cannot talk",
+          "branches": [
+            {
+              "label": "Same block after masking?",
+              "result": "Layer 2: ARP, VLAN, port",
+              "tone": "warn"
+            },
+            {
+              "label": "Masks differ on the ends?",
+              "result": "Config defect, not routing",
+              "tone": "bad"
+            },
+            {
+              "label": "Ranges overlap in plan?",
+              "result": "More-specific route wins",
+              "tone": "bad"
+            },
+            {
+              "label": "Gateway inside the block?",
+              "result": "Otherwise there is no route",
+              "tone": "warn"
+            },
+            {
+              "label": "Public or private range?",
+              "result": "NAT or duplicate space",
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "What is Subnetting? - Subnetting Mastery - Part 1 of 7",
+        "channel": "Practical Networking",
+        "url": "https://www.youtube.com/watch?v=BWZ-MHIhqjM",
+        "start": 0,
+        "length": "8:37",
+        "why": "Draws one /24 being sliced into smaller blocks, which is the picture the block-size rule needs to make sense."
+      },
+      "commands": [
+        {
+          "cmd": "ipconfig /all",
+          "what": "Windows address, mask and gateway, all three of which decide the block."
+        },
+        {
+          "cmd": "ip -4 addr show",
+          "what": "Linux address and mask, plus the broadcast the host computed."
+        },
+        {
+          "cmd": "ip route",
+          "what": "Shows the connected block the host believes it owns and its default gateway."
+        },
+        {
+          "cmd": "ping 10.20.15.20",
+          "what": "Tests whether two addresses in different blocks can reach each other at all."
+        },
+        {
+          "cmd": "tracert -d 10.20.4.15",
+          "what": "Shows the hop where an inter-subnet path dies."
+        },
+        {
+          "cmd": "arp -a",
+          "what": "Shows whether the next hop resolved to a MAC address on the local wire."
+        }
+      ],
+      "pitfalls": [
+        "Comparing host addresses instead of network addresses. `10.20.14.87/26` and `10.20.14.60/26` are in different blocks even though both begin with 10.20.14.",
+        "Assuming the gateway is always .1. On a /26 in the upper half of a /24, the gateway is often .65, so read the plan rather than the habit.",
+        "Escalating an overlap as a routing fault. The more-specific route wins by design, so the fix is the plan, and a firewall change will not survive the next review."
+      ],
+      "takeaways": [
+        "The mask defines the block, and the block decides whether a router is involved.",
+        "An overlapping range breaks the part of the larger subnet that the more-specific route covers.",
+        "\"Destination host unreachable\" is local delivery failing; \"request timed out\" is the path."
+      ],
+      "drill": {
+        "prompt": "Take the block 10.20.14.0/26 and write its network, usable range, broadcast and gateway on four lines. Then read a real host mask on your own machine and say which block it is in.",
+        "minutes": 10,
+        "checklist": [
+          "You wrote the block size as 64 without a calculator.",
+          "You wrote .0 as the network and .63 as the broadcast, and can explain why .64 starts the next block.",
+          "The usable range excludes the network and broadcast addresses.",
+          "You identified your own host address block from `ipconfig /all` or `ip -4 addr show`.",
+          "You can say whether your gateway address sits inside that block."
+        ]
+      },
+      "sheetTopics": [
+        "IP Addressing",
+        "Subnetting"
+      ]
+    },
+    {
+      "id": "l1-3",
+      "moduleId": "m1",
+      "seq": 3,
+      "title": "DNS and DHCP: the two services behind 'the internet is down'",
+      "subtitle": "Name resolution and leases, in the order the failure actually happens.",
+      "minutes": 16,
+      "level": "Core",
+      "objectives": [
+        "Order the four DHCP messages and say what a 169.254 address proves.",
+        "Read a lease, the DHCP server and the resolver addresses out of `ipconfig /all`.",
+        "Tell NXDOMAIN from a timeout on a call and route each to the right queue.",
+        "Hand over the lease state, the resolver used and the answer it returned."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC queue",
+        "subject": "Laptop has no network after moving to the second floor",
+        "body": "The user moved desks this morning and now cannot print or reach the shared drive. The cable was swapped and the adapter disabled and re-enabled. `ipconfig` shows an address starting with 169.254. The laptop worked at the old desk yesterday.",
+        "impact": "One user without file share or print access since 13:20; the payroll file for today sits on that share."
+      },
+      "sections": [
+        {
+          "h": "The address that starts with 169.254 is the whole diagnosis",
+          "body": "A laptop comes back from a desk move showing `169.254.44.19`. The user says the network is down. They are right about the effect and wrong about the cause: the link is up, the switch port is forwarding, and the laptop is talking. What failed is the conversation that hands out an address.\n\n`169.254.0.0/16` is the link-local range Windows, macOS and most Linux desktops assign themselves when DHCP gets no reply. It is a placeholder, not a lease. Nothing routes it, no gateway exists, and no resolver address was issued. Every symptom that follows, from no print to no file share, is a consequence of that one line.\n\nThe address is also the proof. A host with a 169.254 address did not fail to reach the internet; it never joined the subnet. That narrows the call to four causes: no DHCP server on that VLAN, no working relay to the server, an exhausted scope, or a switch port in the wrong VLAN. After a desk move, the last cause is the most common."
+        },
+        {
+          "h": "DHCP in four messages, then a timer",
+          "body": "**DHCP** supplies the address, mask, gateway, resolver addresses and lease length. The client starts with nothing, so it broadcasts, because it has no address to be answered on. The server listens on UDP 67, the client on UDP 68.\n\nThe exchange is remembered as DORA:\n\n1. **Discover** — broadcast: is there a DHCP server on this segment?\n2. **Offer** — a server proposes an address and the options that travel with it.\n3. **Request** — the client asks for that offer by name, so other servers stand down.\n4. **Acknowledge** — the server commits the lease.\n\nThen comes the part people forget: the lease has a timer. At 50 percent of the term the client renews with the same server, and at 87.5 percent it broadcasts to any server. An eight-hour lease on a laptop that slept for a week renews silently, and the renewal is the moment a scope problem appears.\n\nOn the client, two commands answer most of it:\n\n```console\nC:\\> ipconfig /release\nWindows IP Configuration\nSuccessfully released the IP address for adapter Ethernet.\nC:\\> ipconfig /renew\nWindows IP Configuration\nAn error occurred while renewing interface Ethernet : unable to contact your DHCP server. Request has timed out.\n```\n\nThat message is not a cable problem. Run it once, read it, and spend the time on the VLAN instead."
+        },
+        {
+          "h": "DNS answers one question, and answers it with a code",
+          "body": "**DNS** turns a name into an address. The client asks a **resolver**, normally the one DHCP handed it, and the resolver either answers from cache or walks the delegation chain from the root down to the zone that owns the name.\n\nTwo failures look identical on a call and belong in different queues:\n\n- **NXDOMAIN** — the resolver worked and answered that the name does not exist in the zone it asked. The record is missing, misspelled, or in the wrong zone.\n- **Timeout** — no answer at all. The resolver is unreachable, UDP 53 is filtered, or the server is down.\n\n```console\nC:\\> nslookup app01.corp.example\nServer:  dns01.corp.example\nAddress:  10.20.0.10\n*** dns01.corp.example can't find app01.corp.example: Non-existent domain\nC:\\> nslookup app01.corp.example 10.20.0.12\nServer:  dns02.corp.example\nAddress:  10.20.0.12\nName:    app01.corp.example\nAddress:  10.20.4.15\n```\n\nThe first command shows the record missing from dns01. The second shows dns02 still holds it. That is a stale or split zone, and it is an L2 ticket with both outputs attached.\n\nThe `Server:` line is evidence, not decoration. If it names a resolver you do not recognize, the host is using a server that DHCP never issued, and the record you are chasing may live only in that zone."
+        },
+        {
+          "h": "The order to check them on a call",
+          "body": "**Decision rule:** read the address before anything else. A 169.254 address means the ticket is DHCP, and `nslookup` has no resolver to ask, so do not run it yet. An address inside the expected range but a name that will not resolve means the ticket is DNS, and renewing the lease wastes the user's time.\n\n**Second rule:** ping the gateway, then ping a public address such as `1.1.1.1`. If both answer, routing is fine and the remaining suspect is the name. If the gateway answers and nothing beyond it does, it is a routing or filter ticket, and no amount of cache clearing will change that.\n\n**Third rule:** ask what changed. A desk move, a new VLAN, a replaced switch or a DNS migration each map to one of these two services, and the answer usually picks the queue.\n\n**Fourth rule:** `ipconfig /flushdns` is the right check when a record was changed and one host still sees the old address. It is the wrong check when the host never had a lease in the first place."
+        },
+        {
+          "h": "What you hand over",
+          "body": "For a lease failure, the note carries the lease state and what the client already tried:\n\n```text\nws-3142, second floor port Gi1/0/14: ipconfig /all shows\n169.254.44.19/16, no gateway, no DHCP server, no DNS servers. ipconfig\n/renew returns \"unable to contact your DHCP server. Request has timed\nout.\" Cable and adapter were swapped and cycled. The same laptop held a\nvalid 10.20.14.0/24 lease at its old desk this morning. Action: check\nthe VLAN on Gi1/0/14 and the DHCP relay for that VLAN.\n```\n\nFor a resolution failure, the note carries both resolvers and what each answered. One resolver returning NXDOMAIN while the other returns an address is not a client problem, and the fix is not on the laptop.\n\n**Escalate to L2 when** a client cannot get a lease on a port where other hosts succeed, or when two resolvers disagree about the same record. Scope, relay and zone changes are server-side changes, and the desk does not make them."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "title": "Lease first, name second",
+        "caption": "DHCP finishes before the name question can be asked. The first four messages produce the address and the resolver address; the last three are what users call \"the internet\".",
+        "data": {
+          "actors": [
+            {
+              "id": "pc",
+              "label": "Client PC"
+            },
+            {
+              "id": "dhcp",
+              "label": "DHCP server"
+            },
+            {
+              "id": "dns",
+              "label": "Resolver"
+            },
+            {
+              "id": "web",
+              "label": "App server"
+            }
+          ],
+          "messages": [
+            {
+              "from": "pc",
+              "to": "dhcp",
+              "text": "DISCOVER: any server?",
+              "note": "UDP 68 to 67, broadcast",
+              "tone": "accent"
+            },
+            {
+              "from": "dhcp",
+              "to": "pc",
+              "text": "OFFER 10.20.14.87",
+              "note": "mask /24, gateway .1",
+              "tone": "ok"
+            },
+            {
+              "from": "pc",
+              "to": "dhcp",
+              "text": "REQUEST: I accept that",
+              "note": "broadcast again",
+              "tone": "accent"
+            },
+            {
+              "from": "dhcp",
+              "to": "pc",
+              "text": "ACK: lease 8 h",
+              "note": "resolver 10.20.0.10",
+              "tone": "ok"
+            },
+            {
+              "from": "pc",
+              "to": "dns",
+              "text": "A? app01.corp.example",
+              "note": "UDP 53",
+              "tone": "accent"
+            },
+            {
+              "from": "dns",
+              "to": "pc",
+              "text": "A 10.20.4.15, TTL 300",
+              "note": "answered from cache",
+              "tone": "ok"
+            },
+            {
+              "from": "pc",
+              "to": "web",
+              "text": "SYN to 10.20.4.15:443",
+              "note": "TCP 443",
+              "tone": "accent"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "How a DNS Server (Domain Name System) works.",
+        "channel": "PowerCert Animated Videos",
+        "url": "https://www.youtube.com/watch?v=mpQZVYPuDGU",
+        "start": 0,
+        "length": "6:05",
+        "why": "Animates the cache, resolver and authoritative steps in order, so the sequence that the text lists becomes a path you can picture."
+      },
+      "commands": [
+        {
+          "cmd": "ipconfig /all",
+          "what": "Lease state, DHCP server, resolver addresses and gateway in one block."
+        },
+        {
+          "cmd": "ipconfig /release",
+          "what": "Gives the lease back, which is the first half of forcing a fresh DORA exchange."
+        },
+        {
+          "cmd": "ipconfig /renew",
+          "what": "Requests a new lease and prints the exact error when no server answers."
+        },
+        {
+          "cmd": "ipconfig /flushdns",
+          "what": "Clears the client cache after a record change; does nothing for a host with no lease."
+        },
+        {
+          "cmd": "nslookup app01.corp.example",
+          "what": "Shows which resolver answered and whether the answer is an address or NXDOMAIN."
+        },
+        {
+          "cmd": "nslookup app01.corp.example 10.20.0.12",
+          "what": "Asks a specific resolver, which exposes stale or split zones."
+        },
+        {
+          "cmd": "resolvectl status",
+          "what": "Linux equivalent: the resolver in use and the per-link DNS servers."
+        }
+      ],
+      "pitfalls": [
+        "Running `ipconfig /renew` before reading `ipconfig /all`. The renew can succeed and overwrite the evidence that explained the failure.",
+        "Reading NXDOMAIN as \"DNS is down\". It is an answer: the resolver worked and the name is not in that zone.",
+        "Asking for a scope change before checking the switch port VLAN. A desk move onto the wrong VLAN gives the same 169.254 address as an exhausted scope, and only one of those is a server change."
+      ],
+      "takeaways": [
+        "169.254 means no lease, so the ticket is DHCP before it is anything else.",
+        "NXDOMAIN is an answer; a timeout is an absence, and they go to different queues.",
+        "The resolver named in the output is evidence about the host, not decoration."
+      ],
+      "drill": {
+        "prompt": "In a lab VM or on a machine you own, capture the lease, then compare two resolvers. Do not disable DHCP on a corporate network or change anything on a production switch.",
+        "minutes": 8,
+        "checklist": [
+          "You recorded the DHCP server, the resolver addresses and the lease expiry from `ipconfig /all`.",
+          "You ran `nslookup` for one internal name and wrote down the `Server:` line.",
+          "You ran the same lookup against a second resolver and compared the two answers.",
+          "You can state which of the two failures, NXDOMAIN or timeout, each output was.",
+          "You can say what the client would show if DHCP stopped answering."
+        ]
+      },
+      "sheetTopics": [
+        "DNS",
+        "DHCP"
+      ]
+    }
+  ]
+}

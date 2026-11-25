@@ -1,0 +1,482 @@
+{
+  "moduleId": "m4",
+  "lessons": [
+    {
+      "id": "l4-1",
+      "moduleId": "m4",
+      "seq": 1,
+      "title": "The CIA triad and thinking like an attacker, within the rules",
+      "subtitle": "Confidentiality, integrity and availability as three different tickets.",
+      "minutes": 14,
+      "level": "Core",
+      "objectives": [
+        "Sort a security ticket into confidentiality, integrity or availability before assigning a queue.",
+        "Read file timestamps, hashes and session lists as evidence for the property that broke.",
+        "Ask the three attacker questions on a normal call without touching the system under suspicion.",
+        "State the authorization boundary that separates lab practice from unauthorized access."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC queue",
+        "subject": "All our finance files have weird names and there is a note in the folder",
+        "body": "Since this morning nobody in the department can open the finance share. Every spreadsheet now ends in .locked and a file called READ-ME.txt is sitting in the root. The on-call engineer restored the folder from last night's backup, but the same files were renamed again an hour later. Users can still log in and their other drives work.",
+        "impact": "Six finance users blocked from the quarter forecast since 08:10; a second rename happened after the restore."
+      },
+      "sections": [
+        {
+          "h": "The .locked share that landed in the wrong queue",
+          "body": "At 02:14 the finance share stops behaving. The morning shift takes three calls from one department: nobody can open the quarter's forecast, every spreadsheet now ends in `.locked`, and a file called `READ-ME.txt` appeared in the root. The first ticket goes to the file server team, because the symptom is a file server symptom. Hours later the drive is restored, and the account that did it still holds an open session to the server.\n\nOne command shows the shape:\n\n```powershell\nPS C:\\> Get-ChildItem \\\\fs01\\finance -Recurse -Filter *.locked |\n>>   Select-Object -First 4 Name, Length, LastWriteTime\n\nName                       Length LastWriteTime\n----                       ------ -------------\nQ3-forecast.xlsx.locked     20480 11/18/2025 02:14:07\nAP-ledger-2025.xlsx.locked  18432 11/18/2025 02:14:07\nREAD-ME.txt                  1024 11/18/2025 02:14:08\n```\n\nTwo facts settle it. Every file was renamed inside the same second, which nobody does by hand. And a note was written one second after the renames. This is not a permissions fault, not a sync client, not a failing disk. Three properties broke at once: the files cannot be used (availability), the contents were replaced (integrity), and the process had to read each file before it could encrypt it (confidentiality). That combination is an incident: the restore waits until someone captures the session and the timestamps."
+        },
+        {
+          "h": "Three properties, three different queues",
+          "body": "**Confidentiality** means only the people you intended can read the data. The ticket sounds like: a folder shared as \"anyone with the link\", a mailbox rule forwarding invoices to a personal address, a database export posted to a forum. The closing question is who could have seen it, and for how long.\n\n**Integrity** means the data is still what was written. The ticket sounds like: a price list edited overnight, a contract with an amount nobody approved. The closing question is what changed, when, and under whose account.\n\n**Availability** means the people who need it can use it. The ticket sounds like: a login loop, a share that times out, a service that restarts every 40 minutes.\n\n| Property | What the caller loses | Typical L1 symptom | First artifact to grab |\n|---|---|---|---|\n| Confidentiality | privacy of the data | a file shared too widely | mail trace, share audit log |\n| Integrity | trust in the data | values changed overnight | file hash, previous version |\n| Availability | use of the data | share or app unusable | timestamps, session list |\n\nReal incidents break more than one: ransomware breaks all three, a misfired email only confidentiality. Name the property the caller lost first, because that naming decides the queue, the urgency, and whether anyone may repair the system before evidence is captured."
+        },
+        {
+          "h": "What an attacker wants, and why the symptom tells you",
+          "body": "Thinking like an attacker needs no tooling. It needs the three questions an attacker asks before touching anything: what here is worth reading, what here is trusted without being checked, and what here would stop the business if it vanished. Those map onto confidentiality, integrity and availability in that order.\n\nThe value of the loop on a normal ticket is evidence, because the motive predicts the artifact. An attacker after data leaves traces in access logs, mail flow and authentication history, not in file timestamps. An attacker after integrity leaves traces in changed files and version history; an attacker after availability, in services, sessions and bandwidth. If the symptom and the evidence disagree, the call is misclassified and the ticket is heading for the wrong team.\n\n**Decision rule:** if a change is mass, timestamped within a few minutes, and accompanied by a note or a new file extension, treat it as a security incident, preserve first, restore second. If one file differs and nothing else shares that timestamp, treat it as user error or a sync conflict and fix it normally."
+        },
+        {
+          "h": "The line you do not cross to think like an attacker",
+          "body": "Everything above is reasoning. Action against a system you do not own is a different category.\n\nWritten authorization is required before any test, scan, credential attempt or payload touches a host. Authorization means a signed scope document naming the hosts and ranges, the testing window, the techniques allowed, an emergency contact, and who signs it. Permission in a chat message is not authorization. A ticket assigned to you is not authorization. A customer asking \"can you check whether we are vulnerable\" is a request to route to the security team, not a license to scan.\n\nInside an authorized test: stay in the lab or on the exact hosts in scope, log every command with a timestamp, stop when you find what looks like real customer data, and report it the same day. Outside one: do not scan, do not try credentials found in a file, do not open a suspicious attachment, and do not test a firewall rule from a customer host.\n\nUnauthorized access is a criminal offense in most jurisdictions regardless of intent, and \"I was only checking\" is not a defense. A scan you run on a customer range also breaks the evidence chain and can take a production service down."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note is short, and it is written before anything changes:\n\n```text\nfs01 finance share: every file under \\\\fs01\\finance renamed to *.locked\nbetween 02:14:07 and 02:14:08 on 11/18. READ-ME.txt written 02:14:08.\nRestore NOT started. Open SMB session from 10.20.30.44 captured with\nGet-SmbOpenFile. No other share affected so far. Callers: finance team,\n6 users, quarter forecast due today.\n```\n\nThen close or escalate on one line each:\n\n- Close when the property is restored from a known good source, the account that caused it is disabled, and the ticket records both timestamps.\n- **Escalate to the security team immediately when** data was readable by someone who should not have had it, when files were changed under an account nobody can explain, or when a machine is still talking to the share after the damage.\n\nAn availability ticket you can fix. A confidentiality ticket you cannot un-read, so treat it as an incident from the first minute."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "Five questions that decide the queue",
+        "caption": "The first three questions separate a security incident from a broken share. The last two decide whether you are allowed to repair it yet.",
+        "data": {
+          "steps": [
+            {
+              "label": "What did they lose?",
+              "detail": "privacy, correct data, or uptime"
+            },
+            {
+              "label": "When did it change?",
+              "detail": "one timestamp or a slow drift"
+            },
+            {
+              "label": "What proves it?",
+              "detail": "hash, session list, access log"
+            },
+            {
+              "label": "Who owns the fix?",
+              "detail": "app team, network team, security"
+            },
+            {
+              "label": "Preserve, then repair",
+              "detail": "evidence before restore"
+            }
+          ],
+          "footer": "Reasoning about an attacker is free. Acting like one needs a signed scope."
+        }
+      },
+      "video": {
+        "title": "CIA Triad - N10-008 CompTIA Network+ : 4.1",
+        "channel": "Professor Messer",
+        "url": "https://www.youtube.com/watch?v=3yqGCsuREfQ",
+        "start": 0,
+        "length": "4:13",
+        "why": "Walks the three properties with concrete breach examples, which makes the classification habit stick faster than the table alone."
+      },
+      "commands": [
+        {
+          "cmd": "Get-ChildItem \\\\fs01\\finance -Recurse -Filter *.locked | Select-Object Name, LastWriteTime",
+          "what": "Shows whether hundreds of files share one rename timestamp, which separates an attack from a user mistake."
+        },
+        {
+          "cmd": "Get-SmbOpenFile -CimSession fs01 | Select-Object ClientUserName, Path",
+          "what": "Lists who still holds an open handle on the share, so the session can be captured before the restore kills it."
+        },
+        {
+          "cmd": "Get-FileHash .\\Q3-forecast.xlsx -Algorithm SHA256",
+          "what": "Produces a comparison value for the integrity question: is this the same file that was approved?"
+        },
+        {
+          "cmd": "Get-MpThreatDetection | Select-Object InitialDetectionTime, ThreatID, Resources",
+          "what": "Lists what the endpoint protection already caught, with the time and the file it acted on."
+        },
+        {
+          "cmd": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4663; StartTime=(Get-Date).AddHours(-6)} -MaxEvents 20",
+          "what": "Object-access events for the change window, only on servers where file auditing is enabled."
+        }
+      ],
+      "pitfalls": [
+        "Restoring from backup before capturing the open session list and file timestamps. The restore overwrites the rename times, and the account that did it keeps working.",
+        "Reading one \"access denied\" on the share as a permissions problem. When every file moved in the same second, permissions are the symptom, not the cause.",
+        "Testing the suspected weakness on a customer host because the ticket was already open. That is unauthorized access, it contaminates the evidence, and it can take the service down."
+      ],
+      "takeaways": [
+        "Confidentiality, integrity and availability fail in different ways and land in different queues.",
+        "A mass change within one minute, plus a note, means incident: preserve before you repair.",
+        "Thinking like an attacker is analysis; acting like one requires written scope and stays in the lab."
+      ],
+      "drill": {
+        "prompt": "Take the last three security-flagged tickets in your own queue, or three incidents from the news, and write one line each: the property that broke, the artifact that would prove it, and the team that owns the fix. Use only tickets you are cleared to read, and redact names and addresses.",
+        "minutes": 8,
+        "checklist": [
+          "Each of the three rows names exactly one property as the first casualty.",
+          "Each row names a concrete artifact, such as a hash, a timestamp or an audit log entry.",
+          "You can state the decision rule from memory: mass change plus a note means preserve first.",
+          "You wrote down which of the three would have been escalated to security on the first call.",
+          "No customer name or real address appears in what you wrote."
+        ]
+      },
+      "sheetTopics": [
+        "Security Principles"
+      ]
+    },
+    {
+      "id": "l4-2",
+      "moduleId": "m4",
+      "seq": 2,
+      "title": "Identity: authentication, authorisation, MFA and least privilege",
+      "subtitle": "Who you are, what you may do, and why both checks exist.",
+      "minutes": 16,
+      "level": "Core",
+      "objectives": [
+        "Tell an authentication failure from an authorization failure using the status code and the sign-in log.",
+        "Check group membership and token age before requesting any access change.",
+        "Explain why two passwords are not MFA, and which factor is easiest to phish.",
+        "Route an access request through the role owner instead of granting it on the call."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC queue",
+        "subject": "Portal says I do not have access to the finance report",
+        "body": "The user moved from sales to finance last week. They can sign in to the finance portal and see the dashboard, but every report returns a page saying they do not have access. The password was reset twice this morning and they tried Edge and Chrome. Their manager says they should already have the right group.",
+        "impact": "One finance analyst cannot produce the weekly report since 08:30; the manager is asking for an ETA."
+      },
+      "sections": [
+        {
+          "h": "The access-denied call that a password reset could not fix",
+          "body": "On Monday a.singh moved from sales to finance. The ticket says the portal will not let them in. The login works, the dashboard loads, and the report returns \"You do not have access to this report.\" L1 has already reset the password twice and tried a second browser. Neither can work, because the sign-in already succeeded.\n\nTwo checks on the user's own machine:\n\n```powershell\nPS C:\\> whoami /groups | Select-String -Pattern \"Finance\"\n\nCORP\\Finance-Read    Group    S-1-5-21-882134762-1149273812-2017342081-4112\n                     Mandatory group, Enabled by default, Enabled group\n\nPS C:\\> Get-ADPrincipalGroupMembership a.singh | Select-Object Name, GroupCategory\n\nName           GroupCategory\n----           -------------\nDomain Users   Security\nFinance-Read   Security\nVPN-Users      Security\n```\n\nThe group is present and it is a security group, which is what an application checks. The account is right, the permission is right, and the report still refuses, so the problem is the claim the portal is reading. Group membership is copied into a token at sign-in, and the app trusts that token until it expires. a.singh was added to Finance-Read at 09:10 and signed in at 08:41, so the token predates the group. Sign out and back in, and the report opens.\n\nThat is the whole ticket, and it was never a password."
+        },
+        {
+          "h": "Four words people use as one",
+          "body": "**Identification** is the claim: a username or an employee number. It is not proof.\n\n**Authentication** is the proof that the claim is true: a password, a key, a fingerprint. It answers \"are you who you say you are\".\n\n**Authorization** is the decision about what that proven identity may do: read the finance report, approve a payment, restart the service. It answers \"is this allowed\".\n\n**Accounting** is the record that lets you rebuild both later: sign-in logs, audit trails, change history.\n\n| Question | Control | Fails as | Evidence to look at |\n|---|---|---|---|\n| Who are you? | authentication | 401, bad password, MFA prompt | sign-in log |\n| What may you do? | authorization | 403, access denied, hidden menu | group, role, token claims |\n| What did you do? | accounting | nothing visible until audit | audit log, timestamps |\n\nThat distinction makes the first ticket a five-minute call instead of five. A 401 is an authentication problem. A 403 after a successful sign-in is an authorization problem: different owner, different fix, different queue."
+        },
+        {
+          "h": "MFA is a second proof, not a second password",
+          "body": "**MFA** means two different kinds of evidence, not two items from the same kind. The kinds are something you know (password, PIN), something you have (authenticator app, hardware key, smart card), and something you are (fingerprint, face). Two passwords are not MFA. A password plus a security question is not MFA either, because both are knowledge.\n\nThe reason to combine kinds is that they fail differently. A password leaks from a reused site or a phishing page without the attacker touching the device. A hardware key cannot be phished into a fake site, because it verifies the site before it signs anything. A push notification is convenient and it is the weakest link: it asks a tired person to approve something at 02:00.\n\n**Decision rule:** if a user says they got an MFA prompt they did not start and approved it to make it stop, stop treating the call as a login problem. Someone else knows the password. Escalate as a suspected account compromise, revoke the sessions, reset the credential, and pull the sign-in log with the source address.\n\n```powershell\nPS C:\\> Get-MgAuditLogSignIn -Filter \"userPrincipalName eq 'a.singh@corp.example'\" -Top 3 |\n>>   Select-Object CreatedDateTime, AppDisplayName, @{n='Error';e={$_.Status.ErrorCode}}\n\nCreatedDateTime      AppDisplayName              Error\n---------------      --------------              -----\n11/18/2025 02:11:44  Office 365 Exchange Online  0\n11/18/2025 02:11:57  Office 365 Exchange Online  50126\n```\n\nTwo attempts, twelve seconds apart, from an application the user does not open at night: that is the finding, not the noise."
+        },
+        {
+          "h": "Least privilege is a process, not a favor",
+          "body": "Least privilege means an account holds the access its job needs, for as long as it needs it, and nothing more. On the desk it arrives as small requests: add me to this folder, give me local admin, let me approve invoices while my manager is away.\n\nThe rule: access is granted by the resource owner, through the documented request, with an end date. Not by whoever answered the phone. A shared admin account is worse than a delay: the audit log cannot say who did what, and every action under it belongs to everyone.\n\nThree moves that close most access tickets without escalating:\n\n1. Check the role catalog or the group description first. Many requests are for a group the user is already in.\n2. If the request matches a documented role, route it through the request form and quote the role name in the ticket.\n3. If it does not, say no in writing, name the role that would cover the need, and copy the resource owner. \"No\" with a path forward closes the ticket.\n\n**Decision rule:** never grant permanent access to solve a temporary problem. Ask for an end date; if the requester cannot name one, the request is not ready."
+        },
+        {
+          "h": "What you hand over",
+          "body": "```text\na.singh (CORP): signs in to the finance portal, report returns \"no access\".\nMFA satisfied 08:41. Finance-Read group added 09:10, after the sign-in, so\nthe token does not carry it. Sign out and in at 09:26 issued a new token;\nreport opens. No password reset needed.\n```\n\n- Close when the user has opened the resource, and the ticket records the time of that attempt.\n- **Escalate to the identity team when** the group, the role and the token are all correct and access still fails, when the account shows a sign-in from an address or country the user cannot explain, or when an MFA prompt was approved that the user did not start.\n\nA permissions ticket that ends with \"should work now\" is not closed. It ends when the user has done the thing, and you wrote down when."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "title": "One sign-in, two different decisions",
+        "caption": "Steps 3 and 4 are authentication. Step 7 is authorization, and it fails even though the user proved who they are.",
+        "data": {
+          "actors": [
+            {
+              "id": "user",
+              "label": "a.singh"
+            },
+            {
+              "id": "app",
+              "label": "Finance portal"
+            },
+            {
+              "id": "idp",
+              "label": "Identity provider"
+            },
+            {
+              "id": "res",
+              "label": "Report service"
+            }
+          ],
+          "messages": [
+            {
+              "from": "user",
+              "to": "app",
+              "text": "Open finance portal",
+              "note": "portal.corp.example",
+              "tone": "accent"
+            },
+            {
+              "from": "app",
+              "to": "idp",
+              "text": "Sign-in request",
+              "note": "OIDC authorize",
+              "tone": "accent"
+            },
+            {
+              "from": "idp",
+              "to": "user",
+              "text": "Password, then code",
+              "note": "two factors asked",
+              "tone": "accent"
+            },
+            {
+              "from": "user",
+              "to": "idp",
+              "text": "Password plus 481920",
+              "note": "authentication passes",
+              "tone": "ok"
+            },
+            {
+              "from": "idp",
+              "to": "app",
+              "text": "ID token with claims",
+              "note": "Finance-Read missing",
+              "tone": "bad"
+            },
+            {
+              "from": "app",
+              "to": "res",
+              "text": "Request weekly report",
+              "note": "checks role claim",
+              "tone": "accent"
+            },
+            {
+              "from": "res",
+              "to": "app",
+              "text": "403 forbidden",
+              "note": "authorization fails",
+              "tone": "bad"
+            },
+            {
+              "from": "app",
+              "to": "user",
+              "text": "Access denied",
+              "note": "password was fine",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Authentication, Authorization, and Accounting - CompTIA Security+ SY0-701 - 1.2",
+        "channel": "Professor Messer",
+        "url": "https://www.youtube.com/watch?v=AhaZtj5P2a8",
+        "start": 0,
+        "length": "9:04",
+        "why": "Shows the three checks as separate controls with the failure each one produces, which is the split this lesson asks you to make on the phone."
+      },
+      "commands": [
+        {
+          "cmd": "whoami /groups",
+          "what": "Every group and SID the current token carries, which is what the local machine and many apps actually check."
+        },
+        {
+          "cmd": "Get-ADPrincipalGroupMembership a.singh | Select-Object Name, GroupCategory",
+          "what": "Group membership on the account, and whether each group is a security group or only a distribution list."
+        },
+        {
+          "cmd": "Get-ADUser a.singh -Properties Enabled, LockedOut, LastBadPasswordAttempt",
+          "what": "Distinguishes a disabled or locked account from a wrong password, without a reset."
+        },
+        {
+          "cmd": "Get-MgAuditLogSignIn -Filter \"userPrincipalName eq 'a.singh@corp.example'\" -Top 5",
+          "what": "Recent sign-ins with application, result code and source, which is the evidence for an account compromise."
+        },
+        {
+          "cmd": "klist",
+          "what": "Cached Kerberos tickets with start and expiry times; a ticket issued before a group change carries the old group list."
+        }
+      ],
+      "pitfalls": [
+        "Resetting the password for a 403. The sign-in already succeeded, so the reset proves nothing and the user has to change a password for no reason.",
+        "Adding a user to a distribution group when the application checks a security group or a role. Mail delivery changes, access does not, and the ticket comes back.",
+        "Granting access from a phone call or a chat message to close the ticket quickly. The grant outlives the request, and nobody can show who approved it."
+      ],
+      "takeaways": [
+        "A 401 is authentication; a 403 after a successful sign-in is authorization.",
+        "Group changes only reach an application when a new token is issued, so sign out and in first.",
+        "MFA combines different factor types, and the push prompt is the one that gets approved by mistake."
+      ],
+      "drill": {
+        "prompt": "On your own machine, run `whoami /groups` and read the SIDs. Find one group that gives you more access than your daily work needs. Write the exact request you would send to the group owner to have it removed, including the end date you would ask for.",
+        "minutes": 8,
+        "checklist": [
+          "You can point to the group name and its SID in your own `whoami /groups` output.",
+          "You named the resource that group actually unlocks, not just its name.",
+          "Your request names the group owner and a concrete date.",
+          "You can explain why removing it will not break the work you do today.",
+          "You did not change any membership yourself to test it."
+        ]
+      },
+      "sheetTopics": [
+        "Identity Security",
+        "Access Security"
+      ]
+    },
+    {
+      "id": "l4-3",
+      "moduleId": "m4",
+      "seq": 3,
+      "title": "Encryption and hashing: what TLS actually proves",
+      "subtitle": "Certificates, handshakes, and the difference between secrecy and integrity.",
+      "minutes": 17,
+      "level": "Core",
+      "objectives": [
+        "Separate encryption, hashing and encoding when a user asks what a value means.",
+        "Read a TLS certificate's names, dates and issuer and decide what the warning is about.",
+        "State the four things a completed handshake proves and the three it does not.",
+        "Verify a file or a certificate with a command whose output you can quote in the ticket."
+      ],
+      "ticket": {
+        "from": "Service Desk / NOC queue",
+        "subject": "Browser says the connection is not private on the reports page",
+        "body": "Since Monday everyone on the finance floor gets a full-page warning when they open the reports page in the browser, but the same page works from home. The desk has been telling people to click Advanced and Proceed. One user has already done it twice and entered their password the second time.",
+        "impact": "Twelve finance users blocked or clicking through a warning since Monday 08:00; one password entered on the page after a warning."
+      },
+      "sections": [
+        {
+          "h": "The certificate warning the whole floor learned to click through",
+          "body": "An internal app starts showing \"Your connection is not private\" on Monday morning. Someone on the floor says to click Advanced, then Proceed. By Wednesday the instruction has reached two other departments, and on Friday a user follows it on a look-alike site that asks for a password. Nothing about the browser changed. What changed is that the organization taught its users that a transport warning is noise.\n\nThe evidence takes one command, from any machine that can reach the app:\n\n```console\n$ openssl s_client -connect app01.corp.example:443 -servername app01.corp.example </dev/null\nCONNECTED(00000003)\ndepth=0 CN = app01.corp.example\nverify error:num=10:certificate has expired\nverify return:1\n---\nCertificate chain\n 0 s:CN = app01.corp.example\n   i:C = US, O = Corp Internal, CN = Corp Issuing CA 01\n---\nVerify return code: 10 (certificate has expired)\n```\n\nThe name is right, the issuer is the organization's own CA, and the certificate expired. That is a renewal ticket with a known owner. It is also, until it is fixed, a training exercise in ignoring warnings, and the bill for that lands on the next real phishing page.\n\n**Decision rule:** a browser warning is never closed with \"click through\". If the name matches, the dates are valid and the chain is trusted, the user should not see a warning at all, and something is intercepting the connection."
+        },
+        {
+          "h": "Encryption, hashing and encoding are three different tools",
+          "body": "**Encryption** scrambles data so that only a holder of the key can read it, and it is reversible by design. Symmetric encryption uses one key for both directions, and AES-256-GCM is the common choice for data at rest. Asymmetric encryption uses a key pair: a public key anyone may have, and a private key only the owner holds. Asymmetric operations are slow, so they establish a symmetric session key rather than carry the bulk data.\n\n**Hashing** takes any input and produces a fixed-length value, with no key and no reverse. The same input always gives the same hash, and a one-character change gives a completely different one. That makes hashes useful for integrity and for password storage, where the system keeps the hash and compares hashes.\n\n**Encoding** changes the representation and hides nothing. Base64 turns bytes into text so they survive a mail system or a JSON field. It has no key, and anyone can decode it.\n\n| Tool | Reversible | Proves | Example you will meet |\n|---|---|---|---|\n| Symmetric encryption | with the key | only key holders can read | AES-256-GCM on a disk |\n| Asymmetric encryption | with the private key | who holds the private key | TLS key exchange, signatures |\n| Hash | no | the data did not change | SHA-256 on a download |\n| Encoding | trivially | nothing about safety | Base64 in a URL |\n\nThe common L1 error is promising a user that a hash can be \"decrypted\" to recover an old password. It cannot; the only path is a reset."
+        },
+        {
+          "h": "What the handshake actually proves",
+          "body": "The TLS handshake settles four things before any application data moves:\n\n1. The server holds the private key that matches the certificate it presented.\n2. The certificate chains to a root the client already trusts.\n3. The name the client asked for appears in the certificate's subject alternative names.\n4. Both sides derived the same session keys, so everything after this point is encrypted and integrity-checked.\n\nRead it again for what is missing. It does not prove the server is patched, that the business behind it is honest, or that the person typing is who they say. A phishing site with a valid certificate from a free CA passes all four checks, because a certificate is a statement about a name and a key, not a character reference.\n\nThat is why \"it has a padlock\" is not an answer to \"is this site safe\". The padlock says the traffic is encrypted and the name in the certificate is the name you requested. Whether you typed the right name is the security decision."
+        },
+        {
+          "h": "Reading a certificate in sixty seconds",
+          "body": "Three fields answer almost every certificate ticket: the names, the dates, and the issuer.\n\n```console\n$ openssl x509 -noout -subject -issuer -dates -ext subjectAltName -in web01.crt\nsubject=CN = web01.corp.example\nissuer=C = US, O = Corp Internal, CN = Corp Issuing CA 01\nnotBefore=Nov 12 00:00:00 2025 GMT\nnotAfter=Feb 10 00:00:00 2026 GMT\nX509v3 Subject Alternative Name:\n    DNS:web01.corp.example, DNS:web01\n```\n\n- **Names.** The browser compares the name in the address bar against the subject alternative names. The CN alone is not enough in current browsers.\n- **Dates.** Inside the validity window or not.\n- **Issuer.** The organization's internal CA for internal apps, a public CA for public sites.\n\nIf the name matches and the dates are valid but the browser still warns, the chain is untrusted or something is re-signing the connection. Inside the corporate network a proxy that re-signs traffic is normal, and its CA is pushed to machines by policy. On a home or hotel network the same warning means someone else holds the connection. Stop, do not enter credentials, and escalate with the issuer name."
+        },
+        {
+          "h": "What you hand over",
+          "body": "```text\napp01.corp.example:443 presents CN=app01.corp.example, SAN matches,\nissuer Corp Issuing CA 01, expired 11/18/2025 00:00 GMT.\nopenssl verify code 10 (certificate has expired). Chain otherwise\ntrusted. All browsers on the finance subnet affected, 12 users.\nAction: renewal with the internal PKI team. No workaround issued;\nusers told not to click through the warning.\n```\n\n- Close when a renewed certificate is presented, the verify code is 0, and one user has loaded the page with no warning.\n- **Escalate to the security team when** the issuer is not one the organization uses, when the expiry date changes between two checks on the same host, or when a user has already entered credentials after clicking through a warning.\n\nAn expired certificate is an availability problem with a boring fix. A certificate nobody in the organization issued is an interception problem, and the only correct answer on the call is to disconnect and report it."
+        }
+      ],
+      "diagram": {
+        "type": "sequence",
+        "title": "The handshake, and where the proof lives",
+        "caption": "Steps 2 to 4 are the proof: the name, the dates, and a chain the browser already trusts. From step 5 the channel is encrypted, and in TLS 1.3 the certificate itself travels inside it.",
+        "data": {
+          "actors": [
+            {
+              "id": "browser",
+              "label": "Browser"
+            },
+            {
+              "id": "server",
+              "label": "web01:443"
+            },
+            {
+              "id": "ca",
+              "label": "Corp Issuing CA"
+            }
+          ],
+          "messages": [
+            {
+              "from": "browser",
+              "to": "server",
+              "text": "ClientHello",
+              "note": "TLS 1.3, SNI app01",
+              "tone": "accent"
+            },
+            {
+              "from": "server",
+              "to": "browser",
+              "text": "ServerHello, certificate",
+              "note": "names, dates, signature",
+              "tone": "accent"
+            },
+            {
+              "from": "browser",
+              "to": "ca",
+              "text": "Check the chain",
+              "note": "OCSP or CRL",
+              "tone": "accent"
+            },
+            {
+              "from": "ca",
+              "to": "browser",
+              "text": "Trusted, not revoked",
+              "note": "signed by this CA",
+              "tone": "ok"
+            },
+            {
+              "from": "browser",
+              "to": "server",
+              "text": "Key share, Finished",
+              "note": "session keys derived",
+              "tone": "ok"
+            },
+            {
+              "from": "server",
+              "to": "browser",
+              "text": "Finished",
+              "note": "encrypted from here",
+              "tone": "ok"
+            },
+            {
+              "from": "browser",
+              "to": "server",
+              "text": "GET /reports",
+              "note": "HTTP inside TLS",
+              "tone": "ok"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "TLS Handshake Explained - Computerphile",
+        "channel": "Computerphile",
+        "url": "https://www.youtube.com/watch?v=86cQJ0MMses",
+        "start": 0,
+        "length": "16:59",
+        "why": "Draws the certificate and key-exchange steps by hand, which makes the difference between proving a name and proving a channel concrete."
+      },
+      "commands": [
+        {
+          "cmd": "openssl s_client -connect app01.corp.example:443 -servername app01.corp.example",
+          "what": "Runs the handshake and prints the verification result, including the exact error number."
+        },
+        {
+          "cmd": "openssl x509 -noout -subject -issuer -dates -in web01.crt",
+          "what": "The three fields that decide most certificate tickets, without the rest of the output."
+        },
+        {
+          "cmd": "curl -vI https://app01.corp.example",
+          "what": "Shows the verify result and the expiry date as seen by a client that does not use the browser's trust store."
+        },
+        {
+          "cmd": "Get-FileHash .\\agent-installer.msi -Algorithm SHA256",
+          "what": "The Windows way to compare a downloaded file against the vendor's published hash."
+        },
+        {
+          "cmd": "sha256sum ./agent-installer.msi",
+          "what": "The same comparison on Linux, and the value you paste into the ticket as evidence."
+        }
+      ],
+      "pitfalls": [
+        "Telling a user to click through the warning to clear the call. That teaches the habit, and the habit is what a look-alike site needs.",
+        "Calling a Base64 string encrypted. Anyone can decode it, and treating it as a secret is how credentials end up in tickets and logs.",
+        "Promising that a password hash can be reversed to recover the old password. A hash is one-way; only a reset restores access."
+      ],
+      "takeaways": [
+        "Encryption is reversible with a key, hashing is not reversible, and encoding protects nothing.",
+        "A completed handshake proves the key, the chain, the name and the session keys, and nothing about the business.",
+        "A warning with valid dates and a trusted issuer means interception, and the call stops there."
+      ],
+      "drill": {
+        "prompt": "Pick a public site you use and one internal host you are allowed to query. For each, run `openssl s_client -connect host:443 -servername host` and record the verify code, the issuer and the expiry date. Then hash one downloaded file with `Get-FileHash` or `sha256sum` and compare it to the vendor's published value.",
+        "minutes": 10,
+        "checklist": [
+          "You have two verify codes, and you can say what each one means.",
+          "You can name the issuer for both hosts and say whether your machine trusts it by policy.",
+          "You recorded both expiry dates and the number of days left on each.",
+          "The file hash matches the vendor's published value, or you recorded the mismatch exactly.",
+          "You did not click through any warning to complete the exercise."
+        ]
+      },
+      "sheetTopics": [
+        "Cryptography"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,395 @@
+{
+  "moduleId": "m6",
+  "lessons": [
+    {
+      "id": "l6-1",
+      "moduleId": "m6",
+      "seq": 1,
+      "title": "Logs to SIEM: how raw events become one queue",
+      "subtitle": "Sources, normalisation, indexing, and why the timestamp is the argument.",
+      "minutes": 16,
+      "level": "Core",
+      "objectives": [
+        "Trace one event from the source device to the alert queue and name the stage where it can be lost.",
+        "Prove whether an alert time and a device log time describe the same instant, using the offset and not the clock face.",
+        "Explain what normalization buys a correlation search, and why a missing field produces a partial count instead of an error.",
+        "Write a data-fault handover note that names the owner instead of re-opening the same alert."
+      ],
+      "ticket": {
+        "from": "SOC queue — tier 1",
+        "subject": "Your brute force alert fired at 09:40, but the DC log says 04:10",
+        "body": "The queue raised a high-severity alert against dc01 for 412 failed logons by svc-backup at 09:40. The AD admin opened the security log on dc01 and found the failures at 04:10, before the office opened, and says the alert is wrong. The alert is still open, the on-call analyst wants to close it as a false positive, and nobody has checked whether a logon succeeded after the failures.",
+        "impact": "One high-severity credential alert open for three hours; the controller log rolls over in two days and is the only copy of the evidence."
+      },
+      "sections": [
+        {
+          "h": "The alert that was five and a half hours out",
+          "body": "The SOC queue raised a high-severity alert against `dc01` at 09:40: 412 failed logons for `svc-backup`. The AD admin pulled the security log on the domain controller, found the same 412 failures at 04:10, before the office opened, and told the SOC the alert was wrong. Nobody had asked the only question that mattered: did any logon succeed after the failures?\n\nBoth were telling the truth. The controller wrote its own local time and no offset. The pipeline that parsed the event applied a zone the device never sent, so one instant became another instant.\n\nYou can see the missing offset in the raw event, before any search runs:\n\n```text\n11/18/2025 04:10:02 AM\nLogName=Security\nEventCode=4625\nComputerName=dc01.example.net\nKeywords=Audit Failure\nMessage=An account failed to log on.\n    Account Name:  svc-backup\n    Source Network Address:  203.0.113.44\n```\n\nNo time zone appears anywhere in that block. Whether this event lands at 04:10 or 09:40 is decided by a zone nobody wrote down, and the parser guessed one."
+        },
+        {
+          "h": "Six stages, and the four that fail without making a sound",
+          "body": "The queue only shows the end of the pipeline. Everything before it can fail without producing an error anywhere.\n\nThe most common silent failure is a source that never emits. Event ID 4625 exists only if failure auditing is enabled for logon events on that host. A server left on default audit policy produces nothing, and the queue reads that silence as a quiet week. Check the policy before you trust the absence of alerts:\n\n```powershell\nPS C:\\> auditpol /get /category:\"Logon/Logoff\"\n\nSubcategory   GUID                                    Inclusion Setting\nLogon         {0CCE9215-69AE-11D9-BED3-505054503030}  Success and Failure\nLogoff        {0CCE9216-69AE-11D9-BED3-505054503030}  Success\n```\n\nNext is the shipper. An agent installed but not connected to an indexer, or a syslog receiver on the wrong port, leaves a gap with a start time and no end.\n\nThen the parser, which decides where one event stops and the next begins. A Java stack trace split into forty one-line events is a parser problem, not a log problem, and it buries the timestamp of all forty.\n\nLast is retention. Hot buckets roll to warm, warm to frozen, and frozen is deleted. A thirty-one-day-old alert cannot be investigated if the index keeps thirty days."
+        },
+        {
+          "h": "The timestamp is the argument you can settle",
+          "body": "`_time` is stored as an epoch number, one instant in UTC. Every date on a screen is that number rendered in some zone, so there are two separate questions: what instant did this happen, and what does my screen say.\n\nThe instant is set once, at parse time, by `TIME_FORMAT`, `MAX_TIMESTAMP_LOOKAHEAD` and `TZ` for that sourcetype. When `TZ` is not set, the parser falls back to the search head's own zone for timestamps that carry no offset. On a datacenter host that zone is usually UTC while your profile renders in local time, which is how a device clock in one zone becomes a stored time in another. The repair is one setting on the parsing tier plus a re-index of the window. It is not a change to the alert, and L1 cannot make it from the queue.\n\nCompare the two clocks before you compare the attack:\n\n```splunk\nindex=wineventlog host=dc01 EventCode=4625 earliest=-24h\n| stats count min(_time) AS first max(_time) AS last BY user\n| eval first=strftime(first,\"%H:%M:%S %Z\"), last=strftime(last,\"%H:%M:%S %Z\")\n\nuser         count  first          last\nsvc-backup     412  09:40:02 IST   09:42:47 IST\nj.okafor         3  09:41:11 IST   09:41:19 IST\n```\n\nTwo facts in that output decide the ticket. If the clocks are seconds apart, the drift is NTP's problem and the alert is safe to analyze. If every row sits exactly five and a half hours from the console clock, the source is mis-parsed, and nothing in that index lines up with a source that was parsed correctly.\n\n**Decision rule:** when the alert clock and the device clock differ by a whole or half-hour offset, stop analyzing the alert and fix the parse. Seconds mean drift. Hours mean zone."
+        },
+        {
+          "h": "Normalization: why one search hits three firewalls",
+          "body": "Vendors do not agree on field names. A firewall calls the source address `srcip`, a proxy calls it `client_ip`, an identity provider calls it `IpAddress`. **Normalization** maps those onto one set — `src`, `dest`, `user`, `action` — so one question can be asked of any product. In Splunk that set is the Common Information Model; in Elastic the same idea is the Common Schema.\n\nNormalization makes a rule portable, and it makes a broken rule silent. A correlation search written against `src` returns rows for the firewalls whose add-on maps the field and nothing for the one whose add-on was never installed, or whose sourcetype changed after an upgrade. The rule keeps running, keeps returning a number, and the number is a partial count nobody questions because it is not zero.\n\nThe fast path is `| tstats` against an accelerated data model: it reads normalized fields instead of raw events, and with a bad mapping it returns zero rows and no error, the same trap wearing a performance badge."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note on this ticket has five lines and no theory:\n\n- Source, sourcetype and host: `WinEventLog:Security` on `dc01`.\n- Both clocks, with values: 04:10 on the controller against 09:40 in the queue.\n- Audit policy on the host: failure auditing on or off.\n- The pairing result: how many 4624 events followed the 4625 burst, from which source.\n- What you did not check, in plain words.\n\nThat note closes as a data fault with a named owner, or it escalates with the evidence attached. It must never say \"timestamps look weird\" — an offset is a measurement, so measure it.\n\n**Escalation criterion:** hand off to the logging platform team, not the SOC, when one sourcetype shows an exact zone-sized offset or a flat zero across more than one host. Every alert built on that data is wrong and no analyst can repair it from the queue."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "One event, six chances to be lost",
+        "caption": "The queue shows the last step. Every step before it can drop the event or change its meaning without raising an error anywhere.",
+        "data": {
+          "steps": [
+            {
+              "label": "Source emits",
+              "detail": "DC, firewall, proxy, EDR sensor"
+            },
+            {
+              "label": "Shipper forwards",
+              "detail": "agent, syslog 514, API pull"
+            },
+            {
+              "label": "Parser sets _time",
+              "detail": "TIME_FORMAT, TZ, line breaks"
+            },
+            {
+              "label": "Normalizer maps fields",
+              "detail": "src, dest, user, action"
+            },
+            {
+              "label": "Indexer stores",
+              "detail": "index, retention, license"
+            },
+            {
+              "label": "Correlation fires",
+              "detail": "threshold, throttle, lookup"
+            }
+          ],
+          "footer": "A security alert is usually a data fault wearing a security label."
+        }
+      },
+      "video": {
+        "title": "What is Microsoft Azure Sentinel? Cloud-native SIEM.",
+        "channel": "Microsoft Mechanics",
+        "url": "https://www.youtube.com/watch?v=XXZp6LQZSJU",
+        "start": 0,
+        "length": "7:18",
+        "why": "Shows connectors, analytics rules and incidents inside one product interface, so the six-step flow in the plate has a working example instead of only labels."
+      },
+      "commands": [
+        {
+          "cmd": "auditpol /get /category:\"Logon/Logoff\"",
+          "what": "Shows whether 4625 and 4624 can exist at all on that host, before you read an empty search as a quiet week."
+        },
+        {
+          "cmd": "index=wineventlog host=dc01 EventCode=4625 earliest=-24h | stats count min(_time) AS first max(_time) AS last BY user",
+          "what": "Puts the first and last failure on one line, which is what you compare against the console clock."
+        },
+        {
+          "cmd": "| metadata type=sourcetypes index=* | eval age=now()-recentTime | where age > 3600",
+          "what": "Lists sourcetypes that stopped arriving more than an hour ago, which is how a dead shipper shows up as a number."
+        },
+        {
+          "cmd": "| tstats count FROM datamodel=Authentication WHERE Authentication.action=failure BY Authentication.src",
+          "what": "Reads the normalized field instead of the raw event, so a zero here points at field mapping, not at attacker behavior."
+        },
+        {
+          "cmd": "/opt/splunkforwarder/bin/splunk list forward-server",
+          "what": "Confirms the agent thinks it is connected to an indexer, and names the target it believes it is sending to."
+        }
+      ],
+      "pitfalls": [
+        "Closing the alert because the device log disagrees with the alert time. The disagreement is a parse fault, and the attack may be real in either timeline.",
+        "Reading zero events as zero activity. With logon failure auditing off, 4625 never exists and the queue shows silence, not safety.",
+        "Using a field name from a dashboard without checking the add-on that produced it. When the mapping is missing, the correlation search counts a subset and reports it as the total."
+      ],
+      "takeaways": [
+        "Six stages sit between the device and the queue; the queue only shows the last one.",
+        "An exact zone-sized gap between two clocks is a parsing fault, not an attack finding, and it breaks cross-source correlation.",
+        "Normalization is what lets one search span three vendors, and a missing mapping returns a partial count rather than an error."
+      ],
+      "drill": {
+        "prompt": "On your own Windows machine, open Event Viewer, pick one Security event, and note the time it shows. Then run `Get-Date -Format o` and `Get-TimeZone`. Write the three values down, work out what UTC instant the event really is, and state what a SIEM in a different zone would display for the same event.",
+        "minutes": 8,
+        "checklist": [
+          "You wrote the event time, the current UTC time and the zone name on one line.",
+          "You converted the event time to a UTC instant by hand and showed the arithmetic.",
+          "You stated what a viewer in another zone would see, and why that is not a different event.",
+          "You can say from memory which two props.conf settings decide that conversion.",
+          "No real hostname, user name or address from a customer environment appears in your notes."
+        ]
+      },
+      "sheetTopics": [
+        "Log Management",
+        "SIEM"
+      ]
+    },
+    {
+      "id": "l6-2",
+      "moduleId": "m6",
+      "seq": 2,
+      "title": "Splunk, Sentinel and Elastic: same job, different syntax",
+      "subtitle": "Pick the query that answers the question, not the one you memorised.",
+      "minutes": 16,
+      "level": "Applying",
+      "objectives": [
+        "Write the same counting question in Splunk SPL, Sentinel KQL and Elasticsearch, without copying field names between them.",
+        "Name the table or index and the time field for a platform before adding any filter.",
+        "Read a zero-row result as a data-source, time-window or field fault, in that order, and prove which one it is.",
+        "Hand a ported rule over with counts that a detection engineer can act on."
+      ],
+      "ticket": {
+        "from": "SOC queue — detection engineering",
+        "subject": "The Sentinel copy of our Splunk brute force search returns nothing",
+        "body": "The failed-logon search was ported from Splunk to Microsoft Sentinel for the new cloud estate. The KQL runs without an error but returns no rows for the last 24 hours, while the Splunk original shows 412 failures for dc01 in the same window. The SecurityEvent table exists in the workspace, and the analyst has been asked to sign the ported rule off today.",
+        "impact": "One scheduled detection rule cannot be enabled, so the cloud estate has no brute-force coverage until the port is signed off."
+      },
+      "sections": [
+        {
+          "h": "The ported query that returned an empty grid",
+          "body": "Detection engineering ported the failed-logon search to Microsoft Sentinel for the new cloud estate. The KQL runs without an error and returns no rows for the last 24 hours. The Splunk original returns 412 failures for `dc01` in the same window. The analyst is asked to sign the ported rule off before the end of the shift.\n\nAn empty result is hard to argue with: nothing fails and nothing explains itself. Three faults produce it: the query points at a table where those hosts never write, the time filter names a column that is not the table's time column, or the filter compares a field to a value that never appears. The first one costs ten seconds to rule out:\n\n```kusto\nSecurityEvent\n| take 10\n```\n\nTen rows with none from `dc01` means the table is fine and that host's connection is not: check the data collection rule first. An empty grid means you are in the wrong workspace."
+        },
+        {
+          "h": "Every query is the same four moves",
+          "body": "Restrict by time and value, count, group, then order and cut. Every platform here does those four things, and the clause order is the same: filter before you aggregate, or the engine aggregates everything and throws most of it away.\n\n| Move | Splunk SPL | Sentinel KQL | Elastic |\n|---|---|---|---|\n| Restrict | `earliest=-24h` plus a term | `where TimeGenerated > ago(24h)` | a `range` on `@timestamp` |\n| Count | `stats count` | `summarize count()` | a `terms` aggregation |\n| Group | `BY src` | `by IpAddress` | `\"field\": \"source.ip\"` |\n| Cut | `sort` then `head` | `top 5 by` | `\"size\": 5` |\n\nTwo habits survive every port: filter on time first, and count before you list. A list of forty thousand rows is not evidence; a count grouped by source address is.\n\n```splunk\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625 earliest=-24h\n| stats count AS failures BY src\n| sort -failures\n| head 5\n\nsrc            failures\n10.20.14.31         412\n10.20.14.90          23\n10.20.14.77           6\n```\n\nThe Sentinel version differs in two places: the table name and the field that holds the address.\n\n```kusto\nSecurityEvent\n| where TimeGenerated > ago(24h)\n| where EventID == 4625\n| summarize failures = count() by IpAddress\n| top 5 by failures desc\n```"
+        },
+        {
+          "h": "Name the index, the table and the time column first",
+          "body": "In Splunk, `index=` and `sourcetype=` open the search and are also the largest performance control you have. Leave the index out and the search head looks at everything you are allowed to see, which is how a five-second question becomes a fifteen-minute one that may still hit a job limit.\n\nIn Sentinel, the table name opens the query: `SecurityEvent` for Windows security events, `SigninLogs` for Entra ID sign-ins, `DeviceProcessEvents` for Defender for Endpoint process telemetry. The time column is not universal. Log Analytics tables carry `TimeGenerated`; the Defender XDR hunting tables carry `Timestamp`. Filter on the wrong one and the query returns nothing, or searches all retained history.\n\nIn Elastic, `FROM logs-windows.security-*` opens the query and `@timestamp` is the field everything else is measured against.\n\nThe Sentinel portal also doubles the time filter. The Logs blade has its own picker above the query, so a `where` clause asking for 24 hours inside a picker set to one hour returns an hour of data and looks like a rule that stopped matching.\n\n**Decision rule:** say out loud which field carries time in the platform you are in, and what the picker above the query is set to, before you add a single filter. If you cannot name the time field, the query is not ready to write."
+        },
+        {
+          "h": "Field names are where a port actually costs you",
+          "body": "The same source address is `src` in Splunk's Windows add-on, `IpAddress` in the `SecurityEvent` table, and `source.ip` in Elastic's Common Schema. Those are three fixed namespaces, and only one of them is yours to choose.\n\nThe platforms also fail differently, and the failure type is a diagnostic. Kusto stops at compile time on a column that does not exist, so a green KQL query with zero rows is never a field-name fault: it is data, time, or a value that matched nothing. Elasticsearch does not stop. A term query against an unmapped field returns zero hits with a 200 response, which reads exactly like \"no failures today\". Splunk sits in the middle: an unknown field in a `where` clause often evaluates to null and drops the row.\n\nThat difference is why one mistake produces three different tickets.\n\n**Decision rule:** when a ported query returns zero rows, run `Table | take 10` (KQL) or `index=... | head 10` (SPL) with no filters before you touch the logic. Empty means the data source; rows mean the time window or the field."
+        },
+        {
+          "h": "What you hand over",
+          "body": "A port handover is one note with the question in English at the top, and none of the syntax above it:\n\n- The question: how many failed logons per source in the last 24 hours, per host.\n- Where the data lives: workspace, table or index, and the time field that was used.\n- What each step returned: the bare table count, the count after the time filter, the count after the value filter.\n- The two counts side by side, Splunk against Sentinel, for the same window and the same host.\n- What you did not verify: agent health on the source host, and whether throttling would suppress a second alert.\n\nThat note lets the detection engineer fix a rule instead of re-running an investigation you already did.\n\n**Escalation criterion:** escalate to the detection engineering owner when both platforms return the same counts for the same window and the rule still produces nothing, which points at rule scope or throttling rather than at the query."
+        }
+      ],
+      "diagram": {
+        "type": "compare",
+        "title": "Same question, two dialects",
+        "caption": "Both columns answer \"how many failed logons per source\". What changes is what you name first, and where the time filter lives.",
+        "data": {
+          "left": {
+            "title": "Splunk SPL",
+            "items": [
+              "index= opens the search",
+              "time in earliest / latest",
+              "stats count BY src",
+              "names from the add-on",
+              "pipes read left to right"
+            ]
+          },
+          "right": {
+            "title": "Sentinel KQL",
+            "items": [
+              "table name opens it",
+              "time in a where clause",
+              "summarize count() by field",
+              "names from table schema",
+              "filter before aggregate"
+            ]
+          },
+          "verdict": "Same four moves; the platform decides whether you name an index or a table first."
+        }
+      },
+      "video": {
+        "title": "Basic Searching in Splunk Enterprise",
+        "channel": "Splunk How-To",
+        "url": "https://www.youtube.com/watch?v=GWl-TuAAF-k",
+        "start": 0,
+        "length": "8:05",
+        "why": "Shows a base search being narrowed one pipe at a time in the real search bar, which makes the filter-before-aggregate order visible instead of abstract."
+      },
+      "commands": [
+        {
+          "cmd": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625 earliest=-24h | stats count AS failures BY src | sort -failures | head 5",
+          "what": "The reference answer for the port: a count per source address, cut to the top five."
+        },
+        {
+          "cmd": "SecurityEvent | where TimeGenerated > ago(24h) | where EventID == 4625 | summarize failures=count() by IpAddress | top 5 by failures desc",
+          "what": "The same question in KQL, where the table name replaces the index and the schema replaces the add-on."
+        },
+        {
+          "cmd": "SecurityEvent | take 10",
+          "what": "Proves the table has rows in this workspace at all, which separates a data fault from a query fault."
+        },
+        {
+          "cmd": "Heartbeat | summarize LastSeen=max(TimeGenerated) by Computer | where LastSeen < ago(1h)",
+          "what": "Lists agents that stopped reporting, so you know a quiet table is not a quiet estate."
+        },
+        {
+          "cmd": "POST logs-windows.security-*/_search {\"size\":0,\"query\":{\"bool\":{\"filter\":[{\"term\":{\"event.code\":\"4625\"}},{\"range\":{\"@timestamp\":{\"gte\":\"now-24h\"}}}]}},\"aggs\":{\"by_ip\":{\"terms\":{\"field\":\"source.ip\"}}}}",
+          "what": "The Elasticsearch equivalent: index pattern, @timestamp range, and a terms aggregation on the schema field."
+        }
+      ],
+      "pitfalls": [
+        "Copying src into a KQL query and then rewriting the logic when it returns nothing. Kusto rejects an unknown column at compile time, so zero rows was never a field-name problem.",
+        "Comparing counts taken over different windows: earliest=-24h runs on the search head clock, ago(24h) runs on the query service clock, and the portal time picker then cuts the result a third time.",
+        "Porting stats count BY src as summarize count() by IpAddress without checking that every event carries that column. A local logon has no source address, so the empty value becomes the largest group."
+      ],
+      "takeaways": [
+        "Every platform does the same four moves: restrict, count, group, cut.",
+        "You must be able to name the time field and the visible time picker before you write a filter.",
+        "Zero rows is a data answer until proven otherwise; each platform fails differently on a bad name, and that difference is the diagnostic."
+      ],
+      "drill": {
+        "prompt": "Open the lab SIEM without changing the time range. Run the loosest query it allows (`index=wineventlog | head 5` or `SecurityEvent | take 5`) and list which hosts answered. Then write the failed-logon count for one host in that platform's own syntax, and compare your number with the count on the host itself.",
+        "minutes": 8,
+        "checklist": [
+          "You wrote down the table or index, the time field, and the picker setting before running anything.",
+          "The loose query returned rows, and you can name three hosts that appear in it.",
+          "Your count query uses the platform's own aggregation rather than a list of raw rows.",
+          "Your number and the host-side count agree, or you can state which filter caused the difference.",
+          "You used lab data only, with no customer hostnames or addresses in your notes."
+        ]
+      },
+      "sheetTopics": [
+        "Tools"
+      ]
+    },
+    {
+      "id": "l6-3",
+      "moduleId": "m6",
+      "seq": 3,
+      "title": "Alert triage: true positive, false positive, and severity",
+      "subtitle": "Decide in three minutes whether to escalate, close or investigate.",
+      "minutes": 18,
+      "level": "Applying",
+      "objectives": [
+        "Sort an alert into true positive, benign true positive or false positive, and quote the evidence for the verdict.",
+        "Run the identity, asset and timing checks in that order and stop as soon as one of them settles the ticket.",
+        "Set priority from the rule severity and the asset urgency instead of from the caller or the clock.",
+        "Write a closure note that another analyst can audit and a detection engineer can tune from."
+      ],
+      "ticket": {
+        "from": "SOC queue — tier 1",
+        "subject": "Night shift closed our 4625 burst on dc01 as false positive",
+        "body": "A 4625 burst against dc01 was closed at 05:50 with the note \"user locked out, AD reset the password\". At 07:10 the identity team reported the same service account authenticating from a VPN pool address outside the office ranges, and the account is in Backup Operators. The closed alert is the only record of the earlier failures.",
+        "impact": "A privileged service account may be compromised; the triage decision was made before anyone paired the failures with a successful logon."
+      },
+      "sections": [
+        {
+          "h": "The alert that was closed at 05:50",
+          "body": "The night shift closed a 400-failure logon alert on `dc01` with one line: \"user locked out, AD reset the password.\" At 07:10 the identity team called. The same service account had authenticated from an address outside the office ranges at 04:12, two minutes after the last failure. The closed alert was the only record of the burst, and the closure note had overwritten the one detail that mattered.\n\nThe missing check takes one search: pair the failures with the successes in the same window, from the same source.\n\n```splunk\nindex=wineventlog host=dc01 (EventCode=4625 OR EventCode=4624) earliest=-6h\n| stats count BY EventCode, src, user\n| sort -count\n\nEventCode  src            user         count\n4625       203.0.113.44   svc-backup     412\n4624       203.0.113.44   svc-backup       1\n4625       10.20.6.15     j.okafor         3\n```\n\n412 failures and one success from one address inside one hour is a compromise. A lockout is failures with no success behind them. That single row was available before the shift ended, and the address here is from the documentation range, not a real one.\n\nThe lesson is not that the night analyst was careless. It is that the queue hands you a category with the alert, and that category is often wrong."
+        },
+        {
+          "h": "Three checks, and the order is part of the method",
+          "body": "Identity first. Does this account normally do this, from here, at this hour? Service accounts have the most rigid patterns of anything on the network: no interactive logon, no VPN address, no browsing. A human account with a new laptop is ordinary; a service account sourcing from a residential range is not, whatever the password state says.\n\nAsset second. The same alert on a developer laptop and on a domain controller are different tickets. Blast radius decides urgency, and urgency decides whether you escalate now or finish the shift first.\n\nTiming third. Check the change calendar, the backup window, the patch schedule and the authorized test scope. The point is not to find an excuse: \"the AD team was working on it\" is a claim, while a change record with a window and an owner is evidence, and only one belongs in a closure note.\n\nThe order matters because each check can end the triage early. Identity settles most alerts in under a minute and needs no tooling. Asset decides who is woken up. Timing saves you from escalating a scanner, and only after you know it is a scanner."
+        },
+        {
+          "h": "The category nobody writes down: benign true positive",
+          "body": "The queue offers two words, and there are three answers.\n\nA **true positive** is a rule that fired correctly on activity you do not want. A **false positive** is a rule that fired because the logic matched something it was never meant to catch. In between sits the **benign true positive**: the rule worked, the activity happened, and the activity is allowed. A vulnerability scanner inside its authorized window is the standard example.\n\nThe distinction is not pedantry. Closing a scanner hit as a false positive tells the detection engineer the rule is broken, and the usual response is to weaken it. The rule that was correctly catching credentialed scanning is now the rule that misses a real one. Every closure note is a tuning input whether you meant it that way or not.\n\nThere is a fourth category that never appears in your queue: the false negative, activity nobody wrote a rule for.\n\n**Decision rule:** if you can name the authorized activity, the window and the owner, close it as a benign true positive with those three facts. If you cannot name all three, you do not have an explanation yet."
+        },
+        {
+          "h": "Severity belongs to the rule, urgency belongs to the asset",
+          "body": "**Severity** comes from the rule author and describes the damage if the alert is true: credential access on a domain controller is high, a blocked outbound connection from a lab machine is low. You do not get to lower it because the user was polite or because the shift is ending.\n\n**Urgency** comes from the environment: is the account privileged, is the asset production, is the activity still happening, and is it spreading. A medium-severity alert on a backup server with a privileged service account can outrank a high-severity alert on an isolated test host.\n\nSet priority from both, and write both down: they are what the next shift cannot reconstruct from the alert title.\n\nTwo failure modes cost L1 engineers their credibility. Escalating everything at high teaches the SOC to ignore the queue. The other is quieter: downgrading at handover so the queue looks clean, which hands the next shift an alert with your note and none of your context.\n\n**Decision rule:** if the activity is still running, escalate on the facts you have without waiting to finish the investigation. A stopped attack can wait for a complete note; a running one cannot."
+        },
+        {
+          "h": "What you hand over",
+          "body": "The note is the ticket. It carries four lines and a verdict:\n\n- The category, in the right word: true positive, benign true positive, or false positive.\n- The evidence that decided it, quoted: the source address, the event IDs, the one success after 412 failures.\n- Severity from the rule, urgency from the asset, and the priority you set from both.\n- What the next analyst should check first, in one sentence.\n\nIf the account was privileged and the source external, the closing line is not a closure but a request for the incident process.\n\n**Escalation criterion:** escalate the moment a burst of failures is followed by a success from the same source, or when the source is external and the account holds privileged group membership. Both are true positives on evidence, and neither needs a second opinion before you pick up the phone."
+        }
+      ],
+      "diagram": {
+        "type": "tree",
+        "title": "Three minutes, five questions",
+        "caption": "The top branch is the one the night shift skipped. One successful logon from the failing source settles the ticket before the other questions are asked.",
+        "data": {
+          "root": "4625 burst on dc01",
+          "branches": [
+            {
+              "label": "Success after failures?",
+              "result": "True positive, escalate",
+              "tone": "bad"
+            },
+            {
+              "label": "Privileged account?",
+              "result": "Urgency up, severity same",
+              "tone": "warn"
+            },
+            {
+              "label": "External source?",
+              "result": "Treat as intrusion attempt",
+              "tone": "bad"
+            },
+            {
+              "label": "Change or scan window?",
+              "result": "Benign true positive",
+              "tone": "ok"
+            },
+            {
+              "label": "One account or many?",
+              "result": "Many accounts means spray",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Same Alert. Real Attack or False Positive? (How SOC Analysts Decide)",
+        "channel": "MyDFIR",
+        "url": "https://www.youtube.com/watch?v=inIjEbWE8FM",
+        "start": 0,
+        "length": "6:10",
+        "why": "Works one alert through the real-or-benign decision out loud, which shows the reasoning order that the tree can only draw."
+      },
+      "commands": [
+        {
+          "cmd": "index=wineventlog host=dc01 (EventCode=4625 OR EventCode=4624) earliest=-6h | stats count BY EventCode, src, user",
+          "what": "Puts failures and successes side by side per source, which is the evidence that separates a lockout from a compromise."
+        },
+        {
+          "cmd": "wevtutil qe Security /q:\"*[System[(EventID=4625)]]\" /c:3 /rd:true /f:text",
+          "what": "Reads the newest failures straight from the controller, including the sub status that tells a wrong password from an unknown account."
+        },
+        {
+          "cmd": "SigninLogs | where UserPrincipalName == \"svc-backup@example.com\" | project TimeGenerated, IPAddress, Location, ResultType",
+          "what": "Checks whether the same account also signed in to the cloud identity provider, which the on-premises log cannot show."
+        },
+        {
+          "cmd": "Get-ADUser svc-backup -Properties MemberOf, PasswordLastSet, LastLogonDate",
+          "what": "Shows group membership and password age, which is what turns a medium alert into an urgent one."
+        },
+        {
+          "cmd": "index=wineventlog EventCode=4672 earliest=-6h | stats count BY user, host",
+          "what": "Lists special-privilege logons, so you can see whether the suspicious account was handed administrative rights when it authenticated."
+        }
+      ],
+      "pitfalls": [
+        "Accepting \"the password was reset\" as the explanation. A reset ends the lockout, not the attempts, and it says nothing about the success that followed them.",
+        "Closing a scanner hit as a false positive. It is a benign true positive, and that label asks the detection engineer to weaken a rule that was working.",
+        "Downgrading severity at handover so the queue looks clean. The next shift inherits the alert with your note and none of the context that produced it."
+      ],
+      "takeaways": [
+        "Pair failures with successes before you categorize anything; one success changes the ticket.",
+        "Benign true positive is a real category, and the words you close with become tuning instructions.",
+        "Severity is fixed by the rule, urgency moves with the asset, and priority needs both."
+      ],
+      "drill": {
+        "prompt": "Take three closed alerts from the lab queue, including one closed as false positive. Re-triage each with the tree, and write one evidence line per alert: the category, the artifact that proves it, and the priority you would set. Use lab data only, and redact any address that is not from a documentation range.",
+        "minutes": 9,
+        "checklist": [
+          "Each alert has one category from the three, not a hedge.",
+          "Each evidence line quotes a concrete value: an event ID, a source address, a timestamp or a group name.",
+          "At least one alert changed category from what the original note said.",
+          "Each priority line states severity and urgency separately before combining them.",
+          "You can say which of the three you would have escalated on the first call, and why."
+        ]
+      },
+      "sheetTopics": [
+        "Security Alerts",
+        "Threat Detection"
+      ]
+    }
+  ]
+}

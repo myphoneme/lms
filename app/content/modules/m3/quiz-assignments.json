@@ -1,0 +1,350 @@
+{
+  "moduleId": "m3",
+  "quiz": {
+    "id": "q3",
+    "moduleId": "m3",
+    "title": "Windows and PowerShell — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q3-1",
+        "q": "A user says their laptop cannot reach the file server. Before you change anything you need the address, subnet mask, default gateway, DNS servers, and whether the adapter uses DHCP, including for adapters that are disconnected. Which command returns all of that?",
+        "options": [
+          "`ipconfig /all`",
+          "`whoami /all`",
+          "`netstat -ano`",
+          "`ping -n 4 <gateway>`"
+        ],
+        "answer": 0,
+        "explain": "`ipconfig /all` prints every adapter with its DHCP state, lease times and DNS servers, and it still lists an adapter that is disconnected. `whoami /all` is the tempting near-miss because of the `/all` flag, but it lists your security groups, not the network.",
+        "tag": "windows"
+      },
+      {
+        "id": "q3-2",
+        "q": "`ipconfig /all` shows `Autoconfiguration IPv4 Address: 169.254.37.12` and `DHCP Enabled: Yes`. What does that address prove?",
+        "options": [
+          "A static address from the server team has not taken effect yet",
+          "The adapter is disabled, so Windows fell back to a default address",
+          "The DHCP server did not answer, so the host assigned itself a link-local address",
+          "DNS is misconfigured, so the host cannot resolve its own name"
+        ],
+        "answer": 2,
+        "explain": "An address in 169.254.0.0/16 is self-assigned after the DHCP request goes unanswered, which puts the fault upstream of DNS and usually at the DHCP relay, scope or VLAN. A disabled adapter shows `Media disconnected` and no address at all, which is the answer most people reach for.",
+        "tag": "networking"
+      },
+      {
+        "id": "q3-3",
+        "q": "A user insists they are in the local Backup Operators group, but a backup tool still returns access denied. Which command shows the account the console is actually running as, plus the groups in that process token?",
+        "options": [
+          "`net user <username>`",
+          "`whoami /groups`",
+          "`Get-LocalGroupMember -Group 'Backup Operators'`",
+          "`hostname`"
+        ],
+        "answer": 1,
+        "explain": "`whoami /groups` reads the token of the running process, and the token is what decides access. `net user` and `Get-LocalGroupMember` report configured membership, so they answer a different question than the one the access-denied error asks.",
+        "tag": "windows"
+      },
+      {
+        "id": "q3-4",
+        "q": "A service must run under a dedicated account, and you need to prove which account it will use after the next reboot. `Get-Service` shows only `Status`, `Name` and `DisplayName`. Which command shows the logon account and the start mode?",
+        "options": [
+          "`Get-Service <name> | Select-Object -Property *`",
+          "`tasklist /v`",
+          "`Get-Process <name>`",
+          "`Get-CimInstance Win32_Service -Filter \"Name='<name>'\" | Select-Object Name, StartMode, StartName`"
+        ],
+        "answer": 3,
+        "explain": "`Win32_Service` carries `StartMode` (Automatic, Manual, Disabled) and `StartName`, the account the service is configured to log on as. `Get-Process` shows the live process only, so a successful stop and start proves nothing about the account the service will use at the next boot.",
+        "tag": "windows"
+      },
+      {
+        "id": "q3-5",
+        "q": "Before you unlock an account, you need two policy numbers: how many bad passwords trigger a lockout, and how long the lock lasts. Which command prints them on a member server?",
+        "options": [
+          "`net accounts`",
+          "`net user <username>`",
+          "`net localgroup administrators`",
+          "`whoami /priv`"
+        ],
+        "answer": 0,
+        "explain": "`net accounts` prints the lockout threshold, duration and observation window, and `/domain` reads the domain policy instead of the local one. `net user <username>` shows one account's active, expiry and last-logon fields but none of the policy numbers, which is why it leaves you guessing.",
+        "tag": "windows"
+      },
+      {
+        "id": "q3-6",
+        "q": "A user is locked out at 09:14 and wants to know why. Which Security log record gives you the failed attempts behind the lockout, rather than just the fact that it happened?",
+        "options": [
+          "Event 4624, a successful logon",
+          "Event 1102, the audit log was cleared",
+          "Event 4625, failed logon, in a burst before 09:14",
+          "Event 4720, a user account was created"
+        ],
+        "answer": 2,
+        "explain": "4625 records every failed attempt with its logon type and account, which is what separates a mistyped password from a stale service credential. Event 4740 records the lockout itself, so it proves the outcome and never the cause.",
+        "tag": "security"
+      },
+      {
+        "id": "q3-7",
+        "q": "At 08:40 you need every failed logon, event 4625, from the last 24 hours on a Windows Server 2016 host whose Security log holds about 900,000 events. Which command returns the answer in seconds?",
+        "options": [
+          "`Get-EventLog -LogName Security -Newest 900000 | Where-Object { $_.EventID -eq 4625 }`",
+          "`Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime=(Get-Date).AddHours(-24)}`",
+          "`Get-WinEvent -LogName Security | Where-Object { $_.Id -eq 4625 }`",
+          "`wevtutil qe Security /c:20 /f:text`"
+        ],
+        "answer": 1,
+        "explain": "`-FilterHashtable` is applied by the event log service before any event reaches PowerShell, so only matches travel down the pipe. Filtering after `Get-WinEvent -LogName Security` reads all 900,000 events into the pipeline, which is the version that locks up the console while the customer waits.",
+        "tag": "windows"
+      },
+      {
+        "id": "q3-8",
+        "q": "Users cannot reach srv01 over RDP. `Test-NetConnection -ComputerName srv01 -Port 3389` returns `TcpTestSucceeded : False`. What have you proved?",
+        "options": [
+          "The Remote Desktop service on srv01 is stopped",
+          "The user's password or RDP permission is wrong",
+          "srv01 is powered off",
+          "Something on the path or on srv01 refuses or filters TCP 3389, and the test does not say which"
+        ],
+        "answer": 3,
+        "explain": "A failed TCP connect collapses three different faults, a missing listener, a firewall drop, and a path that goes nowhere, so it cannot separate them without the next check. Credentials are only validated after the TCP session exists, so a password problem would fail later, not at this test.",
+        "tag": "windows"
+      },
+      {
+        "id": "q3-9",
+        "q": "The shift lead wants a plain list of service names, one per line, for services set to Automatic that are not running on a lab host. Which one-liner produces that list?",
+        "options": [
+          "`Get-Service | Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -ne 'Running' } | Select-Object -ExpandProperty Name`",
+          "`Get-Service | Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -ne 'Running' } | Format-Table Name`",
+          "`Get-Service | Select-String 'Automatic'`",
+          "`sc query type= service state= all`"
+        ],
+        "answer": 0,
+        "explain": "`-ExpandProperty Name` returns the strings themselves, so the output pastes into a ticket as a clean column. `Format-Table` returns formatting objects built for the screen, which is why a pipeline that looks correct in the console produces nothing usable in a file.",
+        "tag": "automation"
+      },
+      {
+        "id": "q3-10",
+        "q": "Every weekday at 02:00 the backup job fails and `svc-backup` is found locked out. The Security log shows 4625 for that account every four minutes from 02:00 to 02:20, then nothing. Unlocking clears the ticket until the next morning. What is the finding?",
+        "options": [
+          "The lockout threshold is too low, so it should be raised until the backup job can finish",
+          "The account is disabled, so re-enabling it will let the job run",
+          "A user is mistyping the password at that hour, so a reset and a close will do",
+          "A scheduled task or service still holds an old password and retries, so each retry re-locks the account and the stored credential must be fixed at its source"
+        ],
+        "answer": 3,
+        "explain": "A four-minute retry cycle that begins exactly at the job's start time points at stored credentials rather than a person, so unlocking without fixing the source guarantees the same ticket tomorrow. Raising the threshold is the tempting fix, and it leaves a real account exposed to whoever is trying the password.",
+        "tag": "security"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a11",
+      "day": 11,
+      "moduleId": "m3",
+      "title": "Identity, address and reachability in one guided pass",
+      "level": 2,
+      "minutes": 25,
+      "scenario": "At 10:05 a user on the third floor reports that the network is down on laptop WS-0412. Nothing has been changed yet, and the ticket carries no IP address, no error text and no screenshot. You have the machine in front of you, a local account, and 25 minutes before the next call. The last three tickets like this were closed with one `ipconfig /all` and one ping.",
+      "task": "1. Open PowerShell and record who you are before you record anything else. The account matters, because half of the later commands behave differently for a standard user.\n\n```\nwhoami\nhostname\nGet-Date\n```\n\n2. Capture the full addressing block. Plain `ipconfig` is not enough: it hides the DNS servers and the DHCP state that the note needs.\n\n```\nipconfig /all\n```\n\n3. Read four fields off the output for the active adapter and write them down exactly: the adapter description, the IPv4 address with its subnet mask, the default gateway, and the DNS servers. Note whether `DHCP Enabled` is Yes or No.\n\n4. Check the address against the decision rule. If the IPv4 address starts with 169.254, DHCP went unanswered and every later ping will fail for that reason alone. Record that and skip to step 7.\n\n5. Test three things in this order: the gateway, then a public address, then a name.\n\n```\nping -n 4 <gateway-from-step-3>\nping -n 4 8.8.8.8\nResolve-DnsName www.microsoft.com\n```\n\n6. Mark each of the three tests as pass or fail with the reply text, not with an impression. `Request timed out` and `Destination host unreachable` are different failures and different tickets.\n\n7. Write the handover. Three lines are enough: identity, address, reachability, then one line naming the next team.\n\nSafety: every command here is read-only. Do not run `ipconfig /release` or `ipconfig /renew` before the output is captured: release drops the address, ends the user's session, and destroys the evidence you came for.",
+      "deliverable": "One handover block containing the account, the adapter, the IPv4 address, the gateway, the DNS server, the pass or fail result of the three tests, and the single next team.",
+      "tools": [
+        "ipconfig",
+        "ping",
+        "whoami",
+        "hostname",
+        "Resolve-DnsName",
+        "Get-Date"
+      ],
+      "rubric": [
+        {
+          "criterion": "Evidence captured before any change",
+          "weight": 35,
+          "lookFor": "quotes the `ipconfig /all` lines for the active adapter showing the IPv4 address with mask, the default gateway, the DNS servers and `DHCP Enabled`, and no step runs release, renew or flushdns before that output appears"
+        },
+        {
+          "criterion": "Reachability read correctly",
+          "weight": 40,
+          "lookFor": "labels each of the three tests as pass or fail with its reply text, distinguishes timed out from unreachable, and does not call the network down when only the name test failed"
+        },
+        {
+          "criterion": "Handover with a routing decision",
+          "weight": 25,
+          "lookFor": "names exactly one next team with the evidence that supports it, for example the network team with the adapter name and gateway result, or the resolver address for a name fault, instead of escalating the laptop"
+        }
+      ],
+      "hints": [
+        "`ipconfig` on its own prints address, mask and gateway; the DNS servers and lease details only appear with `/all`.",
+        "A 169.254 address means the DHCP request was never answered, so a failed ping after it proves nothing about the cable; record the address first and say why the later tests are inconclusive.",
+        "If the gateway answers and 8.8.8.8 does not, the local link and the VLAN are fine and the path out is not; that is a different team than a dead adapter."
+      ]
+    },
+    {
+      "id": "a12",
+      "day": 12,
+      "moduleId": "m3",
+      "title": "Name the service behind the PID before anyone reboots",
+      "level": 2,
+      "minutes": 30,
+      "scenario": "WS-0412 has run at 100 percent CPU since 09:20 and the fan has not stopped. Task Manager shows a `svchost.exe` at 38 percent under SYSTEM, which tells the user nothing and the ticket less. The user has a deadline at 14:00 and a colleague has already posted \"just reboot it\" in the ticket. The machine has been up for 41 days.",
+      "task": "1. Start from the process list and note the PID. Sort by memory first and by CPU second, because the slow-PC call is more often memory or a leak than a busy core.\n\n```\nGet-Process | Sort-Object WS -Descending | Select-Object -First 8 Name, Id, WS, CPU\nGet-Process | Sort-Object CPU -Descending | Select-Object -First 8 Name, Id, CPU, StartTime\n```\n\n2. Ask Windows which services live inside that PID. `svchost.exe` is a container, so the service name is the only thing the ticket can act on.\n\n```\ntasklist /svc /fi \"PID eq <pid>\"\nGet-CimInstance Win32_Service -Filter \"ProcessId=<pid>\" | Select-Object Name, DisplayName, State, StartMode, StartName\n```\n\n3. Pull the full record for the service you found: state, start mode, logon account and binary path.\n\n```\nGet-CimInstance Win32_Service -Filter \"Name='<service>'\" | Select-Object Name, State, StartMode, StartName, PathName\nGet-Service <service> | Select-Object Status, StartType\n```\n\n4. Answer the reboot question from configuration, not from opinion. A service set to Automatic returns after a reboot; one set to Manual or Disabled does not.\n\n```\nGet-CimInstance Win32_OperatingSystem | Select-Object LastBootUpTime, FreePhysicalMemory, TotalVisibleMemorySize, CSName\n```\n\n5. List what else starts at boot, so the note can say what a reboot would restart besides the problem.\n\n```\nGet-CimInstance Win32_StartupCommand | Select-Object Name, Location, User, Command\nGet-Service | Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -ne 'Running' } | Select-Object Name, Status\n```\n\n6. Write the note: PID, service name, start mode, logon account, uptime in days, and a yes or no to \"would a reboot have fixed this\".\n\nSafety: the commands are read-only. Do not stop a service or restart the machine to test a theory: a restart ends the user's session and erases the process state that explains the 41 days of uptime. Any stop needs the service owner and an approved change.",
+      "deliverable": "One line with the PID, the service inside it, its StartMode and StartName, the uptime in days, and the yes or no answer to whether a reboot would have fixed it.",
+      "tools": [
+        "Get-Process",
+        "tasklist",
+        "Get-CimInstance",
+        "Get-Service",
+        "Sort-Object",
+        "Select-Object"
+      ],
+      "rubric": [
+        {
+          "criterion": "PID mapped to a service",
+          "weight": 35,
+          "lookFor": "gives a PID that matches the `Get-Process` output and the same PID's service name from `tasklist /svc` or `Win32_Service`, rather than leaving the answer at `svchost.exe`"
+        },
+        {
+          "criterion": "Reboot question answered from configuration",
+          "weight": 40,
+          "lookFor": "answers with the `StartMode` value and explains what Automatic versus Manual or Disabled means for the next boot, and quotes a `LastBootUpTime` or an uptime figure instead of a guess"
+        },
+        {
+          "criterion": "Handover and restraint",
+          "weight": 25,
+          "lookFor": "states that no restart or service stop was performed, names the `StartName` account as the owner, and routes to that service's team rather than asking L2 to look at the PC"
+        }
+      ],
+      "hints": [
+        "`tasklist /svc` prints the service names on the same line as the PID, which is one command instead of a cross-reference exercise.",
+        "`WS` is working set in bytes. Divide by 1073741824 for GB, or the 4 GB leak reads as 4294967296 and looks like a different problem.",
+        "`Get-Process` describes the live process; `Win32_Service` describes the configured start mode and account, and only the second one can answer a question about the next boot."
+      ]
+    },
+    {
+      "id": "a13",
+      "day": 13,
+      "moduleId": "m3",
+      "title": "Unlock the account, then find what keeps locking it",
+      "level": 2,
+      "minutes": 35,
+      "scenario": "At 08:55 a.reyes calls: the account is locked and she has a client call at 09:30. Her manager says nobody changed her password. The service desk has unlocked her twice already this week, and both tickets were closed with \"account unlocked, user confirmed working\". You have a lab virtual machine and a throwaway account to reproduce the pattern without touching hers.",
+      "task": "1. Read the policy before you touch the account. The threshold and the window explain the timing you are about to see.\n\n```\nnet accounts\nnet accounts /domain\n```\n\nThe second command works on a domain-joined host and fails or returns the local policy on a workgroup machine; note which one you got.\n\n2. Read the account and notice what `net user` does and does not show.\n\n```\nnet user a.reyes\n```\n\n3. Build the reproduction on the lab VM only. Create a throwaway account, then set a lockout policy low enough to trigger in three attempts.\n\n```\nnet user lab.lockout * /add\nnet accounts /lockoutthreshold:3 /lockoutduration:15 /lockoutwindow:15\n```\n\n4. Generate failed logons against the throwaway account and confirm each one is recorded.\n\n```\nnet use \\\\localhost\\IPC$ /user:lab.lockout WrongPass1\nnet use \\\\localhost\\IPC$ /user:lab.lockout WrongPass2\nnet use \\\\localhost\\IPC$ /user:lab.lockout WrongPass3\n```\n\nIf no 4625 appears afterwards, the loopback connection reused your session; use this variant instead and run it three times.\n\n```\n$c = New-Object System.Management.Automation.PSCredential('lab.lockout', (ConvertTo-SecureString 'WrongPass1' -AsPlainText -Force))\nStart-Process cmd.exe -Credential $c\n```\n\n5. Read the two records the lesson named, and quote their timestamps.\n\n```\nGet-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime=(Get-Date).AddMinutes(-15)} -MaxEvents 5 | Format-List TimeCreated, Id, Message\nGet-WinEvent -FilterHashtable @{LogName='Security'; Id=4740} -MaxEvents 3 | Format-List TimeCreated, Message\n```\n\n6. Read the logon type on the 4625 events. Type 2 is a console logon, 3 is network, 5 is a service, 10 is RDP. The number is what separates a person from a device with a saved password.\n\n7. Check for the local admin problem while you are there, because an over-privileged account is an escalation on its own.\n\n```\nnet localgroup administrators\nGet-LocalGroupMember -Group 'Administrators' | Select-Object Name, ObjectClass, PrincipalSource\n```\n\n8. Decide: is this a person or a stored credential? If the failures repeat on a fixed interval and at hours when nobody is at a keyboard, the source is a phone with an old password, a mapped drive, or a scheduled task. Name the source and the team that owns it.\n\nSafety and privacy: the reproduction runs on the lab VM only. Locking a real account is a denial of service and a reportable change; never test against a colleague's account or a production service account. Usernames, computer names and source addresses in event output are personal data, so redact them before anything goes into the ticket.",
+      "deliverable": "One line with the 4740 timestamp, the number of 4625 events before it with their logon type, and the source of the retries that you identified.",
+      "tools": [
+        "net accounts",
+        "net user",
+        "net use",
+        "Get-WinEvent",
+        "net localgroup",
+        "Get-LocalGroupMember"
+      ],
+      "rubric": [
+        {
+          "criterion": "Policy read before action",
+          "weight": 30,
+          "lookFor": "quotes the lockout threshold, duration and observation window from `net accounts`, and uses those numbers to explain why the attempts locked the account when they did"
+        },
+        {
+          "criterion": "Cause taken from the events",
+          "weight": 45,
+          "lookFor": "cites a 4740 time and at least two 4625 events before it for the same account, names the logon type, and argues from the interval between failures whether the source is a person or a device"
+        },
+        {
+          "criterion": "Escalation judgment",
+          "weight": 25,
+          "lookFor": "does not close on unlock alone; names the concrete source to fix (cached credential on a phone, mapped drive, scheduled task) or routes to the team that owns it, and states that the real account was not used for testing"
+        }
+      ],
+      "hints": [
+        "`net user <name>` shows `Account active`, password expiry and last logon, but it never shows lockout state; that fact comes from event 4740 or from the directory tool for the domain.",
+        "Failures every four minutes at 02:00 are a device, not a person. Failures spread through the working day with type 2 logons are a person at a keyboard.",
+        "Unlocking a third time without naming the source is the exact ticket the manager complained about, so the note has to end with something other than \"unlocked\"."
+      ]
+    },
+    {
+      "id": "a14",
+      "day": 14,
+      "moduleId": "m3",
+      "title": "Turn three logs into a timeline you can defend",
+      "level": 2,
+      "minutes": 40,
+      "scenario": "At 07:10 on Monday the lab host shows an unexpected reboot overnight and a local account nobody recognizes. The night shift note reads \"server rebooted, checking in the morning\". You have until the 08:00 call to produce a timeline with timestamps, and the word of a colleague is not evidence.",
+      "task": "1. Check which logs you actually have before you query them, and their sizes.\n\n```\nGet-WinEvent -ListLog Security, System, Application | Select-Object LogName, RecordCount, MaximumSizeInBytes, IsEnabled\n$PSVersionTable.PSVersion\n```\n\n2. Establish the boot and shutdown times from the System log. 6005 and 6006 are the event log starting and stopping, 6008 is an unexpected shutdown, 1074 is a shutdown or restart requested by a process, and 41 is a boot with no clean shutdown before it.\n\n```\nGet-WinEvent -FilterHashtable @{LogName='System'; Id=6005,6006,6008,1074,41; StartTime=(Get-Date).AddDays(-3)} | Sort-Object TimeCreated | Format-Table TimeCreated, Id, ProviderName -AutoSize\n```\n\n3. Query the account events in one pass. 4720 is an account created, 4726 an account deleted, 4740 a lockout.\n\n```\nGet-WinEvent -FilterHashtable @{LogName='Security'; Id=4720,4726,4740; StartTime=(Get-Date).AddDays(-3)} | Sort-Object TimeCreated | Format-List TimeCreated, Id, Message\n```\n\n4. Check whether anyone cleared a log. 1102 is the Security log cleared, 104 is another log cleared and is recorded in the System log, and 1102 on a production host is treated as hostile until proven otherwise.\n\n```\nGet-WinEvent -FilterHashtable @{LogName='Security'; Id=1102} -MaxEvents 5\nGet-WinEvent -FilterHashtable @{LogName='System'; Id=104} -MaxEvents 5\n```\n\n5. When a query returns nothing, check whether the audit policy records that category at all. An empty result and an unconfigured audit policy look identical in the console.\n\n```\nauditpol /get /category:\"Account Management\"\nauditpol /get /category:\"Logon/Logoff\"\n```\n\n6. Confirm the version behavior the lesson warned about: `Get-EventLog` exists in Windows PowerShell 5.1 and is gone in PowerShell 7.\n\n```\nGet-EventLog -LogName System -Newest 3 -EntryType Error\n```\n\nRun it once in `powershell.exe` and once in `pwsh.exe` if both are installed, and record the difference.\n\n7. Export what you found so the next engineer can check it, and keep the bounded filter on the export.\n\n```\nGet-WinEvent -FilterHashtable @{LogName='System'; Id=6005,6006,6008,1074,41; StartTime=(Get-Date).AddDays(-3)} | Select-Object TimeCreated, Id, ProviderName, Message | Export-Csv \"$HOME\\Desktop\\m3-timeline.csv\" -NoTypeInformation\n```\n\n8. Write four lines: last clean boot, first event after it, any account change, and any log clearing. Where a query returned nothing, write the query and the reason it returned nothing.\n\nSafety and privacy: the Security log holds usernames, computer names and source addresses, so redact them before the export leaves the machine. Never clear a log to tidy a timeline: event 1102 is itself an investigation item, and destroying a log is a reportable act.",
+      "deliverable": "A four-line timeline with a timestamp on each line, plus one line listing the event IDs you queried and found nothing for, with the audit policy value that explains each empty result.",
+      "tools": [
+        "Get-WinEvent",
+        "Get-EventLog",
+        "auditpol",
+        "Sort-Object",
+        "Export-Csv",
+        "Format-List"
+      ],
+      "rubric": [
+        {
+          "criterion": "Bounded queries",
+          "weight": 30,
+          "lookFor": "every event query is limited by `-FilterHashtable` with a `StartTime`, or by a `-MaxEvents` value, and no query reads a whole log unbounded"
+        },
+        {
+          "criterion": "Timeline in time order",
+          "weight": 45,
+          "lookFor": "lists a boot or shutdown event from 6005, 6008, 1074 or 41 and an account event from 4720 or 4726 with timestamps taken from the output, in chronological order, and keeps what was found separate from what returned nothing"
+        },
+        {
+          "criterion": "Absence of evidence handled",
+          "weight": 25,
+          "lookFor": "when 4720 or 1102 returns no rows, checks `auditpol` for the category or states that the audit policy may not record it, instead of writing that the event did not happen"
+        }
+      ],
+      "hints": [
+        "`-FilterHashtable` takes an array for `Id`, so `Id=4720,4726,4740` is one query rather than three passes over a log with hundreds of thousands of records.",
+        "`Get-EventLog` is a Windows PowerShell 5.1 cmdlet and does not exist in PowerShell 7; check `$PSVersionTable.PSVersion` before you report a command that appears to be missing.",
+        "A quiet log and a log that records nothing are different findings, and the second one is a finding about the audit policy, not about the incident."
+      ]
+    },
+    {
+      "id": "a15",
+      "day": 15,
+      "moduleId": "m3",
+      "title": "One runbook, three calls, one decision to defend",
+      "level": 2,
+      "minutes": 50,
+      "scenario": "It is 08:45 on the lab host and three tickets are open. One user says the PC is slow, one cannot connect over RDP, one has been locked out twice this week. No dashboard panel is red and L2 is on another bridge until 10:00. You have 50 minutes, the lab VM, and no production system in scope. Nobody will tell you which ticket to take first.",
+      "task": "1. Choose your order and write it down before you run anything, with one sentence per ticket on why that order: cheapest check, most likely cause, or least disruptive.\n\n2. Reproduce at least two of the three symptoms on the lab host so the evidence is real.\n\nSlow PC: a process pinning a core, or a service holding memory.\n\n```\nGet-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, Id, CPU, WS\nGet-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory, TotalVisibleMemorySize, LastBootUpTime\n```\n\nNo RDP: check the listener, the rule, and the logon separately, because a failed connect does not say which one broke.\n\n```\nTest-NetConnection -ComputerName <host> -Port 3389\nGet-NetTCPConnection -LocalPort 3389 -State Listen\nGet-NetFirewallRule -DisplayGroup \"Remote Desktop\" | Select-Object DisplayName, Enabled, Direction, Action\nquser\n```\n\nLocked account: the policy, the account, and the failed attempts behind it.\n\n```\nnet accounts\nnet user <username>\nGet-WinEvent -FilterHashtable @{LogName='Security'; Id=4625,4740; StartTime=(Get-Date).AddHours(-12)} -MaxEvents 20 | Format-Table TimeCreated, Id -AutoSize\n```\n\n3. For each ticket record four things in the same order every time: the symptom in the user's words, the check that proved the cause, the check that ruled out the nearest alternative, and the fix or the route.\n\n4. Write the reusable runbook: no more than twelve commands, in the order you would run them on a fresh call, one line each, with the evidence that command produces. Include the command that tells you to stop checking, for example a listener on the right address or a rule that is enabled.\n\n5. Write the close-or-escalate rule for each ticket: what L1 closes outright, what goes to L2 or to the network team, and the exact sentence the ticket needs, naming the team and the evidence.\n\n6. Find at least one check you ran that produced nothing and remove it from the runbook. Say what it cost in minutes on this call.\n\n7. Pick the one decision where the tempting escalation was wrong, and defend it with the negative evidence that closed it.\n\nSafety and privacy: lab host only, and never against a customer machine. Do not stop services, change firewall rules or reset passwords to create a symptom, because the fix becomes the new incident. Redact usernames and addresses from anything you paste into the ticket.",
+      "deliverable": "A runbook of twelve commands or fewer with one evidence line each, plus a three-row table giving the decision, the team, and the single sentence of evidence for each of the three calls.",
+      "tools": [
+        "Get-Process",
+        "Test-NetConnection",
+        "Get-NetTCPConnection",
+        "Get-NetFirewallRule",
+        "net accounts",
+        "Get-WinEvent",
+        "quser"
+      ],
+      "rubric": [
+        {
+          "criterion": "Runbook quality",
+          "weight": 35,
+          "lookFor": "numbers twelve or fewer checks, gives the command and the evidence line it produces for each, and states an order that puts read-only and cheap checks before anything disruptive"
+        },
+        {
+          "criterion": "Diagnosis carried by negative evidence",
+          "weight": 40,
+          "lookFor": "for at least two of the three calls, names the check that ruled out the nearest alternative, for example a listener on 0.0.0.0 with the Remote Desktop rule enabled, or a 4625 interval that matches a device; restating the symptom does not score"
+        },
+        {
+          "criterion": "Escalation discipline",
+          "weight": 25,
+          "lookFor": "decides close or escalate for all three calls with a named team and a one-sentence evidence line each, and identifies at least one escalation in the set that L1 should have closed itself"
+        }
+      ],
+      "hints": [
+        "Write the runbook after the three calls, not before. A first draft always contains one check that answered nothing, and the edit is part of the exercise.",
+        "A negative result belongs in the ticket: \"3389 listening, Remote Desktop rule enabled, logon still refused\" is what makes a handoff legitimate instead of a handoff by exhaustion.",
+        "If you cannot name the team that owns the next action, the diagnosis is not finished, and that is the moment the ticket should have gone back to the checks rather than to L2."
+      ]
+    }
+  ]
+}

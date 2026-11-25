@@ -1,0 +1,353 @@
+{
+  "moduleId": "m8",
+  "quiz": {
+    "id": "q8",
+    "moduleId": "m8",
+    "title": "Automation and scripting — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q8-1",
+        "q": "Your per-hour CSV sums to 41,208 requests. `wc -l access.log access.log.1` prints 20,604 and 21,004, and the app team insists the figure is 41,608. What is the right next move?",
+        "options": [
+          "Send 41,208, because the CSV was built from the log itself and `wc -l` counted both files twice",
+          "Re-run the script after deleting the CSV, because a partial write explains a round 400-row gap",
+          "Count the lines with no parsable timestamp, read a few of them, and fix the pattern before re-sending",
+          "Use 41,608 and subtract the 400 from the 5xx column, because a line the parser skipped cannot be an error"
+        ],
+        "answer": 2,
+        "explain": "A 400-row gap means the regex did not match 400 lines, and an unparsed line can be exactly the 5xx line the question is about, so subtracting it assumes the answer. Count the lines with no timestamp, read three of them, and fix the pattern; a reconciliation you cannot explain is a second wrong number.",
+        "tag": "automation"
+      },
+      {
+        "id": "q8-2",
+        "q": "A host check prints `FAIL dc02 /var over 90%` and then ends with `echo done`, so the job exits 0. Cron runs it as `check.sh >> /var/log/check.log 2>&1`. What happens to the full disk?",
+        "options": [
+          "Nothing; exit 0 tells cron the run succeeded, so the full disk waits until someone reads the log",
+          "Cron mails the log, because cron reports any non-zero exit code from a pipeline",
+          "Cron retries the job, because the FAIL text on stderr is treated as a retry signal",
+          "Cron raises an alert on the FAIL line, because cron counts failure words in the output"
+        ],
+        "answer": 0,
+        "explain": "Cron reads the exit code and not the words in the log, so `echo done` erases the only signal it uses; the fix is to end the script on the test, `(( fail == 0 ))`. Option B is the common belief, but there is no non-zero code for cron to report.",
+        "tag": "linux"
+      },
+      {
+        "id": "q8-3",
+        "q": "A ticket pull returns status 200, and `r.json()` raises `JSONDecodeError`. `r.headers[\"Content-Type\"]` is `text/html`. What happened, and what do you do?",
+        "options": [
+          "The token is missing or expired, so re-send the request with a valid `Authorization` header and expect JSON back",
+          "The API is failing, so retry once after 30 seconds and escalate with the request id",
+          "The result set is empty, so check the `state` parameter and run it again",
+          "A login or proxy page came back; escalate with the endpoint, status and request id"
+        ],
+        "answer": 3,
+        "explain": "A 200 with `text/html` means something in front of the API answered, often an expired session or a proxy error page, so the parser is telling you the data never arrived. Retrying (option B) assumes a server error, but a 200 is not a 5xx and the same expired session will serve the same page.",
+        "tag": "automation"
+      },
+      {
+        "id": "q8-4",
+        "q": "A script starts with `set -euo pipefail` and runs `df -P /var | awk 'NR==2 && $5+0 > 90 {exit 1}'`. On one host `df` fails with `No such file or directory`. Without `pipefail`, what would happen?",
+        "options": [
+          "The script would stop anyway, because `-e` applies to every command inside a pipeline, not only to simple ones",
+          "The pipeline would report the exit code of `awk`, so the check would pass and the failure would be lost",
+          "The script would print the `df` error and skip to the next host in the list",
+          "`-u` would abort the script when `$5` expands to an empty string"
+        ],
+        "answer": 1,
+        "explain": "Without `pipefail` a pipeline reports the status of its last command, so a failed `df` is hidden by a successful `awk` and the host looks healthy. `-e` does not save that case, because the pipeline as a whole returned 0.",
+        "tag": "linux"
+      },
+      {
+        "id": "q8-5",
+        "q": "A cleanup script runs `rm -rf \"$TARGET\"/*`. A variable file sets `TARGET` to an empty string. Which change actually stops the deletion?",
+        "options": [
+          "Quote the variable, so `rm` receives one argument instead of a glob that expands to every file",
+          "Add `set -e`, because an empty variable is an error under `-e`",
+          "Use `rm -rf \"${TARGET:?}\"/*`, which aborts when the variable is unset or empty",
+          "Add `-i` to `rm`, so it asks before removing each file"
+        ],
+        "answer": 2,
+        "explain": "`${TARGET:?}` aborts the script when the variable is unset or empty, before `rm` is reached, and an empty `TARGET` would otherwise expand to `/*`. Quoting changes word splitting and not the empty value, and `set -e` does not treat an empty variable as an error; `-u` covers the unset case, not the empty one.",
+        "tag": "linux"
+      },
+      {
+        "id": "q8-6",
+        "q": "You request 100 open tickets and get exactly 100 back, with no `Link` header. The queue badge shows 137. What is the correct next request?",
+        "options": [
+          "Page 2 with the same `per_page`, because a page that comes back full means there may be more",
+          "Page 1 with `per_page=200`, because the API caps the page size at the badge count",
+          "No further request; 100 is the answer, because the badge also counts tickets that were closed overnight",
+          "Page 1 again, because the first response may have come from a cache"
+        ],
+        "answer": 0,
+        "explain": "A page that comes back exactly full is the signal to ask for the next one, and 137 rows is 100 plus 37 more. Option C is how the overnight reopened tickets stay missing while the report still looks complete.",
+        "tag": "automation"
+      },
+      {
+        "id": "q8-7",
+        "q": "`Get-Service | Where-Object Status -eq \"Stopped\" | Measure-Object` counts 4. A colleague pipes `Get-Service | Format-Table -AutoSize` into the same `Where-Object` and gets errors. Why?",
+        "options": [
+          "`Format-Table` shows only the first 10 services, so the filter has nothing to match",
+          "`Format-Table` emits formatting records, so the next filter reads display rows, not services",
+          "`Where-Object` cannot compare a string status, only a boolean property",
+          "`Get-Service` returns text on the console and only becomes objects when you assign it to a variable"
+        ],
+        "answer": 1,
+        "explain": "`Format-*` cmdlets consume objects and emit formatting records, so anything piped after them filters the display instead of the services. Filter first and format last, and the count after `Where-Object` is the one you can defend.",
+        "tag": "windows"
+      },
+      {
+        "id": "q8-8",
+        "q": "A working `C:\\ops\\service-check.ps1` writes a timestamped CSV. Your lead wants it to run every 15 minutes on a lab Windows host, unattended, with the CSV still written when nobody is signed in. Which setup does that?",
+        "options": [
+          "Leave a PowerShell window open running `while ($true) { .\\service-check.ps1; Start-Sleep 900 }`",
+          "Add a call to the script in `$PROFILE` so it starts with every session",
+          "Copy the script into the Startup folder of the account that administers the host",
+          "Register a scheduled task with action `powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\\ops\\service-check.ps1`, set to run whether or not the user is signed in"
+        ],
+        "answer": 3,
+        "explain": "A registered task runs without an open console and survives logoff, and the explicit arguments make the run repeatable on a host whose policy blocks unsigned scripts. The loop in option A dies at logoff or reboot, which is exactly when the CSV gap appears.",
+        "tag": "windows"
+      },
+      {
+        "id": "q8-9",
+        "q": "You must record a SHA-256 for a 3 GB evidence file on an 8 GB laptop, with two other files also open. Which method gives a correct digest without exhausting memory?",
+        "options": [
+          "Read the file in chunks such as 1 MiB and call `update()` on one hash object",
+          "Read the whole file with `.read()` and hash it in one call, because hashing a stream changes the digest",
+          "Hash the first and last 10 MB and combine the two digests",
+          "Use MD5 instead, because it is computed in a single pass"
+        ],
+        "answer": 0,
+        "explain": "A hash object accumulates across `update()` calls and produces the digest of the whole file, so chunking changes memory use and not the value. Hashing only the ends of the file (option C) cannot show the middle is intact, which is the one claim the digest exists to support.",
+        "tag": "security"
+      },
+      {
+        "id": "q8-10",
+        "q": "A check you inherited prints `CRITICAL: 3 services stopped` for `dc01` every morning. The app owner says the service has been fine for months. The three are Spooler, RemoteRegistry and WSearch, all set to Manual or Disabled. What is your finding?",
+        "options": [
+          "A real service failure; escalate to L2 with the three names and the count, because three stopped services on a domain controller is above L1 scope",
+          "A monitoring gap; restart the three services and confirm they are still running after an hour",
+          "A false positive: it filters status alone, so Manual and Disabled services count; filter StartMode Auto with State Stopped",
+          "An acceptable alert; close it as informational and stop running the check"
+        ],
+        "answer": 2,
+        "explain": "A stopped service is normal when its start mode is Manual or Disabled, so a status-only filter produces noise and hides the one Automatic service that matters. Sending the three names to L2 (option A) is the over-escalation this module removes: the filter is what needs fixing.",
+        "tag": "soc"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a36",
+      "day": 36,
+      "moduleId": "m8",
+      "title": "One number, two files: count 5xx per hour and prove it",
+      "level": 4,
+      "minutes": 30,
+      "scenario": "The app team asks how many 5xx responses per hour hit `web01` on 23 November. The previous shift answered 1,204 from `grep -c` on `access.log`; their dashboard says 1,880. Both numbers are wrong because nginx rotated at midnight and the 5xx family is four codes. You have 30 minutes and a synthetic pair of logs that reproduces the problem without touching a customer host.",
+      "task": "1. Create the folder and generate a synthetic log pair: 480 lines in `access.log.1` for hours 00 to 11, 480 in `access.log` for hours 12 to 23, four status codes in the 5xx family, and one line that is not in nginx format. The addresses are made up for the drill.\n\n```bash\nmkdir -p ~/m8/day36 && cd ~/m8/day36\npython3 - <<'PY'\nimport random\nrandom.seed(8)\ncodes = [\"200\"] * 12 + [\"302\"] * 3 + [\"304\"] * 2 + [\"500\", \"502\", \"503\", \"504\"]\ndef row(hh):\n    return (f'10.20.4.{random.randint(10, 60)} - - [23/Nov/2026:{hh:02d}:{random.randint(0,59):02d}:{random.randint(0,59):02d} +0000] '\n            f'\"GET /app/{random.randint(1, 9)} HTTP/1.1\" {random.choice(codes)} {random.randint(200, 9000)}')\nfor name, hours in ((\"access.log.1\", range(0, 12)), (\"access.log\", range(12, 24))):\n    with open(name, \"w\") as f:\n        for h in hours:\n            for _ in range(40):\n                f.write(row(h) + \"\\n\")\nwith open(\"access.log\", \"a\") as f:\n    f.write(\"2026/11/23 12:09:01 [error] 4821#0: upstream timed out while reading\\n\")\nPY\nwc -l access.log access.log.1\ngrep -c '\" 500 ' access.log\n```\n\n2. Write `count5xx.py` from the pattern below. Fill in the two TODOs: pull the hour out of the timestamp, and add up every code that starts with 5. Read every rotation with `glob`, open with `encoding=\"utf-8\", errors=\"replace\"`, and skip lines the regex cannot parse instead of crashing.\n\n```python\ncat > count5xx.py <<'PY'\nimport csv, glob, re\nfrom collections import Counter\n\nLINE = re.compile(r'\\[(?P<ts>[^\\]]+)\\] \"(?P<req>[^\"]*)\" (?P<code>\\d{3})')\n\ncounts = {}\nfor path in sorted(glob.glob(\"access.log*\")):\n    with open(path, encoding=\"utf-8\", errors=\"replace\") as fh:\n        for line in fh:\n            m = LINE.search(line)\n            if not m:\n                continue\n            # TODO: the hour is between the first and second colon of m[\"ts\"]\n            hour = \"00:00\"\n            counts.setdefault(hour, Counter())[m[\"code\"]] += 1\n\nwith open(\"5xx-by-hour.csv\", \"w\", newline=\"\", encoding=\"utf-8\") as out:\n    w = csv.writer(out)\n    w.writerow([\"hour\", \"requests\", \"errors_5xx\"])\n    for hour in sorted(counts):\n        c = counts[hour]\n        # TODO: sum every code that starts with \"5\"\n        err = 0\n        w.writerow([hour, sum(c.values()), err])\nPY\npython3 count5xx.py && head -5 5xx-by-hour.csv\n```\n\n3. Reconcile before you believe the file. The sum of the `requests` column must equal `wc -l` over both files; if it is short, find the lines the parser skipped and say what they were.\n\n```bash\npython3 -c \"import csv;print(sum(int(r[1]) for r in list(csv.reader(open('5xx-by-hour.csv')))[1:]))\"\ngrep -vc '\\[[^]]*:[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' access.log access.log.1\ngrep -n 'upstream timed out' access.log\n```\n\n4. Check one hour by hand, so the CSV is not the only witness.\n\n```bash\ngrep -c '23/Nov/2026:14:' access.log\nawk -F, '$1 == \"14:00\"' 5xx-by-hour.csv\n```\n\n5. Answer the original question in `handover.md` with the four lines the lesson uses: script path, output path, window with timezone, totals. Add the peak hour, the 5xx total, and one sentence on why 1,204 and 1,880 were both wrong. Then give the close-or-escalate rule with a threshold, for example: more than 200 5xx in one hour after a deploy goes to the app team with the CSV and the deploy time; a flat 2 to 4 per hour stays with L1 and monitoring.\n\n6. Keep the drill clean. The logs are synthetic, the addresses are drill values, and nothing here needs `sudo` or a connection to `web01`. If you want to repeat this on a real host, get written authorization naming the host and the window first.",
+      "deliverable": "5xx-by-hour.csv with 24 rows, and handover.md whose request total reconciles with wc -l across both rotations and which names the one line the parser skipped.",
+      "tools": [
+        "python3",
+        "re",
+        "collections.Counter",
+        "csv",
+        "glob",
+        "grep",
+        "awk",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Counts reconcile with an independent total",
+          "weight": 35,
+          "lookFor": "the requests column sums to the wc -l total or handover.md names the skipped line and its count, the 5xx column includes 500, 502, 503 and 504, and step 4 compares one hour against grep"
+        },
+        {
+          "criterion": "Handover answers the question asked",
+          "weight": 40,
+          "lookFor": "handover.md gives script path, output path, window with timezone and totals, states the peak hour and 5xx total, and carries one close-or-escalate rule with a numeric threshold"
+        },
+        {
+          "criterion": "Script is readable and re-runnable",
+          "weight": 25,
+          "lookFor": "count5xx.py reads rotations from glob, skips lines the regex cannot parse, writes the CSV with newline=\"\", and a second run overwrites the file with the same 24 rows"
+        }
+      ],
+      "hints": [
+        "The nginx timestamp is `23/Nov/2026:14:02:11 +0000`, so `m[\"ts\"].split(\":\")[1]` is the hour. Splitting on the first colon and taking the left side gives you the date, which is the mistake that produces one row instead of 24.",
+        "A 5xx total that uses `code.startswith(\"5\")` also counts a 599 if one ever appears. That is the right behavior for a status class; write the word class in the handover so nobody reads it as four fixed codes.",
+        "If the request total is short, do not recount by hand. The no-timestamp grep counts the lines the regex refused, and reading one of them tells you whether the log changed format or your pattern was too strict."
+      ]
+    },
+    {
+      "id": "a37",
+      "day": 37,
+      "moduleId": "m8",
+      "title": "Page until the count matches the queue badge",
+      "level": 4,
+      "minutes": 35,
+      "scenario": "The open-ticket sheet has 96 rows and the queue badge says 137, because the export only ever read page one. You will rebuild the pull against a local mock API that holds 23 tickets, pages 10 at a time and rejects a bad token, so the paging and 401 paths can be practiced without touching the service management tool.",
+      "task": "1. Create the folder and the mock API. It serves `/api/tickets` with `page` and `per_page`, returns `total`, and answers 401 unless the token is the drill value. It listens on loopback only.\n\n```bash\nmkdir -p ~/m8/day37 && cd ~/m8/day37\ncat > mock_api.py <<'PY'\nimport json\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\nfrom urllib.parse import urlparse, parse_qs\n\nTICKETS = [\n    {\"id\": 4800 + i,\n     \"priority\": \"P1\" if i % 5 == 0 else \"P2\",\n     \"owner\": None if i % 7 == 0 else f\"queue{i % 4}\",\n     \"opened\": f\"2026-11-23T{(i % 24):02d}:{(i * 7) % 60:02d}:00Z\"}\n    for i in range(23)\n]\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        url = urlparse(self.path)\n        if url.path != \"/api/tickets\":\n            self.send_response(404); self.end_headers(); return\n        if self.headers.get(\"Authorization\") != \"Bearer drill\":\n            self.send_response(401)\n            self.send_header(\"Content-Type\", \"application/json\")\n            self.end_headers()\n            self.wfile.write(b'{\"error\": \"missing token\"}')\n            return\n        q = parse_qs(url.query)\n        page = int(q.get(\"page\", [\"1\"])[0])\n        per = int(q.get(\"per_page\", [\"10\"])[0])\n        start = (page - 1) * per\n        body = json.dumps({\"data\": TICKETS[start:start + per], \"total\": len(TICKETS)}).encode()\n        self.send_response(200)\n        self.send_header(\"Content-Type\", \"application/json\")\n        self.send_header(\"Content-Length\", str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n    def log_message(self, *args):\n        pass\n\nHTTPServer((\"127.0.0.1\", 8080), Handler).serve_forever()\nPY\npython3 mock_api.py > mock.log 2>&1 &\necho $! > mock.pid\nsleep 1\ncurl -s -H \"Authorization: Bearer drill\" \"http://127.0.0.1:8080/api/tickets?page=1&per_page=10\" | python3 -m json.tool | tail -5\n```\n\n2. Write `pull_tickets.py` with a `requests.Session`, a token from `os.environ[\"SM_TOKEN\"]`, `timeout=10` on every call, `raise_for_status()`, and a loop that stops when a page comes back shorter than `per_page`. Log one `INFO` line per page and one final line with the total.\n\n```python\nimport json, logging, os, sys\nimport requests\n\nBASE = \"http://127.0.0.1:8080/api/tickets\"\nPER_PAGE = 10\nlogging.basicConfig(filename=\"pull.log\", level=logging.INFO,\n                    format=\"%(asctime)s %(levelname)s %(message)s\")\n\ndef main():\n    token = os.environ.get(\"SM_TOKEN\")\n    if not token:\n        logging.error(\"SM_TOKEN is not set\")\n        return 2\n    # TODO: session with the bearer header, page loop, 401 and non-2xx handling\n    return 0\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n```\n\n3. A missing or wrong token must end the run with exit code 2 and one `ERROR` line carrying the status and the endpoint. Do not retry a 401: it will not fix itself, and a loop can lock the service account. Write rows to `open-tickets.json` with `json.dump`, so a rerun overwrites the file instead of appending.\n\n4. Run the good path and read the log, not only the file.\n\n```bash\nSM_TOKEN=drill python3 pull_tickets.py; echo \"exit=$?\"\ncat pull.log\npython3 -c \"import json;print(len(json.load(open('open-tickets.json'))))\"\n```\n\n5. Run the failing path and prove it is bounded. A wrong token gets 401 from the mock; no token at all is caught locally before the request. Both must exit 2 with one attempt and one error line. Then confirm the session header never reached the log.\n\n```bash\nSM_TOKEN=wrong python3 pull_tickets.py; echo \"exit=$?\"\npython3 pull_tickets.py; echo \"exit=$?\"\ntail -3 pull.log\ngrep -c \"Bearer\" pull.log\n```\n\n6. Write `handover.md`: endpoint, parameters, pages requested, rows received, the API total, what a 401 means for routing, and the escalate rule. A 401 with a valid-looking token is a token owner request, not an L2 investigation; a second 5xx in a row goes to the API owner with the timestamp, endpoint and request id. Add one line saying what you do when the rows are short after the last page.\n\n7. Privacy line: the token comes from the environment and is never logged, never pasted into `handover.md`, and never put in a URL. The mock API is loopback only; do not repoint the script at a production endpoint.",
+      "deliverable": "open-tickets.json with all 23 tickets, pull.log showing one page line per request plus a single ERROR line from the wrong-token run, and handover.md with the counts and the 401 routing rule.",
+      "tools": [
+        "python3",
+        "requests",
+        "curl",
+        "logging",
+        "json",
+        "bash"
+      ],
+      "rubric": [
+        {
+          "criterion": "Pagination reaches the reported total",
+          "weight": 35,
+          "lookFor": "open-tickets.json holds 23 tickets, pull.log has one page line per request with its row count, and handover.md repeats the row count that matches the file"
+        },
+        {
+          "criterion": "Failure path is bounded and logged",
+          "weight": 40,
+          "lookFor": "the wrong-token run exits 2, writes one ERROR line with the 401 status and the endpoint, and makes a single attempt rather than a retry loop"
+        },
+        {
+          "criterion": "Credential and evidence handling",
+          "weight": 25,
+          "lookFor": "the token is read from the environment, grep for Bearer in pull.log returns 0, and a second successful run overwrites open-tickets.json with 23 rows instead of appending"
+        }
+      ],
+      "hints": [
+        "A full page is not the end. Stop when `len(batch) < PER_PAGE`, and log each page as you go; the page lines are what let you reconstruct a short run later.",
+        "401 is a routing decision, not a retry decision. The token owner issues a new one in two minutes, and a retry loop against a revoked token is how a service account gets locked.",
+        "`logging.basicConfig(filename=...)` configures the root logger once. Put the call at module level, and use `logging.getLogger(__name__)` inside functions if you add them."
+      ]
+    },
+    {
+      "id": "a38",
+      "day": 38,
+      "moduleId": "m8",
+      "title": "A check that can fail: arguments, exit codes, dry run, then delete",
+      "level": 4,
+      "minutes": 40,
+      "scenario": "The nightly script printed `done` while `dc02` sat at 96 percent on `/var` from 02:00 to 06:00. Three lines caused it: `2>/dev/null`, `|| true`, and `echo done` as the last statement, so cron saw exit 0. Your lead wants one script where bad usage, a clean result and a real failure produce three different exit codes, and where deletion is a separate decision from counting.",
+      "task": "1. Build the folder, three size fixtures and four log files with three backdated to 40 days ago. Everything stays under `~/m8/day38`.\n\n```bash\nmkdir -p ~/m8/day38/scan ~/m8/day38/logs ~/m8/day38/empty && cd ~/m8/day38\nhead -c 2097152 /dev/zero > scan/big1.bin\nhead -c 3145728 /dev/zero > scan/big2.bin\nhead -c 51200 /dev/zero > scan/small.txt\nfor f in old1.log old2.log old3.log fresh.log; do : > \"logs/$f\"; done\npython3 - <<'PY'\nimport os, time\nold = time.time() - 40 * 86400\nfor name in (\"logs/old1.log\", \"logs/old2.log\", \"logs/old3.log\"):\n    os.utime(name, (old, old))\nPY\nls -l scan logs\n```\n\n2. Write `check-dir.sh` with the header and argument checks below. The contract: `./check-dir.sh <dir>` counts files over 1 MB, `--cleanup` lists files older than 30 days, `--apply` adds deletion to cleanup, and any other flag is a usage error. Exit 0 when the check passed, 1 when it found a problem, 2 when it was called wrong.\n\n```bash\ncat > check-dir.sh <<'SH'\n#!/usr/bin/env bash\nset -euo pipefail\nIFS=$'\\n\\t'\n\nusage() { printf 'usage: %s <dir> [--cleanup] [--apply]\\n' \"${0##*/}\" >&2; }\n\n[[ $# -ge 1 ]] || { usage; exit 2; }\nDIR=$1\nshift\n[[ -d $DIR ]] || { printf 'not a directory: %s\\n' \"$DIR\" >&2; exit 2; }\n[[ -r $DIR ]] || { printf 'cannot read: %s\\n' \"$DIR\" >&2; exit 2; }\n\n# TODO: parse --cleanup and --apply from \"$@\", reject anything else with usage and exit 2\n# TODO: size mode via find -maxdepth 1 -type f -size +1M, exit 0 if any, 1 if none\n# TODO: cleanup mode prints -mtime +30 targets; delete only under --apply\nSH\nchmod +x check-dir.sh\nbash -n check-dir.sh && echo syntax ok\n```\n\n3. Do the size mode first. Print each matching file, then the count, then decide the exit code with `(( count > 0 ))` or an explicit `if`. Do not end the script with `echo`; the last command decides the exit code.\n\n4. Add cleanup mode: collect the targets first, print the list, and delete only under `--apply` with `${DIR:?}` on the delete line. Collect with a `while IFS= read -r` loop into an array, because `mapfile` does not exist in the bash 3.2 that ships with macOS, and `\"${@:2}\"` starts joining arguments once `IFS` is changed. Guard the empty array before you expand it, or `set -u` ends the run on a directory with nothing to delete.\n\n```bash\ntargets=()\nwhile IFS= read -r f; do targets+=(\"$f\"); done < <(find \"$DIR\" -maxdepth 1 -type f -name \"*.log\" -mtime +30 -print)\nprintf \"%d target(s)\\n\" \"${#targets[@]}\"\nif [ \"${#targets[@]}\" -gt 0 ]; then for f in \"${targets[@]}\"; do printf \"%s\\n\" \"$f\"; done; fi\n```\n\n5. Run the five cases and keep the transcript. Expect 0 for the scan with two large files, 1 for the empty directory, 2 with no argument, 0 for the cleanup dry run, and a directory where `fresh.log` survives the apply.\n\n```bash\n{ ./check-dir.sh; echo \"exit=$?\";\n  ./check-dir.sh scan; echo \"exit=$?\";\n  ./check-dir.sh empty; echo \"exit=$?\";\n  ./check-dir.sh logs --cleanup; echo \"exit=$?\";\n  ./check-dir.sh logs --cleanup --apply; echo \"exit=$?\";\n  ls -1 logs; } | tee transcript.txt\n```\n\n6. Run `bash -n` again after the edits, and `shellcheck -S warning check-dir.sh` if it is installed. SC2086 is the one you will see; quote the variable and say in the note what the warning was. If shellcheck is not installed, note that and read the script once for unquoted expansions instead.\n\n7. Write `handover.md`: script path, the directory it ran against, the last run with exit code, the cron line you would add, and the escalate rule. Same directory failing twice in one night goes to the storage team, because that is growth and not a one-off; exit 2 from a scheduled run goes to the person who wrote the cron line, not to L2.\n\n8. Safety line: the delete step runs only inside `~/m8/day38/logs`. Do not add `sudo`, do not point `DIR` at `/var/log` or `$HOME`, and do not test `--apply` on a directory you did not create for this drill.",
+      "deliverable": "check-dir.sh that returns 0 on a directory with large files, 1 on an empty one and 2 with no argument, deletes only the three backdated logs, and a transcript.txt showing all five runs with exit codes.",
+      "tools": [
+        "bash",
+        "find",
+        "head",
+        "python3",
+        "shellcheck",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Three exit codes carry three meanings",
+          "weight": 35,
+          "lookFor": "transcript.txt shows 0 for scan, 1 for the empty directory and 2 for a missing argument, and the script does not end with echo or an unconditional exit 0"
+        },
+        {
+          "criterion": "Guard and dry run hold before delete",
+          "weight": 40,
+          "lookFor": "cleanup prints the target list before any removal, -delete is reachable only with --apply, the delete uses ${DIR:?} or an equivalent empty-value guard, and the dry run leaves all four logs in place"
+        },
+        {
+          "criterion": "Evidence matches the action",
+          "weight": 25,
+          "lookFor": "the dry-run list in transcript.txt names the same three files the apply run removes, fresh.log survives, and handover.md carries the cron line plus the twice-in-one-night escalation rule"
+        }
+      ],
+      "hints": [
+        "`set -e` does not fire inside `if`, `while` or a `||` list, which is why a test inside `if find ...; then` can record a failure without ending the run.",
+        "`IFS=$'\\n\\t'` stops word splitting on spaces, so a path with a space stays one argument; without it, `for d in $DIRS` turns one directory into two.",
+        "If shellcheck reports SC2086 on `$DIR`, the fix is `\"$DIR\"`, not `# shellcheck disable`; a disabled warning in a script another shift will run is a note you have to defend later."
+      ]
+    },
+    {
+      "id": "a39",
+      "day": 39,
+      "moduleId": "m8",
+      "title": "Rebuild the service check so it can only flag a real finding",
+      "level": 4,
+      "minutes": 45,
+      "scenario": "The morning check on `dc01` flags three stopped services, all set to Manual or Disabled, and L1 has escalated them twice for L2 to close. The check reads one console window and filters on one word, which is how a healthy server produces a critical ticket. You will rebuild it the way the lesson describes: objects, a filter on start mode, a CSV, a scheduled run as SYSTEM, and `LastTaskResult` as the proof it ran.",
+      "task": "1. Open an elevated PowerShell 7 session on a Windows host or a free Windows lab VM and take an inventory. On macOS or Linux the object pipeline runs in `pwsh`, but `Win32_Service` is not available there, so use `Get-Service` and say so in the note.\n\n```powershell\nNew-Item -ItemType Directory -Force -Path C:\\ops | Out-Null\nGet-CimInstance Win32_Service |\n  Select-Object Name, DisplayName, StartMode, State |\n  Sort-Object Name |\n  Export-Csv C:\\ops\\service-inventory.csv -NoTypeInformation\n(Import-Csv C:\\ops\\service-inventory.csv).Count\n```\n\n2. Count the noise before you write the filter. Run both counts against the inventory and write the numbers down; the gap between them is the false positive the old check was sending up.\n\n```powershell\n$inv = Import-Csv C:\\ops\\service-inventory.csv\n\"stopped, any start mode: {0}\" -f (@($inv | Where-Object State -eq \"Stopped\")).Count\n\"stopped, started at boot: {0}\" -f (@($inv | Where-Object { $_.StartMode -eq \"Auto\" -and $_.State -eq \"Stopped\" })).Count\n```\n\n3. Build a four-row fixture so the filter can be proved without touching a running service: Spooler Manual/Stopped, W32Time Auto/Stopped, MSDTC Auto/Stopped, RemoteRegistry Disabled/Stopped. Run the taught filter over it and keep the result as `sample-findings.csv`. Exactly two rows should survive.\n\n```powershell\n@(\n  [pscustomobject]@{Name=\"Spooler\";        StartMode=\"Manual\";   State=\"Stopped\"},\n  [pscustomobject]@{Name=\"W32Time\";        StartMode=\"Auto\";     State=\"Stopped\"},\n  [pscustomobject]@{Name=\"MSDTC\";          StartMode=\"Auto\";     State=\"Stopped\"},\n  [pscustomobject]@{Name=\"RemoteRegistry\"; StartMode=\"Disabled\"; State=\"Stopped\"}\n) | Export-Csv C:\\ops\\services-sample.csv -NoTypeInformation\nImport-Csv C:\\ops\\services-sample.csv |\n  Where-Object { $_.StartMode -eq \"Auto\" -and $_.State -eq \"Stopped\" } |\n  Select-Object Name, StartMode, State |\n  Export-Csv C:\\ops\\sample-findings.csv -NoTypeInformation\n(Import-Csv C:\\ops\\sample-findings.csv).Name\n```\n\n4. Write `C:\\ops\\Check-Services.ps1` with `[CmdletBinding()]` and an `-OutDir` parameter defaulting to `C:\\ops`. It filters the live inventory on the same two conditions, exports `findings.csv`, and appends one line to `check.log` with a timestamp and the row count, so a run that found nothing is still recorded.\n\n```powershell\n[CmdletBinding()]\nparam([string]$OutDir = \"C:\\ops\")\nNew-Item -ItemType Directory -Force -Path $OutDir | Out-Null\n$rows = Get-CimInstance Win32_Service |\n  Where-Object { $_.StartMode -eq \"Auto\" -and $_.State -eq \"Stopped\" } |\n  Select-Object Name, DisplayName, State, StartMode\n$rows | Export-Csv (Join-Path $OutDir \"findings.csv\") -NoTypeInformation\n\"{0} rows={1}\" -f (Get-Date -Format s), @($rows).Count | Add-Content (Join-Path $OutDir \"check.log\")\n```\n\n5. Run it twice and prove the file and the log behave differently on purpose: `Export-Csv` overwrites, so the CSV keeps one header, and `Add-Content` appends, so the log grows by one line per run.\n\n```powershell\n.\\Check-Services.ps1\n.\\Check-Services.ps1\nGet-Content C:\\ops\\check.log\n(Import-Csv C:\\ops\\findings.csv).Count\n```\n\n6. Schedule it as SYSTEM, so a logged-off console does not matter, and then collect the proof that it ran. Registration needs an elevated session; if you do not have one, record the command, the exact error and that it was requested from the platform team. A documented request is a valid deliverable, a silent manual run is not.\n\n```powershell\n$action    = New-ScheduledTaskAction -Execute \"powershell.exe\" -Argument \"-NoProfile -ExecutionPolicy Bypass -File C:\\ops\\Check-Services.ps1\"\n$trigger   = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes 15)\n$principal = New-ScheduledTaskPrincipal -UserId \"NT AUTHORITY\\SYSTEM\" -LogonType ServiceAccount -RunLevel Highest\nRegister-ScheduledTask -TaskName \"Ops-CheckServices\" -Action $action -Trigger $trigger -Principal $principal -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable)\nGet-ScheduledTaskInfo -TaskName \"Ops-CheckServices\" | Select-Object LastRunTime, LastTaskResult\n```\n\n7. Write `verdict.md`: the two counts from step 2, the two services that survived the fixture filter, the `LastRunTime` and `LastTaskResult` you observed, the close-or-escalate rule (an Auto service stopped on a domain controller or a database host, on more than two hosts, or again within 24 hours goes to L2 with the CSV; one Auto service on an app host that starts clean after one restart stays with L1), and the sentence you would have written before this exercise.\n\n8. Safety line: read-only cmdlets only. Do not start, stop or reconfigure a service on a shared host, and register the SYSTEM task on the lab VM only. Do not paste real service account names into the note.",
+      "deliverable": "sample-findings.csv holding exactly W32Time and MSDTC, findings.csv plus check.log from two runs, and verdict.md carrying both counts, the LastTaskResult line and the escalate rule.",
+      "tools": [
+        "pwsh",
+        "Get-CimInstance",
+        "Where-Object",
+        "Export-Csv",
+        "Register-ScheduledTask",
+        "Get-ScheduledTaskInfo",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Filter is the taught one, and the noise is measured",
+          "weight": 35,
+          "lookFor": "sample-findings.csv holds exactly W32Time and MSDTC, no Manual or Disabled row appears in it, and verdict.md records both the any-mode stopped count and the Auto-and-stopped count from the live inventory"
+        },
+        {
+          "criterion": "Scheduled run leaves proof it ran",
+          "weight": 40,
+          "lookFor": "the action, principal and arguments are written out, the task was registered or the refusal and its error were recorded, and the note quotes LastRunTime and LastTaskResult from Get-ScheduledTaskInfo"
+        },
+        {
+          "criterion": "Objects survive to the file",
+          "weight": 25,
+          "lookFor": "findings.csv has property columns rather than a formatted table, a second run leaves one header row in the CSV and appends a second timestamped line to check.log, and verdict.md states why status alone is noise"
+        }
+      ],
+      "hints": [
+        "`Get-Service` gives you `Status` and, on Server 2016 and later, `StartType`; `Get-CimInstance Win32_Service` gives `StartMode` as Auto, Manual or Disabled on every supported version, and that is the word the filter needs.",
+        "`Format-Table` before `Export-Csv` writes display strings into the file. Export the objects, format only for the screen, and open the CSV to prove which one you did.",
+        "`@($rows).Count` is 1 when one service matches and 0 when none does; on a single object `$rows.Count` can be empty, which makes a run with one real finding report zero."
+      ]
+    },
+    {
+      "id": "a40",
+      "day": 40,
+      "moduleId": "m8",
+      "title": "From a suspicious file to one alert worth reading",
+      "level": 4,
+      "minutes": 50,
+      "scenario": "The L1 queue has a message forwarded from `ws-0142` that the user says came from payroll, plus a short mail log from the same morning. L2 asked for indicators, a hash and a routing decision, and rejected the last two submissions for having no hash and no extracted address. You own the whole path this time: extract, normalize, hash, decide, and hand over something a SOC analyst can act on without a second message.",
+      "task": "1. Build the folder and the drill sample. The domains use the reserved `.example` suffix, the external address is in a documentation range, and the internal address is RFC1918, so nothing here points at a live service.\n\n```bash\nmkdir -p ~/m8/day40 && cd ~/m8/day40\ncat > sample.eml <<'EML'\nFrom: \"Payroll Services\" <payroll@payroll-verify.example>\nTo: user@corp.example\nSubject: Action required: confirm your bank details\nMessage-ID: <20261124081200.4C1A@payroll-verify.example>\nReceived: from smtp-relay.example (10.20.9.44) by mx01.corp.example; Mon, 24 Nov 2026 08:12:03 +0000\nContent-Type: text/html\n\n<p>Confirm before 18:00 at <a href=\"http://payroll-verify.example/login/verify\">payroll portal</a>.</p>\nEML\ncat > mail.log <<'LOG'\n2026-11-24T08:12:03Z 10.20.9.44 user@corp.example 48211 delivered\n2026-11-24T08:12:04Z 10.20.9.44 ops@corp.example 5122 delivered\n2026-11-24T08:13:41Z 10.20.9.44 hr@corp.example 73404 deferred\n2026-11-24T08:15:00Z 192.168.60.12 user@corp.example 1820 delivered\n2026-11-24T08:16:22Z 192.168.60.12 it@corp.example 2105 delivered\nLOG\nprintf \"payroll-verify.example\\n203.0.113.77\\n\" > blocklist.txt\ntail -3 sample.eml\n```\n\n2. Write `extract_iocs.py` that takes a file path as its only argument and prints three sorted, unique sets: IPv4 addresses, URLs, domains. It must work on `sample.eml`, on `mail.log`, and on any text file you hand it. A missing argument prints the usage and exits 2.\n\n3. Check the extraction by hand before you trust it: one internal IPv4 address, one URL, and the domains you expect. A regex that matches part of a version string or a date is the usual false positive, so validate each octet is 0 to 255 before you accept a match.\n\n4. Normalize the log with pandas and answer the question L2 will ask: did the flagged address appear in the mail log, and how often. Count the source column, then test the flagged address with `isin`. If the import fails, `python3 -m pip install --user pandas` installs it for your account only.\n\n```python\nimport pandas as pd\ncols = [\"ts\", \"src\", \"rcpt\", \"size\", \"status\"]\ndf = pd.read_csv(\"mail.log\", sep=\" \", header=None, names=cols)\nprint(df[\"src\"].value_counts().head(3))\nprint(df[\"src\"].isin([\"10.20.9.44\"]).sum())\n```\n\n5. Hash the sample in 1 MiB chunks and write `hashes.csv` with `file,algorithm,sha256,bytes`. Confirm the digest is 64 hex characters, then compare the digest and the domains against `blocklist.txt` and record match or no match. Do not upload the file anywhere.\n\n6. Write `alert.json` in the shape below and prove it parses. Route by rule and severity, not by name: P1 means confirmed execution or a hash on the blocklist and goes to the IR on-call queue, P2 means a rule hit on a server outside the admin tool path and goes to the security queue, P3 goes to the security queue weekly. Give it a dedupe key of rule, host and hash with a 24-hour window, because an alert without a hash cannot be deduplicated or searched.\n\n```json\n{\"alert_id\": \"a-2026-11-24-0812\", \"rule\": \"phish_payroll_credential_page\",\n \"severity\": \"P2\", \"queue\": \"security-queue\", \"host\": \"ws-0142\",\n \"sha256\": \"<64 hex characters>\",\n \"dedupe\": {\"key\": \"rule+host+hash\", \"window\": \"24h\"},\n \"iocs\": {\"ip\": [\"10.20.9.44\"], \"url\": [\"http://payroll-verify.example/login/verify\"],\n          \"domains\": [\"payroll-verify.example\"]},\n \"playbook\": \"phish-email-v1\"}\n```\n\n```bash\npython3 -m json.tool alert.json\n```\n\n7. Write `playbook.md` as the five decisions the lesson describes, each a heading with content under it: trigger (the rule name and severity), scope (host, account and time window), first 15 minutes (five numbered commands, the first one read-only), containment (the options and who approves each), closure and escalation (the evidence that closes it and the one line that escalates). Put the socket probe in the first 15 minutes, because open, timeout and name error are three different findings.\n\n```bash\npython3 -c \"import socket; socket.create_connection(('payroll-verify.example', 443), 3)\"  # name error, timeout or open\n```\n\n8. Handling line: never open a real attachment, never run a sample on the host that received it, and never upload a sample to a public sandbox without written approval. This drill uses one synthetic `.eml` under `~/m8/day40`; keep real customer addresses, names and ticket text out of every file you produce.",
+      "deliverable": "alert.json that passes python3 -m json.tool with rule, queue, sha256 and at least two indicators, hashes.csv carrying the 64-character sha256, and playbook.md carrying all five decisions with a read-only first step.",
+      "tools": [
+        "python3",
+        "re",
+        "pandas",
+        "hashlib",
+        "json",
+        "bash",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Indicators are extracted deterministically",
+          "weight": 35,
+          "lookFor": "extract_iocs.py takes a path argument, prints sorted unique IP, URL and domain sets, and the indicator arrays in alert.json match a rerun on the same file with no hand-typed value"
+        },
+        {
+          "criterion": "Alert is routable and bounded",
+          "weight": 40,
+          "lookFor": "alert.json parses, carries rule, host, sha256 and at least two indicators, its severity matches the routing table and names a queue, it states a dedupe key with a 24-hour window, and playbook.md names the trigger, the escalate line and the closing evidence"
+        },
+        {
+          "criterion": "Handling stays defensive",
+          "weight": 25,
+          "lookFor": "the first action in the first 15 minutes is read-only, the notes say the sample was not executed or uploaded, and no real customer address, name or ticket text appears in any produced file"
+        }
+      ],
+      "hints": [
+        "Anchor an IPv4 regex with word boundaries and check each octet is 0 to 255 before you accept it, or `10.20.9.44` will match inside a version string and the alert will carry a number that was never an address.",
+        "A URL contains a domain, so extract URLs first and then take the host out of them for the domain set. Two regexes run in either order will otherwise produce one value as a URL and again as a domain in the same alert.",
+        "`hashlib.sha256(b\"\").hexdigest()` is 64 characters. If yours is 32 you hashed with MD5, and a SOC analyst will treat the value as unusable rather than ask you twice."
+      ]
+    }
+  ]
+}

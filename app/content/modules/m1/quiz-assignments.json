@@ -1,0 +1,343 @@
+{
+  "moduleId": "m1",
+  "quiz": {
+    "id": "q1",
+    "moduleId": "m1",
+    "title": "Networking foundations — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q1-1",
+        "q": "A packet leaves a laptop and reaches a web server in another organization. In the TCP/IP model, which layer decides the next hop toward the destination network?",
+        "options": [
+          "Application",
+          "Transport",
+          "Internet",
+          "Link"
+        ],
+        "answer": 2,
+        "explain": "The Internet layer holds the destination IP address and the routing decision. Transport is the tempting answer, but it only separates conversations by port; it never chooses a path.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-2",
+        "q": "An analyst reports that the link light is off and the cable is unplugged from the wall. Which OSI layer does that fault belong to?",
+        "options": [
+          "Layer 1, Physical",
+          "Layer 2, Data Link",
+          "Layer 3, Network",
+          "Layer 4, Transport"
+        ],
+        "answer": 0,
+        "explain": "Cabling, link lights and signaling are Layer 1. Layer 2 becomes the right answer only after the link is up and the question is about MAC addresses or VLAN tags.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-3",
+        "q": "A host is being configured on the subnet 10.20.10.128/25. Which address may be assigned to that host?",
+        "options": [
+          "10.20.10.127",
+          "10.20.10.128",
+          "10.20.10.129",
+          "10.20.10.255"
+        ],
+        "answer": 2,
+        "explain": "A /25 covers .128 to .255, so .128 is the network address and .255 is broadcast, leaving .129 as the first usable address. .127 is the broadcast of the 10.20.10.0/25 half, one step to the left.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-4",
+        "q": "Which service automatically supplies a client with an IP address, subnet mask, default gateway and DNS servers?",
+        "options": [
+          "DNS",
+          "DHCP",
+          "ARP",
+          "NTP"
+        ],
+        "answer": 1,
+        "explain": "DHCP hands out the lease and the options that go with it. DNS is tempting because both are name-related, but DNS resolves names to addresses and assigns nothing.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-5",
+        "q": "Why does a normal DNS lookup travel over UDP rather than TCP?",
+        "options": [
+          "UDP encrypts the query before it leaves the client",
+          "Recursive resolvers cannot speak TCP, so every query must use UDP",
+          "Port 53 is reserved for UDP, so TCP cannot be used for lookups",
+          "A query and answer fit in one datagram, so a retry is cheap"
+        ],
+        "answer": 3,
+        "explain": "A typical exchange is one small request and one small response, so the three-way handshake costs more than the payload. Resolvers do speak TCP for large answers and zone transfers, which rules out the second option.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-6",
+        "q": "A firewall rule denies inbound TCP port 3389. Which OSI layer does the rule act on?",
+        "options": [
+          "Layer 2, by MAC address",
+          "Layer 3, by IP address",
+          "Layer 4, by port number",
+          "Layer 7, by application data"
+        ],
+        "answer": 2,
+        "explain": "A rule written against a TCP port matches the transport header. A Layer 3 rule would stop at the IP address and could not tell 3389 from 443 on the same host.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-7",
+        "q": "A user can ping the application server at 10.30.4.20, but the browser cannot open https://intranet.example. What do you check next?",
+        "options": [
+          "The network cable and the switch port",
+          "The DNS servers on the laptop and the name's record",
+          "Free disk space on the application server",
+          "The default gateway configured on the application server"
+        ],
+        "answer": 1,
+        "explain": "A successful ping to the IP proves the cable, port, gateway and route, so the first unproven step is turning the name into an address. The cable and switch port are already ruled out by that same ping.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-8",
+        "q": "After a reboot, a laptop shows the address 169.254.18.7 with mask 255.255.0.0. What happened?",
+        "options": [
+          "The laptop got no DHCP offer and used a link-local address",
+          "The laptop received a lease from DHCP, but the gateway is wrong",
+          "The laptop has a static address from the office range",
+          "The default gateway is blocking ICMP"
+        ],
+        "answer": 0,
+        "explain": "169.254.0.0/16 is the link-local range a host falls back to when no DHCP offer arrives, so it has no usable gateway or DNS. A wrong gateway is the tempting answer, but no lease arrived at all.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-9",
+        "q": "A remote user connects the VPN and can reach 10.40.7.15 by IP, but every request to 10.40.8.20 times out. Their home internet still works. What is the best next check?",
+        "options": [
+          "Ask the user to reboot the home router",
+          "Reinstall the VPN client so it picks up the latest profile from the gateway",
+          "Ask the user to clear the browser cache",
+          "Check whether the VPN pushes a route for 10.40.8.0/24"
+        ],
+        "answer": 3,
+        "explain": "Reaching one internal subnet and not another usually means the tunnel carries only part of the address space. A reboot or a profile reinstall does not add a route that was never pushed.",
+        "tag": "networking"
+      },
+      {
+        "id": "q1-10",
+        "q": "Host web01 (10.20.10.10/24) pings its own gateway 10.20.10.1 and gets replies. When it pings db01 at 10.20.11.10, web01 sends frames to the gateway's MAC and nothing comes back. Both switch ports are up in the correct VLANs. Where should you look?",
+        "options": [
+          "The cable between web01 and the switch",
+          "DNS resolution for db01",
+          "The network card driver on web01",
+          "The routed path between the two VLANs"
+        ],
+        "answer": 3,
+        "explain": "The frame reaches the gateway and stops, so the link, the port and the driver are already proven, and the test used an IP so no name was resolved. The failing hop is the Layer 3 path between the VLANs: an interface, a return route or an ACL on that hop.",
+        "tag": "networking"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a1",
+      "day": 1,
+      "moduleId": "m1",
+      "title": "Map one failed request to a layer, not a guess",
+      "level": 1,
+      "minutes": 25,
+      "scenario": "A user says the portal will not load and has already restarted the laptop twice. Your mentor wants the failure named by layer before anyone touches a firewall rule, and you have ten minutes of the user's time. You also have a terminal and your own laptop.",
+      "task": "1. Make a working folder and a notes file:\n\n```bash\nmkdir -p ~/m1/day1 && cd ~/m1/day1\ntouch triage.md\n```\n\nOn Windows PowerShell: `New-Item -ItemType Directory -Force \"$HOME\\m1\\day1\"` then `New-Item \"$HOME\\m1\\day1\\triage.md\"`.\n\n2. Prove layers 1 and 2 are up. Run `ipconfig /all` on Windows, or `ip -br link` and `ip -br addr` on Linux. Note the interface state and the MAC address.\n\n3. Prove layer 3 by address, not by name:\n\n```bash\nping -c 4 1.1.1.1      # macOS/Linux\nping -n 4 1.1.1.1      # Windows\n```\n\n4. Prove the name step fails for a name that cannot exist. `.example` is reserved for documentation, so this never touches a real zone:\n\n```bash\nnslookup intranet.example\n```\n\n5. Prove layer 7 with the status code only:\n\n```bash\ncurl -sS -o /dev/null -w '%{http_code}\\n' https://example.com\n```\n\n6. Fill in `triage.md` with one row per command, using this header:\n\n| Command | Layer tested | Healthy output | Failing output |\n| --- | --- | --- | --- |\n\n7. Add one decision rule of the form \"If X works and Y fails, the fault is at layer Z\". Write it as a sentence you could read out loud on a call.\n\nDo this on your own laptop. Do not point these commands at a customer network, and replace your own hostname and public address with placeholders before you save the note.",
+      "deliverable": "triage.md with a four-row table (command, layer, healthy output, failing output) and one decision-rule sentence.",
+      "tools": [
+        "ipconfig",
+        "ping",
+        "nslookup",
+        "curl",
+        "notepad"
+      ],
+      "rubric": [
+        {
+          "criterion": "Layer attribution is correct",
+          "weight": 40,
+          "lookFor": "each of the four commands is mapped to the right OSI layer and the row shows the layer number as well as the name"
+        },
+        {
+          "criterion": "Evidence comes from the actual run",
+          "weight": 35,
+          "lookFor": "the table quotes the real reply line, the NXDOMAIN line and the HTTP status code instead of describing them"
+        },
+        {
+          "criterion": "Decision rule is usable on a call",
+          "weight": 25,
+          "lookFor": "one sentence of the form if X works and Y fails then the fault is at layer Z, with no hedging or 'might be'"
+        }
+      ],
+      "hints": [
+        "Use a name in the reserved .example domain for the failure case. It always returns NXDOMAIN, so you never touch a real customer zone.",
+        "If curl prints nothing at all, ask for the exit code: `curl -sS -o /dev/null -w '%{http_code} %{time_total}' https://example.com` separates a name failure from a connection failure.",
+        "A successful ping to 1.1.1.1 while a name fails is not a network outage. Read the Server line from nslookup before you name the layer."
+      ]
+    },
+    {
+      "id": "a2",
+      "day": 2,
+      "moduleId": "m1",
+      "title": "Audit an address plan before you approve it",
+      "level": 1,
+      "minutes": 30,
+      "scenario": "A customer sends the address plan for a new site and wants approval today. Office is 10.20.10.0/24 with gateway 10.20.10.1, voice is 10.20.10.128/25 with gateway 10.20.10.129, servers are 10.20.11.0/24, and the new camera VLAN is requested as 10.20.10.64/26. Nobody on their side has run the overlap check.",
+      "task": "1. In a scratch folder, print the facts for each submitted range instead of doing the math in your head:\n\n```bash\npython3 - <<'EOF'\nimport ipaddress\nfor cidr in [\"10.20.10.0/24\", \"10.20.10.128/25\", \"10.20.11.0/24\", \"10.20.10.64/26\"]:\n    n = ipaddress.ip_network(cidr)\n    print(cidr, n.network_address, n.broadcast_address, n.num_addresses - 2)\nEOF\n```\n\n2. Test every pair for overlap and print the answer:\n\n```bash\npython3 - <<'EOF'\nimport ipaddress, itertools\nnets = [ipaddress.ip_network(c) for c in [\"10.20.10.0/24\", \"10.20.10.128/25\", \"10.20.11.0/24\", \"10.20.10.64/26\"]]\nfor a, b in itertools.combinations(nets, 2):\n    if a.overlaps(b):\n        print(\"OVERLAP\", a, b)\nEOF\n```\n\n3. Confirm the mask arithmetic by hand on one range. In PowerShell:\n\n```powershell\n$mask = '255.255.255.192'\n$bin = (([ipaddress]$mask).GetAddressBytes() | ForEach-Object { [Convert]::ToString($_,2).PadLeft(8,'0') }) -join ''\n($bin.ToCharArray() | Where-Object { $_ -eq '1' }).Count\n```\n\nThat prints `26`. On Linux, `ipcalc 10.20.10.64/26` prints the same facts.\n\n4. Write `address-plan.md` with a table of the four submitted ranges: name, network address, first usable, last usable, broadcast, usable hosts.\n\n5. List every overlapping pair and say which range contains which.\n\n6. Design a corrected plan for the same four roles with no overlap, keep every range inside 10.20.8.0/21, and re-run the script from step 2 with your new ranges. Every pair must print nothing.\n\n7. Add one sentence saying why the submitted plan cannot be routed as written.\n\nWork from the ranges in this brief only. Do not paste a real customer's address plan, and do not scan any of these ranges from a network you do not own.",
+      "deliverable": "address-plan.md listing every overlapping pair and a corrected plan whose re-run overlap check prints nothing.",
+      "tools": [
+        "python3",
+        "ipaddress",
+        "PowerShell",
+        "notepad"
+      ],
+      "rubric": [
+        {
+          "criterion": "Overlap identification",
+          "weight": 40,
+          "lookFor": "names both colliding pairs, voice against office and cameras against office, and states that 10.20.10.0/24 contains each of them"
+        },
+        {
+          "criterion": "Subnet arithmetic is correct",
+          "weight": 30,
+          "lookFor": "network address, broadcast address and usable host count are right for the /24, /25 and /26 ranges in the table"
+        },
+        {
+          "criterion": "Corrected plan is addressable and justified",
+          "weight": 30,
+          "lookFor": "new ranges do not overlap each other or the server range, stay inside 10.20.8.0/21, and one sentence explains the rejection"
+        }
+      ],
+      "hints": [
+        "A child subnet cannot sit inside a subnet that is already routed at the same site: 10.20.10.128/25 is entirely inside 10.20.10.0/24.",
+        "`python3 -c \"import ipaddress; print(ipaddress.ip_network('10.20.10.0/24').overlaps('10.20.10.128/25'))\"` answers one pair. Loop over the pairs you care about.",
+        "Keep the corrected plan inside 10.20.8.0/21, from 10.20.8.0 to 10.20.15.255, so the site still summarizes to one route at the firewall."
+      ]
+    },
+    {
+      "id": "a3",
+      "day": 3,
+      "moduleId": "m1",
+      "title": "Prove the resolver, then the lease",
+      "level": 1,
+      "minutes": 35,
+      "scenario": "Three tickets in one morning all say the internet is down. One user can reach 10.30.4.20 by IP but not by name, one has the address 169.254.4.9, and one resolves everything but slowly. Your lead wants one check order that separates these three before anyone restarts a service.",
+      "task": "1. Capture the address facts from your own machine:\n\n```bash\nipconfig /all                        # Windows\nip -c addr && cat /etc/resolv.conf   # Linux\nipconfig getpacket en0               # macOS, lease detail\n```\n\n2. In `dns-dhcp-notes.md`, record the IPv4 address, the DHCP server, the lease obtained and lease expires timestamps, and every DNS server in the order listed.\n\n3. Ask the system resolver for a name that exists and one that cannot exist:\n\n```bash\nnslookup example.com\nnslookup intranet.example\n```\n\n4. Ask a specific resolver and compare. A different answer means the resolver is the variable:\n\n```bash\nnslookup example.com 1.1.1.1\nResolve-DnsName example.com -Server 1.1.1.1 -Type A   # Windows PowerShell\n```\n\n5. Copy the failure text exactly. `Non-existent domain`, `SERVFAIL` and a timeout are three different findings, and the ticket text changes with them.\n\n6. Build a three-row table for the symptoms in the scenario: name fails while IP works, address starts with 169.254, and everything resolves but slowly. For each row give the proving command, the exact output line that proves it, and the team that owns the fix.\n\n7. Only if you need the renewal step, run `ipconfig /renew` on your own laptop, never during a call, and note that the address can change.\n\nUse your own laptop. Redact your public address and hostname before you save or share the note, and never run a release against a machine someone is working on.",
+      "deliverable": "dns-dhcp-notes.md with the resolver address and lease expiry from the machine, plus a three-row table mapping each symptom to a proving command and an owner.",
+      "tools": [
+        "ipconfig",
+        "nslookup",
+        "Resolve-DnsName",
+        "notepad"
+      ],
+      "rubric": [
+        {
+          "criterion": "Resolver and lease evidence captured",
+          "weight": 35,
+          "lookFor": "the note quotes the DNS server addresses and the lease obtained and expires timestamps taken from real command output"
+        },
+        {
+          "criterion": "Three symptoms separated correctly",
+          "weight": 40,
+          "lookFor": "each row pairs the symptom with the right command and the 169.254 case is sent to the DHCP owner, not to DNS"
+        },
+        {
+          "criterion": "Escalation owner named",
+          "weight": 25,
+          "lookFor": "each row ends with a system or team, such as the DHCP scope, the resolver or a zone record, rather than a bare 'L2'"
+        }
+      ],
+      "hints": [
+        "nslookup prints the server that answered on the Server line. If that address is not in ipconfig /all, you are looking at the wrong resolver.",
+        "NXDOMAIN means a resolver answered and the name does not exist. A timeout means nothing answered. Those are different tickets with different owners.",
+        "A 169.254 address is link-local. The proof is the missing DHCP server line in ipconfig /all, not the failed ping."
+      ]
+    },
+    {
+      "id": "a4",
+      "day": 4,
+      "moduleId": "m1",
+      "title": "Prove the port, not the ping",
+      "level": 1,
+      "minutes": 40,
+      "scenario": "The application team says their service is running on web01. The user cannot load it. Ping to web01 answers in 2 ms, which is why the last three tickets were closed as 'network fine'. You have your own laptop, which is not on the customer network, and forty minutes.",
+      "task": "1. Build the table first: 443, 8443, 3389, 25, 53, 445. For each one, the service name and the layer a filter would act on.\n\n2. Prove the web port from your laptop:\n\n```bash\ncurl -sS -o /dev/null -w '%{http_code} %{time_total}\\n' https://example.com\nTest-NetConnection example.com -Port 443   # Windows PowerShell\nnc -vz example.com 443                     # macOS/Linux\n```\n\n3. Prove that a successful ping says nothing about a filtered port. Ping the same host, then test a port most home ISPs filter:\n\n```powershell\nTest-Connection example.com -Count 4\nTest-NetConnection example.com -Port 25\n```\n\n4. Show a refused connection and a working one side by side, on your own machine. In one terminal:\n\n```bash\npython3 -m http.server 8000\n```\n\nIn a second terminal:\n\n```bash\ncurl -v http://127.0.0.1:8000   # connects, HTTP 200\ncurl -v http://127.0.0.1:8001   # connection refused, in under a second\n```\n\n5. Find the local side of a live conversation:\n\n```bash\nnetstat -ano | findstr :443        # Windows\nss -tnp | grep :443                # Linux\nlsof -iTCP:443 -sTCP:ESTABLISHED   # macOS\n```\n\n6. Write `port-proof.md` with the six-port table, the two step 3 results quoted verbatim, and one line each for connection refused, timed out, and no route to host, matched to the command that produced it.\n\n7. Add the sentence you would say to the user whose application is down while ping answers.\n\nOnly test hosts you own or public documentation targets such as example.com. Do not scan a customer range, an employer network, or anyone else's host.",
+      "deliverable": "port-proof.md with the six-port table, verbatim results for 443 and 25, and three failure signatures each matched to a command you ran.",
+      "tools": [
+        "curl",
+        "Test-NetConnection",
+        "netstat",
+        "ss",
+        "python3"
+      ],
+      "rubric": [
+        {
+          "criterion": "Ports and services mapped correctly",
+          "weight": 30,
+          "lookFor": "each of the six ports has the right service name and the layer the filter acts on"
+        },
+        {
+          "criterion": "Blocked port distinguished from a down host",
+          "weight": 40,
+          "lookFor": "quotes a successful ICMP reply and a failed TCP test to the same host, and states that ping does not test the port"
+        },
+        {
+          "criterion": "Failure signatures classified",
+          "weight": 30,
+          "lookFor": "refused, timed out and no route to host are each tied to real output from a command, not to definitions"
+        }
+      ],
+      "hints": [
+        "Run the local server in one terminal and curl it from another. A closed port on your own machine refuses in under a second, which is the signature you want to recognize.",
+        "On macOS use `nc -vz host port`, on Windows use `Test-NetConnection host -Port N`. Both print one success or failure line you can paste into a ticket.",
+        "Refused means a host answered with a reset. Timed out means nothing answered, which points at a filter or the wrong destination. Do not write 'refused' for a hang."
+      ]
+    },
+    {
+      "id": "a5",
+      "day": 5,
+      "moduleId": "m1",
+      "title": "Close or escalate: a full triage with evidence",
+      "level": 1,
+      "minutes": 55,
+      "scenario": "Ticket 4471: a remote user on the VPN cannot open the internal app at 10.40.7.15:8443. They can ping 10.40.7.15 by IP, and a colleague in the office opens the same app without trouble. The user's home internet works, and this is their second report this week. Your shift ends in an hour.",
+      "task": "Part A - reproduce a port block with equipment you own, a laptop and a phone on the same Wi-Fi.\n\n1. Start a listener on the laptop:\n\n```bash\npython3 -m http.server 8443 --bind 0.0.0.0\n```\n\n2. Get the laptop's local address with `ipconfig` or `ip -4 addr`, then open `http://<laptop-ip>:8443` from the phone. It should load. Note how long it took.\n\n3. Block only that port inbound and repeat the phone request:\n\n```powershell\nNew-NetFirewallRule -DisplayName \"Block 8443 test\" -Direction Inbound -Protocol TCP -LocalPort 8443 -Action Block\n```\n\nOn macOS, enable the application firewall and set it to block all incoming connections for the test. On Linux, `sudo ufw deny 8443/tcp`.\n\n4. From the phone the page now hangs until it times out, while `ping <phone-ip>` from the laptop still works. Write down both results and the layer the block acted on.\n\n5. Remove the test rule:\n\n```powershell\nRemove-NetFirewallRule -DisplayName \"Block 8443 test\"\n```\n\nPart B - triage ticket 4471.\n\n6. List five hypotheses, each tagged with the layer it would fail at and the command that would prove or kill it: name resolution over the VPN, a missing route for the app subnet, a filter on TCP 8443 for the VPN pool, no listener on the server, and a client proxy or browser setting.\n\n7. Put the checks in the order you would run them on the call, and for each one state what the colleague's working session already rules out.\n\n8. Use these commands exactly: `nslookup app.internal.example`, `Test-NetConnection 10.40.7.15 -Port 8443`, `tracert 10.40.7.15`, `ipconfig /all` on the VPN adapter, and `netstat -ano | findstr 8443`.\n\n9. Write the handover note in five lines: Symptom, Scope, Evidence, Ruled out, Ask. Keep it under 120 words.\n\n10. Make the close-or-escalate call and write the one condition that would flip it.\n\nKeep the listener on your own laptop and your own Wi-Fi, and remove the firewall rule when you finish. Do not open a listener on a corporate network, do not scan 10.40.7.0/24, and put placeholders in the note instead of the user's real name or address.",
+      "deliverable": "triage-4471.md with the firewall proof (two timings), an ordered check table built on five hypotheses, and a five-line handover note with one escalation criterion.",
+      "tools": [
+        "python3",
+        "Test-NetConnection",
+        "nslookup",
+        "tracert",
+        "ipconfig",
+        "netstat"
+      ],
+      "rubric": [
+        {
+          "criterion": "Ordered, layer-based check plan",
+          "weight": 35,
+          "lookFor": "five hypotheses, each tagged with a layer and a command, ordered so the cheapest cause is proven or killed first"
+        },
+        {
+          "criterion": "Firewall proof and its limits",
+          "weight": 30,
+          "lookFor": "records the before and after result of the 8443 block and states that a Layer 4 port block leaves ping working"
+        },
+        {
+          "criterion": "Handover and escalation decision",
+          "weight": 35,
+          "lookFor": "the five-line note has all five labels filled in and the close-or-escalate call names the evidence that would flip it"
+        }
+      ],
+      "hints": [
+        "Start with what the colleague already proves: the office-to-app path and the listener are healthy, so the difference sits in the VPN path or on the client, not on the server.",
+        "Ping answers because ICMP is a different protocol from TCP on 8443. A filter on one says nothing about the other, and the note should say so in one line.",
+        "If Test-NetConnection fails on 8443 from the VPN but succeeds from the office subnet, the finding is the firewall rule for the VPN pool. Escalate with that comparison, not with 'app is slow'."
+      ]
+    }
+  ]
+}

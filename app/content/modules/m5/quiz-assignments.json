@@ -1,0 +1,343 @@
+{
+  "moduleId": "m5",
+  "quiz": {
+    "id": "q5",
+    "moduleId": "m5",
+    "title": "Offensive security, legally — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q5-1",
+        "q": "Your team is authorized to test a customer's new portal. The signed scope names `portal.example.com` and `10.30.4.15` only. During recon you find the customer's VPN gateway at `10.30.1.1`. What is the correct next move?",
+        "options": [
+          "Scan 10.30.0.0/16 for completeness, then delete the out-of-scope hosts from the report",
+          "Scan the two in-scope targets and get a written scope change before touching 10.30.1.1",
+          "Scan the gateway but leave it out of the written report",
+          "Ask the customer on the call and proceed if they agree verbally"
+        ],
+        "answer": 1,
+        "explain": "Authorization is the signed document, so the gateway stays untouched until the scope is amended in writing; a verbal yes leaves no record and a scan of an excluded host can end the engagement. Option A is the tempting one because it sounds thorough, but scope is set by the document, not by what you remove later.",
+        "tag": "security"
+      },
+      {
+        "id": "q5-2",
+        "q": "`nmap -sV 10.30.4.15` returns `443/tcp open https Apache httpd 2.4.49`. Which part of that line did `-sV` add?",
+        "options": [
+          "The `open` state",
+          "The port number 443",
+          "The service and version, `https Apache httpd 2.4.49`",
+          "The host being up"
+        ],
+        "answer": 2,
+        "explain": "`-sV` probes each open port after the connect scan and fingerprints what answered, which turns a bare port number into a name and a version. The `open` state already appears in a default scan, so the version string is the only new information on that line.",
+        "tag": "networking"
+      },
+      {
+        "id": "q5-3",
+        "q": "Which task counts as passive reconnaissance?",
+        "options": [
+          "Reading public DNS records and certificate transparency logs for the customer's domain",
+          "Running `nmap -sn` against the customer's office subnet",
+          "Replaying a captured login request through Burp Repeater",
+          "Running a credentialed vulnerability scan against the staging host"
+        ],
+        "answer": 0,
+        "explain": "Passive collection reads records that already exist in public archives, so no packet reaches the customer's infrastructure and nothing appears in their logs. `nmap -sn` is the tempting choice because it is quiet, but it still sends probes to hosts you may not own.",
+        "tag": "security"
+      },
+      {
+        "id": "q5-4",
+        "q": "`nmap -Pn -p 443,3389 10.30.4.15` prints `443/tcp open` and `3389/tcp filtered`. What does `filtered` tell you?",
+        "options": [
+          "The port is closed and the host answered with a reset",
+          "3389 was left out of the scan",
+          "The service on 443 is blocking 3389",
+          "A packet filter dropped the probes, so you cannot tell whether anything listens on 3389"
+        ],
+        "answer": 3,
+        "explain": "No reply, or an ICMP administratively prohibited reply, is reported as `filtered`, and it proves only that something in the path drops the probes. `closed` is the different state where the host itself answers with a reset, which is the answer most people reach for.",
+        "tag": "networking"
+      },
+      {
+        "id": "q5-5",
+        "q": "In Wireshark you want only the HTTP requests going to `10.30.4.15`. Which display filter does that?",
+        "options": [
+          "`ip.addr == 10.30.4.15 && http`",
+          "`tcp.port == 10.30.4.15`",
+          "`host 10.30.4.15 and port 80`",
+          "`http.host == \"10.30.4.15\"`"
+        ],
+        "answer": 0,
+        "explain": "`ip.addr` matches either direction of the conversation and `&& http` narrows the view to the HTTP dissector. Option C is capture-filter syntax, so typing it into the display bar raises a syntax error, and `http.host` compares a Host header name rather than an address.",
+        "tag": "networking"
+      },
+      {
+        "id": "q5-6",
+        "q": "A login POST is sitting in Burp, and you need to resend the same request with one parameter changed, ten times, without touching the browser. Which tool holds the request and resends your edits?",
+        "options": [
+          "Proxy history",
+          "Repeater",
+          "Decoder",
+          "Scanner"
+        ],
+        "answer": 1,
+        "explain": "Repeater keeps one request on the workbench so you can edit a parameter and resend it as often as needed. Proxy history only records traffic that already happened, and Scanner is a Pro feature you should not point at an unapproved target anyway.",
+        "tag": "security"
+      },
+      {
+        "id": "q5-7",
+        "q": "On a lab login form you enter `'` as the username and the page returns `You have an error in your SQL syntax`. What does that support?",
+        "options": [
+          "The database is offline, so the application could not run the query",
+          "The quote character is rejected, so input validation is working",
+          "The input reached the SQL parser unescaped, which makes the parameter a candidate for injection",
+          "The account exists but the password is wrong"
+        ],
+        "answer": 2,
+        "explain": "A database syntax error means your text became part of the statement instead of a value, which is the first evidence of injection. Option B is the tempting misread because an error message looks like a control working, but validation that works never reaches the database.",
+        "tag": "security"
+      },
+      {
+        "id": "q5-8",
+        "q": "A lab forum stores a comment containing `<script>alert(document.cookie)</script>` and runs it every time another user opens the thread. Which class of issue is it, and what fixes it?",
+        "options": [
+          "Reflected XSS; validate the query string parameter",
+          "SQL injection; use parameterized queries",
+          "CSRF; add an anti-CSRF token",
+          "Stored XSS; HTML-encode on output and add a Content-Security-Policy"
+        ],
+        "answer": 3,
+        "explain": "The payload is saved on the server and executes in every viewer's browser, which is stored XSS. Reflected XSS is the tempting label, but there the payload only comes back in the response to the person who sent it.",
+        "tag": "security"
+      },
+      {
+        "id": "q5-9",
+        "q": "A scanner reports MS17-010 on `10.30.4.15:445`. The host is a lab VM you rebuilt last week with current patches. What should you do before writing the finding?",
+        "options": [
+          "Report it as critical, because the scanner matched the signature",
+          "Confirm the patch level and the service banner with read-only checks, then record it as unconfirmed or a false positive",
+          "Run the Metasploit module to prove it works",
+          "Delete the row from the report and move on"
+        ],
+        "answer": 1,
+        "explain": "Most scanner hits are inferred from a banner, so validation is the step that separates a finding from a guess, and the patch level is the evidence that settles it. Option C is the tempting shortcut, but exploiting a host outside an approved test window is unauthorized even when the finding is real.",
+        "tag": "security"
+      },
+      {
+        "id": "q5-10",
+        "q": "A capture on the client shows a SYN to `10.30.4.15:443`, then `RST, ACK` from the server, then nothing. The user reports that the app is down. What does the capture prove?",
+        "options": [
+          "The path to the server is broken, so escalate to the network team",
+          "DNS is failing, so the client never found the server",
+          "The server received the SYN and refused it, so nothing is listening on 443 and the service or its listener is the fault",
+          "A firewall dropped the SYN, which is why the client timed out"
+        ],
+        "answer": 2,
+        "explain": "A reset comes from the server's own stack, which proves the packet arrived and the port is not open, so the next check is the service and its listener. Option D is the tempting read, but a firewall drop produces silence or an ICMP error, not a reset.",
+        "tag": "networking"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a21",
+      "day": 21,
+      "moduleId": "m5",
+      "title": "Scope first, then public surface: a guided recon pass",
+      "level": 3,
+      "minutes": 25,
+      "scenario": "Monday, 09:00. The account team forwards a request: a customer wants an external test of their marketing site next week, and the signed scope is not back yet. Your lead asks for a passive recon note today so the test plan is not written blind. You have your laptop and a domain you may read about publicly. The last trainee opened with a port scan, and the customer's SOC raised an incident.",
+      "task": "1. Create the working folder and write the scope block before any lookup. The block is what makes the difference between recon and unauthorized probing.\n\n```\nmkdir -p ~/m5/recon && cd ~/m5/recon\ncat > scope.txt <<'EOF'\ntarget: example.com\nauthorized: passive collection only\nexcluded: every customer host, every port scan\nwindow: 2026-11-24 09:00-09:25\nEOF\ncat scope.txt\n```\n\n2. Read the public registration and mail records. These queries go to public DNS and the registrar, not to the customer.\n\n```\nwhois example.com\ndig +short example.com MX\ndig +short example.com TXT\n```\n\nOn Windows, where `dig` and `whois` are usually absent, use `nslookup -type=MX example.com` and `nslookup -type=TXT example.com` and say which tool produced the output.\n\n3. Check certificate transparency logs, which are a public archive of issued certificates. The `%25` in the query is an encoded wildcard, so the answer includes subdomains.\n\n```\ncurl -s \"https://crt.sh/?q=%25.example.com&output=json\" | head -c 800\n```\n\nIf `jq` is installed, `| jq -r \".[].name_value\"` prints just the hostnames instead of raw JSON.\n\n4. Build a five-row table with these columns: record or artifact, value found, what an attacker would try next, and whether it is in scope to test. Keep `example.com` as the stand-in for the customer domain.\n\n5. Add a short paragraph on what you did not do, naming port scanning, DNS brute force, and any direct request to the customer's hosts.\n\n6. Add the routing line: which items belong in the test plan and which belong to the customer's DNS or web team.\n\nSafety: every command here reads public records. Do not send a single packet to the customer's hosts, and keep `example.com` as the stand-in so no real customer name or data appears in the note.",
+      "deliverable": "One note, recon.md, holding the scope block, the five-row table and the paragraph on what was not touched.",
+      "tools": [
+        "dig",
+        "whois",
+        "curl",
+        "crt.sh",
+        "jq",
+        "nslookup",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Scope recorded before collection",
+          "weight": 30,
+          "lookFor": "the scope block names the target, the passive-only authorization, the exclusions and the time window, and no nmap command or direct request to example.com appears in the note"
+        },
+        {
+          "criterion": "Public records read correctly",
+          "weight": 40,
+          "lookFor": "the table quotes at least three real values from the nslookup or crt.sh output, such as an MX host, a TXT string or a certificate name, and each row states the attacker's next move against that value"
+        },
+        {
+          "criterion": "Boundary and routing stated",
+          "weight": 30,
+          "lookFor": "the closing paragraph names port scanning and DNS brute force as not performed, and each finding is routed to one named team instead of the whole note going to L2"
+        }
+      ],
+      "hints": [
+        "`dig +short example.com MX` prints the answer only, one record per line; drop `+short` to see the full response and the resolver that answered. On Windows, `nslookup -type=MX example.com` returns the same record.",
+        "crt.sh can return a very large JSON body, so `head -c 600` keeps the terminal readable; the `name_value` fields are the hostnames worth listing.",
+        "A public record is a fact, not a vulnerability. Until someone tests it in the approved window, write it as a hypothesis with the check that would confirm it."
+      ]
+    },
+    {
+      "id": "a22",
+      "day": 22,
+      "moduleId": "m5",
+      "title": "Open, closed and filtered on a network you own",
+      "level": 3,
+      "minutes": 30,
+      "scenario": "A patch team asks which services are exposed on a lab VM before it returns to the internal network. Your lead gives you one rule: the scan may touch your own laptop and your own lab VM, nothing else, and the output has to separate a listening service from a filtered port. The previous report listed every closed port as a vulnerability, and the app team stopped reading it.",
+      "task": "1. Record the address you are allowed to scan, and write the authorization line first.\n\n```\nipconfig\n```\n\nOn macOS or Linux, substitute `ifconfig` or `ip -4 addr show`. Write the address and its /24 into lab-22.md, followed by the line `authorized target: this laptop and 127.0.0.1 only`.\n\n2. Confirm the tool and its version.\n\n```\nnmap --version\n```\n\n3. Discover live hosts on your own subnet. If you are on shared Wi-Fi, such as a cafe or an office network, skip this step and say so in the note.\n\n```\nnmap -sn 192.168.1.0/24\n```\n\n4. Scan the machine you own, with the reason column, so every state has a stated cause.\n\n```\nnmap -sV --top-ports 100 --reason 127.0.0.1\n```\n\n5. Produce one example of each state. A closed port answers with a reset. A filtered port drops the probes, and `192.0.2.1` is TEST-NET-1, a documentation address reserved so nothing real is touched.\n\n```\nnmap -p 9 --reason 127.0.0.1\nnmap -Pn --host-timeout 30s -p 3389 --reason 192.0.2.1\n```\n\n6. For two open ports, write the service name, the version and one sentence on what that service would expose if it were reachable from the internet.\n\n7. State which of the two ports you would raise as a finding and which you would leave alone, with the reason for each.\n\nSafety: scanning a subnet you do not own is unauthorized access in most jurisdictions. `192.0.2.1` is TEST-NET-1, a documentation range, and it is the only address outside your own machine that appears here.",
+      "deliverable": "lab-22.md with the authorization line, all three port states quoted from real output, and one port raised as a finding.",
+      "tools": [
+        "nmap",
+        "ipconfig",
+        "ifconfig",
+        "ip"
+      ],
+      "rubric": [
+        {
+          "criterion": "Authorization and blast radius",
+          "weight": 30,
+          "lookFor": "names the exact address or /24 scanned and the rule that limited it, and every nmap command in the note targets 127.0.0.1 or the author's own subnet"
+        },
+        {
+          "criterion": "Port states read correctly",
+          "weight": 40,
+          "lookFor": "quotes output for an open, a closed and a filtered port, and the sentence for filtered says the probe was dropped rather than that the service is missing"
+        },
+        {
+          "criterion": "Finding decision defended",
+          "weight": 30,
+          "lookFor": "picks one service, quotes its version from `-sV`, and writes what it exposes plus who owns the fix, instead of listing every open port as a vulnerability"
+        }
+      ],
+      "hints": [
+        "`-sV` talks only to ports that are already open; without it you have numbers, not services.",
+        "`--reason` adds the column that shows why nmap chose each state. Read it before you write the word filtered.",
+        "A reset is closed, silence is filtered, and an ICMP prohibited reply is also filtered. Neither proves which service is installed."
+      ]
+    },
+    {
+      "id": "a23",
+      "day": 23,
+      "moduleId": "m5",
+      "title": "Capture one conversation and say where it stopped",
+      "level": 3,
+      "minutes": 35,
+      "scenario": "A ticket says an internal web tool \"drops the connection\" for one user, and the app team wants a packet capture before they read the code. You have a lab page on your own machine and 35 minutes. The capture has to show a complete request and response, plus the one filter that proves you looked at the right conversation instead of all traffic.",
+      "task": "1. Start a local HTTP server on a port you choose, and keep the terminal open.\n\n```\nmkdir -p ~/m5/http && cd ~/m5/http && printf 'lab page\\n' > index.html\npython3 -m http.server 8000\n```\n\n2. Start the capture. In the Wireshark GUI, pick the loopback interface, which is `lo0` on macOS, `lo` on Linux and the Npcap loopback adapter on Windows, and set the capture filter `tcp port 8000`. The command-line equivalent is:\n\n```\ntshark -i lo0 -f \"tcp port 8000\" -w ~/m5/day23.pcapng\n```\n\n3. Generate the traffic from a second terminal.\n\n```\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://127.0.0.1:8000/\n```\n\n4. Stop the capture after the response and apply a display filter, which is a different language from the capture filter.\n\n```\ntshark -r ~/m5/day23.pcapng -Y \"http.request\" -T fields -e http.request.method -e http.request.uri -e http.host\n```\n\n5. Find who closed the conversation.\n\n```\ntshark -r ~/m5/day23.pcapng -Y \"tcp.flags.reset == 1 or tcp.flags.fin == 1\" -T fields -e frame.number -e ip.src -e tcp.flags\n```\n\n6. In the GUI, right-click one packet and choose Follow, TCP Stream. Copy the request line and the status line into your note.\n\n7. If your interface cannot capture loopback, which is common on Windows without the Npcap loopback adapter, capture the same exchange from a plain HTTP site and say so in the note.\n\n```\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://neverssl.com/\n```\n\n8. Write the finding in one sentence: who closed the connection, and whether the server answered.\n\nSafety and privacy: capture only traffic on a host you control. Capturing other people's sessions on a shared network is a privacy problem and can be a legal one, so keep the capture on loopback or your own lab segment.",
+      "deliverable": "day23.md with the capture interface, the one display filter that isolates the conversation, the request and status lines, and the closing-packet finding.",
+      "tools": [
+        "Wireshark",
+        "tshark",
+        "curl",
+        "python3"
+      ],
+      "rubric": [
+        {
+          "criterion": "Capture scoped and identified",
+          "weight": 30,
+          "lookFor": "names the interface and the capture filter used, and the file or note shows only the port 8000 conversation, or one plain HTTP site for the fallback"
+        },
+        {
+          "criterion": "Protocol read correctly",
+          "weight": 40,
+          "lookFor": "quotes the request line, the status line and at least one handshake packet, and identifies which side sent the FIN or RST"
+        },
+        {
+          "criterion": "Conclusion tied to evidence",
+          "weight": 30,
+          "lookFor": "states whether the server answered and who closed the conversation, and does not call it a network fault when the capture holds a complete request and response"
+        }
+      ],
+      "hints": [
+        "A capture filter is set before capture and uses BPF syntax such as `tcp port 8000`. A display filter is applied afterwards and uses field names such as `http.request`.",
+        "No packets on port 8000 usually means the server was not running or curl used another port. Check the server terminal before you blame a firewall.",
+        "Keep the capture short. A file that holds a full session on loopback is easy to read and easy to redact; hours of traffic hide the three packets you need."
+      ]
+    },
+    {
+      "id": "a24",
+      "day": 24,
+      "moduleId": "m5",
+      "title": "Intercept, replay and record: Burp on a lab target",
+      "level": 3,
+      "minutes": 40,
+      "scenario": "The app team says a search form \"returns different results for the same input\" and cannot reproduce it. You have Burp Suite Community, a free lab target and 40 minutes. Your lead wants three reproducible request and response pairs, with cookies redacted, and a clear line between what you tested and what you did not.",
+      "task": "1. Start a lab target you own. Docker is the quickest route; without Docker, use a free PortSwigger Web Security Academy lab in the browser.\n\n```\ndocker run -d --name juice -p 3000:3000 bkimminich/juice-shop\ncurl -s -o /dev/null -w \"%{http_code}\\n\" http://localhost:3000/\n```\n\n2. Start Burp Suite Community with a temporary project and confirm the proxy listener is `127.0.0.1:8080` under Proxy, Proxy settings.\n\n3. Fetch the Burp CA certificate. Burp serves it itself while the proxy is running.\n\n```\ncurl -x http://127.0.0.1:8080 -s -o burp.der -w \"%{http_code}\\n\" http://burp/cert\nfile burp.der\n```\n\nImport `burp.der` into the browser or the OS trust store, then confirm HTTPS pages on the lab target load through the proxy.\n\n4. Prove the proxy path before you trust it.\n\n```\ncurl -x http://127.0.0.1:8080 -s -o /dev/null -w \"%{http_code}\\n\" http://localhost:3000/\n```\n\n5. Turn interception off under Proxy, Intercept, and browse the target. Load the search page and submit one query.\n\n6. Find the search request in Proxy history, send it to Repeater with Ctrl+R, and resend it unchanged once.\n\n7. Change one character in the query parameter, resend, and compare the response length and the result count. Write the exact difference down.\n\n8. Repeat for two more parameters so you hold three request and response pairs. Redact the session cookie and any email address before saving.\n\n9. Write the boundary line: the host you used, and that no customer host, account or data was involved.\n\nSafety and privacy: test only the lab target on your own machine or a lab whose terms grant permission. Never point the proxy or Repeater at a live customer app, and redact cookies, tokens and email addresses from anything you save.",
+      "deliverable": "requests.md with three entries, each holding the method and path, the changed parameter, the status code, the response size and one line on what changed.",
+      "tools": [
+        "Burp Suite Community",
+        "Docker",
+        "curl",
+        "browser"
+      ],
+      "rubric": [
+        {
+          "criterion": "Proxy and trust configured",
+          "weight": 25,
+          "lookFor": "shows the proxy listener address, the certificate fetch or import step, and a successful proxied request against the lab host"
+        },
+        {
+          "criterion": "Three reproducible pairs",
+          "weight": 45,
+          "lookFor": "each entry quotes method, path, the single changed parameter, the status code and the response size, with the before and after values side by side"
+        },
+        {
+          "criterion": "Redaction and boundary",
+          "weight": 30,
+          "lookFor": "no live session cookie, email address or customer host appears, and the note states the lab host and that nothing outside it was tested"
+        }
+      ],
+      "hints": [
+        "If HTTPS pages fail to load once the proxy is set, the Burp CA is not trusted yet. Fetch it from `http://burp/cert` while the proxy is running, then import it.",
+        "Repeater sends the request you loaded and nothing else, so a changed parameter needs a fresh send before the difference means anything.",
+        "Community edition has no Scanner. Do the comparison by hand and keep both responses, one for each value."
+      ]
+    },
+    {
+      "id": "a25",
+      "day": 25,
+      "moduleId": "m5",
+      "title": "Two findings and one report: SQLi and XSS in the lab",
+      "level": 3,
+      "minutes": 50,
+      "scenario": "The test plan for the customer's portal is due at the end of the day, and the app team wants to know what to fix first. You have two free lab targets, one with an injectable login or filter and one that reflects input. In 50 minutes you confirm both issues, capture evidence, rate them honestly and write the section the customer will read. Nothing outside the labs may be touched.",
+      "task": "1. Write the scope line before you open a browser.\n\n```\n# targets: two local or free-hosted labs, PortSwigger Academy or DVWA on 127.0.0.1\n# authorization: lab terms of service; no customer system; no real data\n```\n\n2. In the SQL injection lab, confirm the parameter with a single quote and record the exact error or the change in behavior.\n\n3. Retrieve data you should not see, using the lab's intended payload, for example `' OR 1=1--` in the vulnerable filter. Record the row count before and after.\n\n4. In the XSS lab, enter `<script>alert(document.domain)</script>` into the vulnerable field, confirm the dialog fires, and record the field and the rendering context.\n\n5. Save the evidence: the payload, the URL, the status code, the time, and a screenshot or raw request. Redact cookies.\n\n6. Validate one claim you did not cause: pick a scanner-style assertion from the lab, decide confirmed or false positive, and write the single check that settled it.\n\n7. Write the report. For each finding give a title, the affected component, the evidence, the impact in one sentence, the severity with its reason, and the fix. Use parameterized queries for SQL injection, and output encoding plus a Content-Security-Policy for XSS.\n\n8. Add the fix order with an owner for each item, then the closing line on what was tested and what was not.\n\nSafety and privacy: exploit only the lab targets, which grant permission in their terms. Do not test the customer's portal, do not use real credentials or data, and redact cookies and tokens from every screenshot and saved request.",
+      "deliverable": "report.md with two findings, each holding evidence, impact, severity with a reason and a fix, plus a fix order and a scope statement.",
+      "tools": [
+        "Burp Suite Community",
+        "browser",
+        "PortSwigger Academy labs",
+        "DVWA",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Both issues confirmed with evidence",
+          "weight": 40,
+          "lookFor": "each finding quotes the payload, the request or screenshot reference and the observable result, and the SQLi entry shows retrieved rows while the XSS entry shows the script executing"
+        },
+        {
+          "criterion": "Severity and fix are defensible",
+          "weight": 35,
+          "lookFor": "ties each severity to the impact and to what an attacker gains, and names parameterized queries for SQLi and output encoding plus CSP for XSS instead of \"sanitize input\""
+        },
+        {
+          "criterion": "Sequence and boundary",
+          "weight": 25,
+          "lookFor": "orders the two fixes with an owner for each, and the closing scope statement names the lab hosts and states that no customer system was tested"
+        }
+      ],
+      "hints": [
+        "A single quote that produces a database error proves the input reached the parser. The finding still needs the retrieval step to show impact.",
+        "Reflected XSS fires in the browser of whoever opens the crafted URL. Stored XSS survives a reload and fires for a second viewer, which is the stronger finding.",
+        "A severity with no impact statement is an opinion. Write who is harmed and what the attacker gains before you choose the rating."
+      ]
+    }
+  ]
+}

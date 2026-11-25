@@ -1,0 +1,16 @@
+{
+  "name": "l1-academy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "White-label L1 readiness training platform for datacenter and cloud support teams",
+  "type": "commonjs",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node scripts/seed_demo.mjs --reset",
+    "build:content": "node scripts/build_curriculum.mjs",
+    "build:resources": "node scripts/build_resources.mjs",
+    "verify:content": "node scripts/verify_content.mjs",
+    "build:coverage": "node scripts/build_coverage.mjs"
+  }
+}

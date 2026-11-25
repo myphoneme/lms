@@ -1,0 +1,393 @@
+{
+  "moduleId": "m5",
+  "lessons": [
+    {
+      "id": "l5-4",
+      "moduleId": "m5",
+      "seq": 4,
+      "title": "Burp Suite: testing a web app the authorised way",
+      "subtitle": "Proxy, intercept, replay, and keep a record of every request.",
+      "minutes": 18,
+      "level": "Diagnosing",
+      "objectives": [
+        "State what written authorization must name before a proxy points at a host",
+        "Capture a request in Burp Proxy and replay it in Repeater against an in-scope target",
+        "Tell a server-side check from a client-side one by changing one value at a time",
+        "Hand over a test record an application owner can reproduce without you"
+      ],
+      "ticket": {
+        "from": "Service Desk — application security queue",
+        "subject": "Confirm the portal login cannot be bypassed before Friday",
+        "body": "The application team asked the desk to confirm that the portal login cannot be bypassed before Friday's release. The request has no host list, no test window and no test account, and the person who raised it is on leave. A previous engineer opened the production login page once, said it looked normal, and closed the ticket.",
+        "impact": "One release is waiting on the answer since Monday; the app team has no date."
+      },
+      "sections": [
+        {
+          "h": "The ticket says \"check the login page\" and stops there",
+          "body": "Monday, 09:20. The application team wants to know whether the portal login can be bypassed before Friday's release. The ticket says \"check the login page\" and names no host, no window and no test account.\n\nThat sentence is not written authorization. A proxy pointed at the customer's production portal without a written scope is an unapproved test against a live system, and the authenticated requests in your history carry session tokens that belong to real people. The proxy history becomes the incident.\n\nThe quieter failure: a verbal yes, a test against staging, nothing found, and a report that says \"no issue\". Staging has no WAF, a different build and a seeded database, so the result describes staging.\n\nBefore a request leaves your machine you need two things in writing: the scope (hosts, test window, excluded paths such as payment pages, the stop condition, who to call when something breaks) and a test account you are allowed to use. Burp makes the requests easy to read. It does not make them permitted."
+        },
+        {
+          "h": "Scope first, then a listener you can trust",
+          "body": "Burp Suite runs a local proxy. The default listener is `127.0.0.1:8080`, so only your machine can use it. For web work, use Burp's own Chromium from `Proxy` > `Intercept` > `Open browser`; it already trusts Burp's CA certificate, so HTTPS pages load without warnings. If you use your own browser, set its HTTP and HTTPS proxy to `127.0.0.1:8080` and install the CA from `http://burp`, or every HTTPS page throws a certificate error and you debug your own setup.\n\nThen set scope. In `Target` > `Scope`, tick `Use advanced scope control` and add one entry per authorized host. In `Proxy` > `HTTP history`, turn on `Show only in-scope items`. Scope in Burp is a filter, not an access control. It hides what you should not see and does nothing to stop the browser requesting it. The real control is the tab you have open.\n\nA first capture with `curl` gives the same request in a form you can paste into a ticket:\n\n```bash\n$ curl -sS -i -X POST http://10.20.30.15/login \\\n    --data-urlencode 'email=helpdesk@lab.local' --data-urlencode 'password=Passw0rd123'\nHTTP/1.1 302 Found\nDate: Mon, 24 Nov 2025 09:41:07 GMT\nServer: nginx/1.24.0\nLocation: /dashboard\nSet-Cookie: SESSIONID=8f21c0d4e7aa9b31; Path=/; HttpOnly\nContent-Length: 0\n```\n\nTwo facts are already there. The redirect on a correct login says the session is checked on the server. The `Set-Cookie` line has `HttpOnly` but no `Secure` and no `SameSite`, so that cookie travels over plain HTTP if anything ever serves this host on port 80. That is a finding you can write up without attacking anything."
+        },
+        {
+          "h": "Intercept is a pause button, and it is still on",
+          "body": "`Intercept is on` holds every request until you forward it. Leave it on and walk away, and the browser spins, the user sees a hung page, and a second incident gets raised against the application while you are the cause. Intercept one request, read the method, path, headers and body, then switch it off and work from `HTTP history`, which is a complete record and does not break the page.\n\nReplay is where testing happens. Right-click a request, choose `Send to Repeater` (or `Ctrl+R`). Change one thing, send, read the response, keep the tab. One thing is the rule: if you edit the cookie and the price in one send, the response cannot tell you which change mattered, and the record is useless to the next reader.\n\n**Decision rule:** if the page loads with the proxy off and hangs with intercept on, the fault is your proxy, not the app. Turn intercept off before you write a word about the application."
+        },
+        {
+          "h": "Change a value you should not control",
+          "body": "The cheapest test in Repeater needs no payload. Take a request that works, then change one value the application should be checking itself.\n\nRemove the `SESSIONID` cookie and resend `/dashboard`. A `302` to `/login` means the check runs on the server. A `200` with account data means the page served it with no session at all, which is broken access control, the first entry on the OWASP Top 10.\n\nChange a hidden field, `role=user` to `role=admin`, or the `price=249.00` in a checkout post. If the admin menu renders, or the total changes to your number, the server accepted a value it should have looked up. If it returns `403` or recalculates the total, the check is in the right place and this attempt is a dead end.\n\nA difference that appears only in the browser, with identical HTML from the server, is client-side behavior. Read the JavaScript before writing it up: hiding a button is not access control if the endpoint still checks the role."
+        },
+        {
+          "h": "What you hand over",
+          "body": "```text\nTEST RECORD — portal login, ref APP-4471\nScope: portal.lab.local (10.20.30.15), 24 Nov 09:00-12:00, payment pages excluded\nAccount: qa.tester@lab.local, test account issued by the app team\nRequest: POST /login  email=helpdesk@lab.local  password=Passw0rd123\nResponse: 302 /dashboard, Set-Cookie SESSIONID (HttpOnly; no Secure, no SameSite)\nSecond request: GET /dashboard with SESSIONID removed -> 302 /login\nResult: session checked server-side; cookie flags are the finding\nNot tested: admin area, payment pages (out of scope)\n```\n\n- Close when the record names the host in scope, the account used, the exact request, the response, and what you did not test.\n- **Escalate to the application security team when** a replay returns another user's data, changes a stored value, or reaches an admin function from a low-privilege account. Escalate the same minute if the `Host` in Repeater is not on the written scope list: that request was out of scope, and the customer must hear it from you, not from their logs.\n\nBurp Suite Community Edition has no scanner and throttles Intruder, so do not promise a full automated test with the free edition. A careful manual pass with a saved request record closes more tickets than a scan button."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "Burp loop: scope, capture, replay, record",
+        "caption": "Steps 2 to 4 repeat for every question you ask the app. Step 1 is checked before the first request and again before the last.",
+        "data": {
+          "steps": [
+            {
+              "label": "Scope in writing",
+              "detail": "hosts, window, excluded paths"
+            },
+            {
+              "label": "Proxy listener",
+              "detail": "127.0.0.1:8080, CA trusted"
+            },
+            {
+              "label": "Intercept once",
+              "detail": "read the raw request, then off"
+            },
+            {
+              "label": "Send to Repeater",
+              "detail": "change one value, resend"
+            },
+            {
+              "label": "Record and report",
+              "detail": "request, response, timestamp"
+            }
+          ],
+          "footer": "Step 1 cannot be fixed later. Every other step can be repeated."
+        }
+      },
+      "video": {
+        "title": "How to intercept HTTP requests and responses using Burp Suite",
+        "channel": "PortSwigger",
+        "url": "https://www.youtube.com/watch?v=ouDe5sJ_uC8",
+        "start": 0,
+        "length": "5:54",
+        "why": "Shows the real Proxy UI, the intercept toggle and the request and response panes, which the text can only describe."
+      },
+      "commands": [
+        {
+          "cmd": "ss -tlnp | grep 8080",
+          "what": "Shows whether the proxy listener is up and bound to loopback only."
+        },
+        {
+          "cmd": "curl -sS -i -X POST http://10.20.30.15/login --data-urlencode 'email=helpdesk@lab.local' --data-urlencode 'password=Passw0rd123'",
+          "what": "The same request Burp captures, with headers intact, ready to paste into a ticket."
+        },
+        {
+          "cmd": "curl -sS -o /dev/null -w '%{http_code}\\n' --proxy http://127.0.0.1:8080 http://10.20.30.15/",
+          "what": "Proves a browser or script is actually sending its traffic through the proxy."
+        },
+        {
+          "cmd": "curl -sS -I https://portal.lab.local --proxy http://127.0.0.1:8080 --cacert burp-ca.pem",
+          "what": "Returns 200 when the Burp CA is trusted, or error 60 when it is not installed."
+        }
+      ],
+      "pitfalls": [
+        "Leaving intercept on and walking away. The page hangs, the app team raises a second incident, and the cause is the person testing.",
+        "Replaying with a real user's session cookie copied from a support ticket. The test now touches that person's data, and a valid token sits in a proxy history on your laptop.",
+        "Reporting \"no vulnerability found\" after an unauthenticated look at three pages. Burp Community has no scanner, and a pass over the login page says nothing about the admin area."
+      ],
+      "takeaways": [
+        "Written authorization names hosts, window, excluded paths and a stop condition. A chat message is not authorization.",
+        "Burp's scope list filters what you see; it does not stop a browser from requesting anything.",
+        "One changed value per replay, with the request and the response kept together."
+      ],
+      "drill": {
+        "prompt": "Install Burp Suite Community Edition. Start `python3 -m http.server 8000` in an empty folder and set the target scope to `http://localhost:8000` only. Load the page in Burp's browser, send the request to Repeater, and resend it once with the User-Agent header changed.",
+        "minutes": 10,
+        "checklist": [
+          "Your scope list holds exactly one entry, `http://localhost:8000`.",
+          "HTTP history shows the request with its method and status code.",
+          "Repeater holds two sends of the same request, differing only in one header.",
+          "You can name what changed in the response, or say that nothing did.",
+          "No request went to a host you do not own."
+        ]
+      },
+      "sheetTopics": [
+        "Burp Suite"
+      ]
+    },
+    {
+      "id": "l5-5",
+      "moduleId": "m5",
+      "seq": 5,
+      "title": "OWASP Top 10 in practice: break SQLi and XSS, then fix them",
+      "subtitle": "Exploit in the lab, read the code, write the fix.",
+      "minutes": 20,
+      "level": "Diagnosing",
+      "objectives": [
+        "Place a scanner finding in the right OWASP Top 10 category",
+        "Reproduce SQL injection and reflected XSS in a lab with one request each",
+        "Name the code change that fixes each: a bound query, encoded output",
+        "Decide when a candidate finding escalates the same day"
+      ],
+      "ticket": {
+        "from": "Service Desk — application security queue",
+        "subject": "External scan says our item page is open to SQL injection",
+        "body": "The quarterly external scan lists `https://portal.example/item?id=1` as SQL injection, high severity. The application team says the page has been live for four years, and a developer opened it in a browser, typed a quote into the id parameter, and got a normal error page. The report carries no request, no parameter and no evidence, and the scan ran from outside without credentials.",
+        "impact": "The customer signs off the quarterly scan on Friday; this finding is blocking it."
+      },
+      "sections": [
+        {
+          "h": "The scan says SQL injection and the app team says the page is fine",
+          "body": "A quarterly external scan comes back with `SQL injection` against `https://portal.example/item?id=1`. The application team replies that the page has run for four years and \"nobody can inject anything\". Both statements are opinions and the ticket sits for a week.\n\nProving it on the customer's production page is the wrong move. A working injection test against live data is an unapproved attack, and the first thing it does is read rows you are not allowed to read. The right move is a lab copy of the same build, where a request that breaks the page costs nothing.\n\nWhat settles a ticket like this is a request and a response you can show. These are the two findings that produce most injection tickets, how to reproduce each in a lab, and the code change that closes it.\n\nEvery payload below belongs in a lab or inside an authorized engagement. Written authorization names the host, the window and the accounts, and it exists before any request leaves your machine."
+        },
+        {
+          "h": "The list, and the two entries that arrive as tickets",
+          "body": "The OWASP Top 10 is a list of categories, not a checklist of vulnerabilities. The 2021 edition is the current published one, and it moved two things that matter on this desk: broken access control to first place, and cross-site scripting into injection, as one of its forms.\n\n| Category | Where you meet it |\n| --- | --- |\n| A01 Broken access control | data appears after you change the id in the URL |\n| A03 Injection | a quote or a tag changes what the page returns |\n| A05 Security misconfiguration | directory listing, default page, verbose error |\n| A06 Vulnerable components | an old library version named in a scan |\n\nCategories are a vocabulary for the report. The evidence is always a request."
+        },
+        {
+          "h": "SQLi: one quote changes the query",
+          "body": "A login form that pastes strings into SQL is the classic case:\n\n```php\n$sql = \"SELECT id FROM users WHERE email = '\" . $_POST['email'] . \"' AND pw = '\" . $_POST['pw'] . \"'\";\n```\n\nThe database receives one string and cannot tell the developer's quote from the user's. In the lab, submit `' OR '1'='1' -- ` in the email field: the condition becomes true for every row, and everything after `--` is a comment, so the password is never checked.\n\n```bash\n$ curl -sS -i http://lab.local/login.php \\\n    --data-urlencode \"email=' OR '1'='1' -- \" --data-urlencode \"pw=wrong\"\nHTTP/1.1 302 Found\nDate: Mon, 24 Nov 2025 10:02:18 GMT\nLocation: /dashboard.php\nSet-Cookie: PHPSESSID=6c1f0a9d42e7; path=/\nContent-Type: text/html; charset=UTF-8\n```\n\nA `302` to the dashboard with a wrong password is the proof. No rows were dumped, nothing was changed, and the ticket now has a request anyone can replay.\n\nThe fix is a query shape, not a filter. Bind the values so the driver sends the statement and the data on separate paths:\n\n```php\n$stmt = $pdo->prepare('SELECT id, pw_hash FROM users WHERE email = ?');\n$stmt->execute([$_POST['email']]);\n$row = $stmt->fetch();\nif ($row && password_verify($_POST['pw'], $row['pw_hash'])) { /* ... */ }\n```\n\n`mysqli_real_escape_string` and hand-written blocklists still appear in old codebases, but they depend on every call site remembering, and they fail when the character set changes. Prepared statements do not depend on memory. The pattern to grep for on a call is a query string built with `.` or `+` that contains `$_GET` or `$_POST`."
+        },
+        {
+          "h": "XSS: the tag that runs in someone else's browser",
+          "body": "Cross-site scripting is the same mistake aimed at a different interpreter. The server takes a search term and writes it into the HTML unencoded, so the browser reads the user's `<script>` as part of the page and runs it.\n\n```bash\n$ curl -sS 'http://lab.local/search.php?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E' | grep -n 'No results'\n41:<p>No results for <script>alert(1)</script></p>\n```\n\nThe tag came back exactly as sent, which is the evidence. In a browser, it executes. Reflected XSS needs a victim to open a crafted link. Stored XSS sits in a comment or a profile field and is served to every visitor, which is the version that becomes an incident.\n\nThe fix is output encoding at the point of rendering: `htmlspecialchars($q, ENT_QUOTES, 'UTF-8')` in PHP, auto-escaping in a modern template engine, `textContent` instead of `innerHTML` in JavaScript. A Content-Security-Policy is a second layer that limits what an injected script can reach. It does not repair the missing encoding. `HttpOnly` on the session cookie limits cookie theft and does not stop the script from acting as the logged-in user.\n\n**Decision rule:** if the payload comes back unchanged in the response body, the page reflects input without encoding, and that is reflected XSS until you see the encoding applied. If the same value is stored and shown to another account, it is stored XSS, and every visitor is exposed."
+        },
+        {
+          "h": "What you hand over",
+          "body": "```text\nFINDING — SQL injection in login (reproduced in lab)\nAsset: portal build 4.2.1, lab host lab.local (10.20.30.40), work order WO-2211\nParameter: email, POST /login.php\nRequest: email=' OR '1'='1' --   pw=wrong\nResponse: 302 /dashboard.php with a session cookie\nImpact: authentication bypass for any account, no credentials needed\nFix: prepared statement in includes/auth.php; query is concatenated today\nLine: includes/auth.php:38\n```\n\n- Close a candidate finding when the record shows the request, the response and the line that builds the sink.\n- **Escalate to the application owner the same day when** the parameter is reachable without login, or when the same input is stored and shown to other accounts. Both mean anyone can trigger it, not only a tester with a proxy.\n\nThe exploit is a quote. The fix is a query shape and one encoding call. A report that names the file and the line gets fixed faster than one that repeats the scanner's paragraph."
+        }
+      ],
+      "diagram": {
+        "type": "compare",
+        "title": "Two interpreters, two fixes",
+        "caption": "Both columns start with the same user-controlled string. The second interpreter decides the fix, and neither fix is an input blocklist.",
+        "data": {
+          "left": {
+            "title": "SQL injection",
+            "items": [
+              "payload lands in the query",
+              "database returns other rows",
+              "fix: bind the parameters",
+              "test: quote, in the lab"
+            ]
+          },
+          "right": {
+            "title": "Cross-site scripting",
+            "items": [
+              "payload lands in the HTML",
+              "browser runs another user's script",
+              "fix: encode on output",
+              "test: tag, in the lab"
+            ]
+          },
+          "verdict": "Same input, different interpreter. Fix the sink, not the payload."
+        }
+      },
+      "video": {
+        "title": "2021 OWASP Top Ten Overview",
+        "channel": "F5 DevCentral Community",
+        "url": "https://www.youtube.com/watch?v=uu7o6hEswVQ",
+        "start": 0,
+        "length": "8:57",
+        "why": "Introduces the 2021 list and why the categories were reordered, which is the context the table here compresses into four rows."
+      },
+      "commands": [
+        {
+          "cmd": "curl -sS -i http://lab.local/login.php --data-urlencode \"email=' OR '1'='1' -- \" --data-urlencode 'pw=wrong'",
+          "what": "The replay that proves authentication bypass without reading anyone's data."
+        },
+        {
+          "cmd": "curl -sS 'http://lab.local/search.php?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E' | grep -c '<script>alert'",
+          "what": "Counts how many times the payload came back unencoded in the response body."
+        },
+        {
+          "cmd": "sqlmap -u 'http://lab.local/item.php?id=1' --batch --banner",
+          "what": "Lab-only confirmation of the database banner; never run outside the written scope."
+        },
+        {
+          "cmd": "grep -rn --include=*.php -e 'mysqli_query' -e 'mysql_query' /var/www/app/includes",
+          "what": "Lists concatenated query call sites for the code review that follows a confirmed injection."
+        }
+      ],
+      "pitfalls": [
+        "Confirming the finding on the customer's live page. Reading one row of real data turns a scan ticket into a reportable incident the authorization did not cover.",
+        "Treating HTTPS as a fix. Injection happens inside the encrypted request, and TLS changes nothing about how the database reads the string.",
+        "Rating stored XSS as low because \"the user has to click\". A stored payload fires for every visitor of the page, including the admin who reviews comments."
+      ],
+      "takeaways": [
+        "SQL injection changes the query; XSS changes the page. The interpreter tells you the fix.",
+        "Prepared statements and output encoding are the fixes; escaping every call by hand and blocklists are habits that fail.",
+        "A scanner finding is a hypothesis until a request and a response reproduce it in scope."
+      ],
+      "drill": {
+        "prompt": "Write a four-line page in any language on your laptop that echoes a query parameter with no encoding, serve it on `localhost:8000`, and send it the XSS payload from this lesson. Add output encoding, send it again, and keep both responses side by side.",
+        "minutes": 10,
+        "checklist": [
+          "The first response contains `<script>alert(1)</script>` exactly as sent.",
+          "The second response contains `&lt;script&gt;` and no executable tag.",
+          "A browser loads the second version as text, not as script.",
+          "You can name the line you changed and the function that encoded it.",
+          "Nothing was sent to a host you do not own."
+        ]
+      },
+      "sheetTopics": [
+        "OWASP Top 10",
+        "SQL Injection",
+        "Cross-Site Scripting"
+      ]
+    },
+    {
+      "id": "l5-6",
+      "moduleId": "m5",
+      "seq": 6,
+      "title": "Vulnerability scanning, Metasploit and the report that follows",
+      "subtitle": "Validate findings, rate them honestly, and write for the client.",
+      "minutes": 18,
+      "level": "Diagnosing",
+      "objectives": [
+        "Tell a credentialed scan result from an unauthenticated guess",
+        "Validate a scanner finding with an auxiliary module without exploiting it",
+        "Rate a finding against exposure and business context, not color alone",
+        "Write a finding an engineer can fix and a manager can fund"
+      ],
+      "ticket": {
+        "from": "Service Desk — vulnerability management queue",
+        "subject": "412 findings from last night's scan and the customer wants a fix date",
+        "body": "The authenticated scan of 10.20.30.0/24 finished at 02:10 and the portal lists 70 critical findings. The account manager forwarded the PDF to the customer before anyone validated it. The customer's IT lead replied that three of the named hosts were decommissioned in August and wants them removed. An analyst has started deleting those rows by hand. No finding has been reproduced.",
+        "impact": "The weekly security call is tomorrow at 10:00 and the report cannot be defended as written."
+      },
+      "sections": [
+        {
+          "h": "The scan finishes at 02:00 and the report is 412 findings",
+          "body": "The authenticated scan of a customer's /24 finished at 02:10. The portal shows 412 findings, 70 of them critical. The account manager forwarded the PDF at 08:00. By 10:00 the customer's IT lead has replied that three named hosts were decommissioned in August and that one \"critical\" is a printer which only accepts jobs from two addresses.\n\nNobody reproduced anything. The list is technically a scan result and practically unusable, and the cost is paid on the next call, when a real finding is read as another false alarm.\n\nThe work between the scan and the report is the job: triage what the scanner produced, validate what survives, rate it against this customer's exposure, and write it so a manager and an engineer can both act on it. Everything below belongs to a lab or to an engagement with written authorization naming the range, the window and the accounts."
+        },
+        {
+          "h": "Credentials decide how much of the list is real",
+          "body": "An unauthenticated scan sees what a stranger sees: open ports, banners, TLS settings, sometimes a version string. A credentialed scan logs in with a read-only scanning account and reads the actual patch level from the registry or the package database. On the same host the second one reports the real build, so backported patches that fixed a CVE without changing the version string stop appearing as findings. Most false positives in a fresh report disappear with credentials, not with a better scanner.\n\nThe scan does not decide whether it is safe to run. A full port scan with default settings across a /24 can saturate a WAN link or stop an old device. Scan inside the window written in the authorization, exclude the hosts the customer listed as fragile, and use the safe-checks option where the product has one. If a scan causes an outage, the outage is yours."
+        },
+        {
+          "h": "Validate: the scanner says likely, not proven",
+          "body": "An auxiliary module proves reachability, not exploitation. Start by asking which modules can answer the question at all:\n\n```text\nmsf6 > search ms17_010\nMatching Modules\n================\n   #  Name                                     Disclosure Date  Rank    Check  Description\n   -  ----                                     ---------------  ----    -----  -----------\n   0  exploit/windows/smb/ms17_010_eternalblue  2017-03-14      average Yes    MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption\n   1  exploit/windows/smb/ms17_010_psexec       2017-03-14      normal  Yes    MS17-010 EternalRomance/EternalSynergy SMB Remote Windows Code Execution\n   2  auxiliary/scanner/smb/smb_ms17_010                         normal  No     MS17-010 SMB RCE Detection\n   3  auxiliary/admin/smb/ms17_010_command      2017-03-14      normal  No     MS17-010 EternalRomance/EternalSynergy SMB Remote Command Execution\n```\n\nThe `Check` column is the answer to whether `check` works in that module, and many modules say `No`. The auxiliary scanner prints one line per host that answered as likely vulnerable. `likely` is the honest word: the scanner saw the SMB dialect, not a shell.\n\nConfirmation means running the matching exploit module until a session opens, and that is a different authorization from scanning because it changes state on the host. When the scope covers scanning only, the finding stays \"likely vulnerable\" and the report says exactly that."
+        },
+        {
+          "h": "Rate with the customer in the room",
+          "body": "CVSS v3.1 gives a base score from 0 to 10 and a vector string that explains it. The bands most reports use: 9.0-10.0 critical, 7.0-8.9 high, 4.0-6.9 medium, 0.1-3.9 low. The base score assumes a generic worst case, and the vector `AV:N/AC:L/PR:N/UI:N` — network reachable, no privileges, no user action — is what makes one 9.8 worse than another.\n\nTwo findings can share a score and not share a risk. A 9.8 on a test host with no route from the office and no data is a maintenance item. A 7.5 on the VPN gateway, with a public exploit and no compensating control, is this week's problem. Exposure, data sensitivity, existing controls and whether an exploit is already in use decide the order. `searchsploit` answers the last question for a known CVE in seconds.\n\n**Decision rule:** internet-facing, public exploit, no compensating control, it leaves the desk the same hour. Internal, needs credentials, already covered by another control, it goes in the report with that context written next to the score."
+        },
+        {
+          "h": "The report has two readers",
+          "body": "The executive summary is for the person who signs the invoice: what was tested, when, the two or three things that matter, and the business consequence in plain words. No CVE numbers in that paragraph.\n\nEach finding is for the engineer who has to fix it: title, severity and vector, affected asset, evidence, reproduction steps, business impact, the specific remediation (the patch, the setting, the code change), references, and retest status. Evidence means the request and response, the command and its output, or a screenshot with the hostname visible. A finding without a reproduction step is a rumor; put it in the appendix or leave it out.\n\nThe scope section protects both sides. It lists hosts, accounts, tools, dates and what was not tested, so a later \"you missed the database\" has an answer."
+        },
+        {
+          "h": "What you hand over",
+          "body": "```text\nSCAN SUMMARY — 10.20.30.0/24, authenticated, 24 Nov 02:10\nRaw: 412 findings / 70 critical\nAfter triage: 96 findings / 9 critical (duplicates, dead hosts, false positives)\nValidated: 7 reproduced with evidence, 2 marked likely-only (scan scope, no exploit)\nTop: MS17-010 on 10.20.30.21, Windows Server 2008 R2, no owner recorded\nReport: v0.9 to the app owner 25 Nov, retest window 8 Dec\n```\n\n- Close when every finding in the report has an asset, an evidence line, a severity with a reason, and an owner.\n- **Escalate to the engagement lead when** a validated finding is internet-facing with a public exploit, when a host answers that is not on the authorized list, or when someone asks you to test something the authorization does not cover.\n\nA scan is a measurement. The report is the argument about what the measurement means, and the argument is the part the customer pays for."
+        }
+      ],
+      "diagram": {
+        "type": "timeline",
+        "title": "One engagement day, from scope to draft",
+        "caption": "The scan is one hour of the day. Triage, validation and rating take the rest, and the report is written from what survived them.",
+        "data": {
+          "events": [
+            {
+              "t": "09:00",
+              "title": "Scope signed",
+              "detail": "hosts, window, accounts",
+              "actor": "defender"
+            },
+            {
+              "t": "09:45",
+              "title": "Credentialed scan",
+              "detail": "412 findings, 70 critical",
+              "actor": "system"
+            },
+            {
+              "t": "11:30",
+              "title": "Triage",
+              "detail": "duplicates and dead hosts",
+              "actor": "defender"
+            },
+            {
+              "t": "13:15",
+              "title": "Validate in lab",
+              "detail": "aux check, no exploit",
+              "actor": "attacker"
+            },
+            {
+              "t": "15:00",
+              "title": "Rate in context",
+              "detail": "exposure, data, controls",
+              "actor": "defender"
+            },
+            {
+              "t": "17:30",
+              "title": "Draft the report",
+              "detail": "evidence and fix per finding",
+              "actor": "defender"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Launch a Credentialed Scan with Nessus Professional",
+        "channel": "Tenable Product Education",
+        "url": "https://www.youtube.com/watch?v=cEMKm-k-Drs",
+        "start": 0,
+        "length": "3:05",
+        "why": "Shows where the scanning account is attached in the scan policy, the step that removes most false positives in a fresh report."
+      },
+      "commands": [
+        {
+          "cmd": "msfconsole -q -x 'use auxiliary/scanner/smb/smb_ms17_010; set RHOSTS 10.20.30.0/24; set THREADS 4; run; exit'",
+          "what": "Runs the check across the range and prints one line per host that answered as likely vulnerable."
+        },
+        {
+          "cmd": "nmap -sV -p 445 --script smb-vuln-ms17-010 10.20.30.21",
+          "what": "Confirms one host's SMB version and the script verdict, which becomes the evidence line in the report."
+        },
+        {
+          "cmd": "info auxiliary/scanner/smb/smb_ms17_010",
+          "what": "Shows whether the module supports check and which references to cite."
+        },
+        {
+          "cmd": "searchsploit --id smb ms17-010",
+          "what": "Shows whether a public exploit exists, which moves the rating more than the base score does."
+        }
+      ],
+      "pitfalls": [
+        "Scanning the whole /24 with default settings at 10:00. A full scan can saturate a WAN link or reset an old device, and that outage is yours, not a finding.",
+        "Copying the scanner's severity into the customer report. A 9.8 on a dead host and a 9.8 on the VPN gateway read the same, so the customer stops reading the list.",
+        "Firing the exploit module because the scope allowed scanning. Exploitation changes state and needs its own authorization, and \"likely vulnerable\" is a complete finding without it."
+      ],
+      "takeaways": [
+        "Credentials remove more false positives than any scanner setting.",
+        "An auxiliary check says likely; only a reproduction in scope says confirmed.",
+        "Severity is a starting point. Exposure, data and controls decide the order."
+      ],
+      "drill": {
+        "prompt": "Scan only your own machine: `nmap -sV 127.0.0.1`, then look up one open service with `searchsploit`. Write the finding in report form, with title, severity and vector, evidence, impact, remediation and retest, in under 150 words.",
+        "minutes": 10,
+        "checklist": [
+          "The scan target is 127.0.0.1 and nothing else.",
+          "The finding names one service, its port and its version.",
+          "Severity has a vector string next to it, not a color alone.",
+          "Remediation names a version, a setting or a patch, not \"update\".",
+          "The whole finding fits in 150 words."
+        ]
+      },
+      "sheetTopics": [
+        "Vulnerability Scanning",
+        "Metasploit",
+        "Penetration Testing"
+      ]
+    }
+  ]
+}

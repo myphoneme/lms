@@ -1,0 +1,137 @@
+{
+  "moduleId": "m5",
+  "items": [
+    {
+      "title": "Port Scanning Basics",
+      "creator": "Nmap Project (Gordon 'Fyodor' Lyon)",
+      "format": "Docs",
+      "url": "https://nmap.org/book/man-port-scanning-basics.html",
+      "why": "The four states Nmap prints — open, closed, filtered, unfiltered — defined in one table, so a learner stops reading 'filtered' as 'the server is down'. Faster than a video for the exact command output sitting in the ticket.",
+      "struggle": "Nmap says the port is filtered but the service is definitely running — does that mean the server is down?",
+      "topic": "Port Scanning",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "The Art of Scanning",
+      "creator": "Fyodor (Phrack #51)",
+      "format": "Paper",
+      "url": "https://phrack.org/issues/51/the-art-of-scanning",
+      "why": "The 1997 paper behind Nmap explains why the same firewall answers -sS, -sT and -sA differently, which is the gap left by the lesson's one-line flag table. It makes clear that every scan result is an inference about dropped packets, not a measurement.",
+      "struggle": "Why do I get 'filtered' with one Nmap scan type and 'open' with another against the same host?",
+      "topic": "Nmap",
+      "level": "Deep",
+      "cost": "Free"
+    },
+    {
+      "title": "How does Nmap know a port is filtered? Why not say all ports that are not opened are closed?",
+      "creator": "r/AskNetsec",
+      "format": "Thread",
+      "url": "https://www.reddit.com/r/AskNetsec/comments/7et868/how_does_nmap_know_a_port_is_filtered_why_not_say/",
+      "why": "A beginner asks the module's opening question word for word, and the replies explain that 'filtered' means no reply came back at all, so Nmap cannot separate open from closed — plus the -v --reason trick that shows which packet produced the verdict.",
+      "struggle": "How does Nmap know a port is filtered? Why not just call every non-open port closed?",
+      "topic": "Port Scanning",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "CaptureFilters",
+      "creator": "Wireshark Wiki",
+      "format": "Docs",
+      "url": "https://wiki.wireshark.org/CaptureFilters",
+      "why": "Puts 'tcp port 80' and 'tcp.port == 80' side by side and states the rule the lesson turns on: capture filters are fixed before the capture starts, display filters can change while you read. That is the mistake that fills a disk with noise and still misses the failed upload.",
+      "struggle": "Why does my capture filter do nothing, and why can't I change it once the capture is running?",
+      "topic": "Wireshark",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "How to Use Wireshark's Follow TCP Stream Feature",
+      "creator": "Learning Tree International",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=ixVXfUBEciU",
+      "why": "Five minutes of the exact click path — right-click a packet, Follow > TCP Stream — ending on the window that reassembles the request and the server's reply. It replaces a one-hour Wireshark course for the one step the lesson needs: reading the server's own words instead of guessing from a red row.",
+      "struggle": "I can see packets retransmitting but I can't tell what the server actually replied to the client.",
+      "topic": "Wireshark",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Practical Packet Analysis, 3rd Edition",
+      "creator": "Chris Sanders",
+      "format": "Book",
+      "url": "https://nostarch.com/packetanalysis3",
+      "why": "Its capture-setup and TCP-analysis chapters follow the same 'where did the conversation stop' reasoning as the ticket, with packet-level screenshots of resets and retransmissions. Worth paying for because no free page teaches reading a whole TCP stream as patiently as the learner needs after the 90-second upload failure.",
+      "struggle": "How do I tell from a capture whether the client stopped sending or the server stopped answering?",
+      "topic": "Wireshark",
+      "level": "Deep",
+      "cost": "Paid"
+    },
+    {
+      "title": "How to intercept HTTP requests and responses using Burp Suite",
+      "creator": "PortSwigger",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=ouDe5sJ_uC8",
+      "why": "Six minutes of the official Burp tutorial: set the proxy, catch a request, read the raw HTTP, change a value and forward it — the inspect-modify-forward loop the lesson uses to test whether a portal trusts the browser. It stays on the intercept tab instead of touring the whole tool, so a beginner sees the one workflow they will repeat.",
+      "struggle": "Intercept is switched on but nothing ever appears in the Proxy tab — is Burp broken?",
+      "topic": "Burp Suite",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Burp Interception does not work for localhost in Chrome",
+      "creator": "Stack Overflow",
+      "format": "Thread",
+      "url": "https://stackoverflow.com/questions/55616614/burp-interception-does-not-work-for-localhost-in-chrome",
+      "why": "The asker has interception on and still catches nothing; the eight answers walk through Chrome's localhost proxy bypass and the listener mismatch, the same two checks the lesson's 'intercept is a pause button' section prescribes. Better than a quickstart because it starts from the silent failure.",
+      "struggle": "Burp is running with intercept on, but Chrome requests to my local site never show up.",
+      "topic": "Burp Suite",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Running an SQL Injection Attack - Computerphile",
+      "creator": "Computerphile (Dr Mike Pound)",
+      "format": "Video",
+      "url": "https://www.youtube.com/watch?v=ciNHn38EyRc",
+      "why": "Ten minutes on one login form: the quote goes in, the query is rewritten on screen, and the login opens. That is the 'one quote changes the query' moment the lesson builds on, so the learner can judge a scanner finding instead of trusting it.",
+      "struggle": "The scanner says SQL injection but the page looks normal — what would an attacker actually type?",
+      "topic": "SQL Injection",
+      "level": "Starter",
+      "cost": "Free"
+    },
+    {
+      "title": "SQL injection",
+      "creator": "PortSwigger Web Security Academy",
+      "format": "Course",
+      "url": "https://portswigger.net/web-security/sql-injection",
+      "why": "Free labs that make the learner run the payload and then read the vulnerable query, matching the lesson's exploit-read-fix sequence. The lab format forces hands-on practice that a video lets a beginner watch without retaining.",
+      "struggle": "I understand the theory but I freeze when I have to type a payload into a real form.",
+      "topic": "SQL Injection",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Credentials in Tenable One Vulnerability Management Scans",
+      "creator": "Tenable",
+      "format": "Docs",
+      "url": "https://docs.tenable.com/vulnerability-management/Content/Scans/Credentials.htm",
+      "why": "Explains what a credentialed scan sees that an unauthenticated one cannot, which is why last night's 412 findings are mostly banner guesses rather than proof. The vendor's own wording settles the 'is this real?' argument without a second scan.",
+      "struggle": "The scanner reports hundreds of vulnerabilities on a server the team says is fully patched — are any of them real?",
+      "topic": "Vulnerability Scanning",
+      "level": "Working",
+      "cost": "Free"
+    },
+    {
+      "title": "Certificate Transparency as a recon technique",
+      "creator": "inf0junki3 (heapspray.io)",
+      "format": "Article",
+      "url": "https://heapspray.io/posts/certificate-transparency-recon/",
+      "why": "A pentester's own write-up of pulling subdomains from crt.sh without sending a single packet, which is exactly the passive work the lesson allows before the scope letter is signed. It names the internal-sounding hostnames certificates expose and shows the query, so the learner can reproduce it on a domain they are allowed to look at.",
+      "struggle": "How do I find a company's subdomains without scanning anything and without asking them?",
+      "topic": "Reconnaissance",
+      "level": "Starter",
+      "cost": "Free"
+    }
+  ]
+}

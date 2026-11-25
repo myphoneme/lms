@@ -1,0 +1,342 @@
+{
+  "moduleId": "m6",
+  "quiz": {
+    "id": "q6",
+    "moduleId": "m6",
+    "title": "SOC, SIEM and detection — module test",
+    "passPct": 70,
+    "minutes": 12,
+    "questions": [
+      {
+        "id": "q6-1",
+        "q": "At 09:10 a customer reports an odd sign-in. The firewall logs `2026-11-24T14:02:11Z`; the domain controller logs `2026-11-24 19:32:11` with no zone. The SIEM shows the two events five and a half hours apart, in an order that cannot have happened. What is the most likely cause?",
+        "options": [
+          "The DC clock has drifted five hours and needs a time service repair",
+          "The firewall is wrong because it stamps events in UTC instead of local time",
+          "The DC writes local time at UTC+05:30 and the SIEM applied no zone",
+          "The SIEM re-indexed both events at the wrong time after a restart"
+        ],
+        "answer": 2,
+        "explain": "A gap of exactly five and a half hours is a zone offset, so one instant landed at 14:02:11Z and the other at 19:32:11 local; the parser has to carry that source's zone. NTP drift is the tempting answer, but drift lands on seconds or minutes and never on a half-hour boundary.",
+        "tag": "soc"
+      },
+      {
+        "id": "q6-2",
+        "q": "Three sources describe the same failed sign-in. One calls the account `TargetUserName`, one calls it `user`, and one calls it `AccountName`. What does normalizing them onto one schema give you?",
+        "options": [
+          "One field name and one query that work across every source",
+          "Smaller storage, because parsing compresses the raw event on disk",
+          "Encryption of the account field at rest, applied during parsing",
+          "Automatic removal of duplicate events before they reach the queue"
+        ],
+        "answer": 0,
+        "explain": "Normalization maps vendor field names onto a common schema, which is what lets one correlation search and one rule span three vendors. Compression and de-duplication happen in other stages and neither makes a query portable.",
+        "tag": "soc"
+      },
+      {
+        "id": "q6-3",
+        "q": "A search for `host=dc01 EventCode=4625 earliest=-24h` returns nothing today, though the same search returned 300 rows yesterday at the same hour. What do you check first to separate a data fault from a real drop in activity?",
+        "options": [
+          "Whether the index retention window has rolled the data off",
+          "Whether the search string has a typo in the event code",
+          "Whether the account behind the failures was disabled or locked last week",
+          "Whether dc01 still forwards, by checking the age of its newest event"
+        ],
+        "answer": 3,
+        "explain": "The age of the newest event in that sourcetype settles whether the data ever arrived, which is the first question when a working search suddenly returns zero. Retention is the tempting check, but yesterday's rows are still inside a normal 30-day window.",
+        "tag": "soc"
+      },
+      {
+        "id": "q6-4",
+        "q": "You need the number of failed Windows sign-ins per account for the last 24 hours in Splunk. Which search does that?",
+        "options": [
+          "`SecurityEvent | where EventID == 4625 | summarize count() by Account`",
+          "`index=wineventlog EventCode=4625 earliest=-24h | stats count BY user`",
+          "`index=wineventlog EventCode=4625 | table user count`",
+          "`index=wineventlog EventCode=4625 earliest=-24h | dedup user`"
+        ],
+        "answer": 1,
+        "explain": "`stats count BY user` counts the matching events per account and `earliest=-24h` bounds the window. The first option is the tempting one because it names the right event ID, but `where` and `summarize` are KQL and Splunk will not run that search.",
+        "tag": "windows"
+      },
+      {
+        "id": "q6-5",
+        "q": "In Microsoft Sentinel you want one row per account with the number of failed sign-ins from `SecurityEvent`. Which line does the counting?",
+        "options": [
+          "`| project TargetAccount, Failures = count()`",
+          "`| where ResultType == 50126 | project TargetAccount`",
+          "`| summarize Failures = count() by TargetAccount`",
+          "`| extend Failures = count() by TargetAccount`"
+        ],
+        "answer": 2,
+        "explain": "The `summarize` line with `by TargetAccount` collapses the rows to one per account and names the count. `extend` is the tempting line because it creates the column you asked for, but it evaluates per row and cannot aggregate the table.",
+        "tag": "windows"
+      },
+      {
+        "id": "q6-6",
+        "q": "A medium-severity rule fires on `srv-file02`, which holds the finance share. A critical-severity rule fires on `lab-vm-07`, which nobody uses. Which statement matches how priority is set?",
+        "options": [
+          "Priority pairs rule severity with asset urgency, so finance can outrank the lab VM",
+          "Priority is the rule's severity alone, so the critical alert on the unused lab VM must come first",
+          "Priority follows the order the alerts arrived in the queue",
+          "Priority is set by whichever user calls the service desk first"
+        ],
+        "answer": 0,
+        "explain": "The rule fixes severity and the asset fixes urgency; priority needs both, which is why a medium rule on a finance server can outrank a critical rule on a throwaway VM. The second option is the tempting one because the severity label is printed on the alert, but the label says nothing about what the asset is worth.",
+        "tag": "soc"
+      },
+      {
+        "id": "q6-7",
+        "q": "An alert shows 12 failed sign-ins for `svc_backup` from 10.20.4.55 in six minutes on dc01. The analyst plans to close it as a password issue. The paired search returns a successful 4624 for the same account from the same address four minutes later, and 10.20.4.55 has no entry in the asset inventory. What is the right call?",
+        "options": [
+          "Close as benign, because service accounts retry after a credential change",
+          "Close it and raise a password reset with the identity team",
+          "Wait for more failures before deciding anything",
+          "Escalate with the paired 4625 and 4624 events and the unknown source"
+        ],
+        "answer": 3,
+        "explain": "A success that follows a burst of failures, from an address the asset inventory cannot account for, is valid-account use rather than a forgotten password, and L2 needs it now with both events. The first option is the tempting close because service accounts do retry, but a retry from a known host would not end in one success from an unknown one.",
+        "tag": "soc"
+      },
+      {
+        "id": "q6-8",
+        "q": "An EDR alert shows `powershell.exe -enc` with `WINWORD.EXE` as its parent on `ws-042`, user `rpatel`. The decoded command opens a test harness, change `CHG00418` covers the deployment, and no other alert names that host in 24 hours. Your queue holds 20 alerts. What is the best action?",
+        "options": [
+          "Escalate at critical severity because encoded PowerShell is a known ATT&CK technique used by ransomware crews",
+          "Close as benign true positive with the change number, the decoded command and a tuning request",
+          "Disable the PowerShell rule so the queue clears",
+          "Ask the user to rebuild the laptop before the rule fires again"
+        ],
+        "answer": 1,
+        "explain": "The parent, the decoded command and the change number all point at authorized work, so the alert closes with evidence and the rule gets a tuning request instead of a ticket. The first option is the over-escalation this module exists to stop: a technique name describes behavior, not intent.",
+        "tag": "security"
+      },
+      {
+        "id": "q6-9",
+        "q": "An alert fires on `WINWORD.EXE` spawning `powershell.exe -enc`. Which ATT&CK technique should the rule be tagged with?",
+        "options": [
+          "T1566 Phishing",
+          "T1078 Valid Accounts",
+          "T1059.001 Command and Scripting Interpreter: PowerShell",
+          "T1486 Data Encrypted for Impact"
+        ],
+        "answer": 2,
+        "explain": "The telemetry observed a scripting interpreter running an encoded command, which is T1059.001. T1566 is the tempting tag because Word is the parent, but phishing is a delivery hypothesis the alert itself cannot prove.",
+        "tag": "soc"
+      },
+      {
+        "id": "q6-10",
+        "q": "A rule for five failed sign-ins in ten minutes on one account has not fired in three weeks. Last month's tuning added the filter `NOT user=svc_*`. A manual search returns 4,800 sign-in failures in that period, including 12 against `svc_backup` from 10.20.4.55 in six minutes. What is the cause?",
+        "options": [
+          "The wildcard matched svc_backup, so those events never counted",
+          "The events stopped arriving after the tuning change",
+          "The threshold of five is too high for a ten-minute window",
+          "The rule's severity was lowered, so it no longer generates an alert"
+        ],
+        "answer": 0,
+        "explain": "The wildcard matches `svc_backup`, so the exclusion removed the 12 failures before the threshold was ever evaluated. The threshold is the tempting answer because thresholds do cause misses, but twelve events are well above five.",
+        "tag": "soc"
+      }
+    ]
+  },
+  "assignments": [
+    {
+      "id": "a26",
+      "day": 26,
+      "moduleId": "m6",
+      "title": "Put two clocks on one timeline before you trust the order",
+      "level": 3,
+      "minutes": 30,
+      "scenario": "A customer's SOC forwards a suspected account takeover: a VPN login from 203.0.113.45 and a domain logon for the same user four minutes later. Their two sources disagree by five and a half hours, and the analyst has already written that the attacker waited five and a half hours before moving. You have 30 minutes, your laptop, and no access to their SIEM.",
+      "task": "1. Make the folder and the two raw samples. Everything here is synthetic and uses documentation addresses.\n\n```bash\nmkdir -p ~/m6/day26/raw && cd ~/m6/day26\ncat > raw/vpn-01.log <<'EOF'\n2026-11-24T14:02:11Z vpn-01 user=jsmith src=203.0.113.45 action=login result=success\n2026-11-24T14:31:02Z vpn-01 user=jsmith src=203.0.113.45 action=login result=success\nEOF\ncat > raw/dc01.json <<'EOF'\n{\"TimeCreated\":\"2026-11-24 19:36:11\",\"EventID\":4624,\"TargetUserName\":\"jsmith\",\"IpAddress\":\"203.0.113.45\",\"Computer\":\"dc01\"}\n{\"TimeCreated\":\"2026-11-24 20:01:02\",\"EventID\":4625,\"TargetUserName\":\"jsmith\",\"IpAddress\":\"203.0.113.45\",\"Computer\":\"dc01\"}\nEOF\n```\n\n2. Write `normalize.py`. The DC writes local time at UTC+05:30 with no zone, so the parser attaches the offset and converts. Do not subtract five and a half hours from the string by hand.\n\n```python\nimport json\nfrom datetime import datetime, timezone, timedelta\n\nIST = timezone(timedelta(hours=5, minutes=30))  # the zone belongs in the parser config, per source\nrows = []\n\nfor line in open(\"raw/vpn-01.log\"):\n    parts = line.split()\n    ts = datetime.strptime(parts[0], \"%Y-%m-%dT%H:%M:%SZ\").replace(tzinfo=timezone.utc)\n    kv = dict(p.split(\"=\", 1) for p in parts[2:])\n    rows.append({\"ts_utc\": ts.isoformat(), \"host\": parts[1], \"user\": kv[\"user\"],\n                 \"src_ip\": kv[\"src\"], \"event\": \"vpn_login\", \"outcome\": kv[\"result\"]})\n\nfor line in open(\"raw/dc01.json\"):\n    e = json.loads(line)\n    naive = datetime.strptime(e[\"TimeCreated\"], \"%Y-%m-%d %H:%M:%S\")\n    ts = naive.replace(tzinfo=IST).astimezone(timezone.utc)\n    rows.append({\"ts_utc\": ts.isoformat(), \"host\": e[\"Computer\"], \"user\": e[\"TargetUserName\"],\n                 \"src_ip\": e[\"IpAddress\"], \"event\": \"win_%d\" % e[\"EventID\"],\n                 \"outcome\": \"success\" if e[\"EventID\"] == 4624 else \"failure\"})\n\nrows.sort(key=lambda r: r[\"ts_utc\"])\nwith open(\"events.ndjson\", \"w\") as f:\n    for r in rows:\n        f.write(json.dumps(r) + \"\\n\")\nfor r in rows:\n    print(r[\"ts_utc\"], r[\"host\"], r[\"event\"], r[\"outcome\"])\n```\n\n3. Run `python3 normalize.py`. The order must now read 14:02:11+00:00 VPN login, 14:06:11+00:00 successful domain logon, 14:31:02+00:00 second VPN login, 14:31:02+00:00 failed logon.\n\n4. Measure the false gap and the conversion, so the correction rests on arithmetic:\n\n```bash\npython3 - <<'EOF'\nfrom datetime import datetime, timezone, timedelta\nnaive = datetime.strptime(\"2026-11-24 20:01:02\", \"%Y-%m-%d %H:%M:%S\")\nfw = datetime.strptime(\"2026-11-24T14:31:02\", \"%Y-%m-%dT%H:%M:%S\")\nprint(\"naive gap:\", naive - fw)\nfixed = naive.replace(tzinfo=timezone(timedelta(hours=5, minutes=30))).astimezone(timezone.utc)\nprint(\"converted:\", fixed.isoformat())\nEOF\n```\n\n5. Separate a zone from drift on a machine you own: `w32tm /query /status` on Windows, `timedatectl` on Linux, or `date -u` beside `date` on macOS. Write down the offset between the two readings.\n\n6. Write `timeline.md`: the four events in UTC order with the source file for each, the two numbers from step 4, and one paragraph answering the analyst who wrote that the attacker waited five and a half hours.\n\n7. Add one sentence the SIEM owner can act on: which source needs which zone set at parse time, and where that setting lives.\n\nSafety and privacy: all four events are synthetic and every address is from the documentation range 203.0.113.0/24. Do not paste a customer's real log extract into a personal note, a public gist, or a chat tool; replace hostnames and addresses with placeholders first.",
+      "deliverable": "timeline.md with the four events in UTC order, the 5:30:00 naive gap and its conversion, and one sentence naming the source and zone the SIEM owner must set.",
+      "tools": [
+        "python3",
+        "w32tm",
+        "timedatectl",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Normalization is correct",
+          "weight": 40,
+          "lookFor": "the DC rows get the +05:30 offset before conversion, and the table shows all four events in UTC with no naive local timestamp left in the ordering column"
+        },
+        {
+          "criterion": "The gap is settled with arithmetic",
+          "weight": 30,
+          "lookFor": "the note prints the 5:30:00 naive difference and the converted 14:31:02Z instant, and states that a half-hour gap is a zone rather than drift"
+        },
+        {
+          "criterion": "The correction is usable by the SIEM owner",
+          "weight": 30,
+          "lookFor": "one sentence names the DC as the source and UTC+05:30 as the zone to set at parse time, and the ticket correction states the real order without blaming the analyst"
+        }
+      ],
+      "hints": [
+        "Print the rows before you sort them. If the DC row still reads 19:36:11, the offset was never attached and the sort is sorting the wrong number.",
+        "A five-and-a-half-hour offset is a zone, not drift. The same customer can send UTC from the firewall and local time from the DC, which is why the zone belongs in the parser config per source.",
+        "Compare `date -u` with `date` on your own machine. A whole or half-hour difference is a zone; seconds of drift is NTP, and those two get different tickets."
+      ]
+    },
+    {
+      "id": "a27",
+      "day": 27,
+      "moduleId": "m6",
+      "title": "One question, three query languages, one number",
+      "level": 3,
+      "minutes": 35,
+      "scenario": "Your team runs Splunk and Sentinel side by side for a month while a customer migrates. The same question keeps getting three answers: how many failed sign-ins per account in the last 24 hours, and which accounts failed more than five times. L2 and the detection engineer both claim their number is right. You have 35 minutes to settle it with data.",
+      "task": "1. Build the data set. Twenty-four events fall inside the window `2026-11-24T00:00:00Z` to `2026-11-25T00:00:00Z` and three fall outside it, so the time filter has to do real work.\n\n```bash\nmkdir -p ~/m6/day27 && cd ~/m6/day27\npython3 - <<'EOF'\nimport json\nplan = ([(\"jsmith\", \"failure\")] * 7 + [(\"jsmith\", \"success\")] +\n        [(\"svc_backup\", \"failure\")] * 6 +\n        [(\"mgarcia\", \"failure\")] * 6 +\n        [(\"rpatel\", \"failure\")] * 2 +\n        [(\"achen\", \"failure\")] + [(\"rpatel\", \"success\")])\nrows = []\nfor i, (user, result) in enumerate(plan):\n    rows.append({\"ts\": \"2026-11-24T%02d:11:00Z\" % i, \"user\": user,\n                 \"result\": result, \"src_ip\": \"10.20.4.%d\" % (20 + i)})\nfor i in range(3):\n    rows.append({\"ts\": \"2026-11-20T09:0%d:00Z\" % i, \"user\": \"jsmith\",\n                 \"result\": \"failure\", \"src_ip\": \"10.20.4.99\"})\nwith open(\"events.ndjson\", \"w\") as f:\n    for r in rows:\n        f.write(json.dumps(r) + \"\\n\")\nprint(len(rows), \"events\")\nEOF\n```\n\n2. Answer the question with jq: how many failed sign-ins per account inside the window, and which accounts failed more than five times.\n\n```bash\njq -r 'select(.ts >= \"2026-11-24T00:00:00Z\" and .ts < \"2026-11-25T00:00:00Z\")\n       | select(.result == \"failure\") | .user' events.ndjson \\\n  | sort | uniq -c | sort -rn\n```\n\n3. Cut the result to the accounts above the threshold:\n\n```bash\njq -r 'select(.ts >= \"2026-11-24T00:00:00Z\" and .ts < \"2026-11-25T00:00:00Z\")\n       | select(.result == \"failure\") | .user' events.ndjson \\\n  | sort | uniq -c | sort -rn | awk '$1 > 5 {print $2, $1}'\n```\n\n4. Run the same pipeline once without the time filter and write down the difference:\n\n```bash\njq -r 'select(.result == \"failure\") | .user' events.ndjson \\\n  | sort | uniq -c | sort -rn | awk '$1 > 5 {print $2, $1}'\n```\n\nOne sentence says what the missing filter did to jsmith's count.\n\n5. Write the identical logic in three dialects in `queries.md`. Keep each one to a single query.\n\n```text\nSplunk:   index=<index> <event filter> earliest=<window>\n          | stats count AS failures BY <account field> | where failures > 5\nSentinel: <table> | where <time field> > ago(24h) | where <event filter>\n          | summarize failures = count() by <account field> | where failures > 5\nElastic:  FROM <index pattern> | WHERE <event filter> AND <time field> >= NOW() - 1 day\n          | STATS failures = COUNT(*) BY <account field> | WHERE failures > 5\n```\n\nFill each placeholder from the platform's own schema. A placeholder left in place is an unfinished query.\n\n6. Add a table with one row per platform and five columns: platform, index or table, time field and its filter, aggregation clause, and the field that holds the account.\n\n7. State the confirmed numbers from step 3 and the pass condition: all three queries must return the same three accounts with the same counts. A query that returns rows but a different count is wrong, not approximate.\n\nSafety and privacy: this data is synthetic. Never run a customer's account names through a personal Elastic or Splunk install, and keep the file inside the workspace you created.",
+      "deliverable": "queries.md with the jq counts, the same query in SPL, Sentinel KQL and Elastic, and a three-row table of table, time field, aggregation and account field.",
+      "tools": [
+        "jq",
+        "python3",
+        "sort",
+        "uniq",
+        "awk",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Local answer is reproducible",
+          "weight": 35,
+          "lookFor": "the jq pipeline is quoted and its output lists jsmith 7, mgarcia 6 and svc_backup 6 inside the stated window"
+        },
+        {
+          "criterion": "Three dialects use real platform syntax",
+          "weight": 40,
+          "lookFor": "each query names an index or table, a time filter, an aggregation and that platform's own field for the account, with no SPL keywords inside the KQL or the reverse"
+        },
+        {
+          "criterion": "Field and window differences are explained",
+          "weight": 25,
+          "lookFor": "the table sets user against TargetAccount against user.name, and one sentence states what the missing time filter did to jsmith's count"
+        }
+      ],
+      "hints": [
+        "Run the jq once without the time filter and compare. If jsmith reads 10 instead of 7, the window is doing real work and a query without it is wrong.",
+        "Kibana's KQL bar filters documents; the counting happens in Lens or in ES|QL. Say which one you used instead of pretending the filter line aggregates.",
+        "Sentinel's `SecurityEvent` puts the failing account in `TargetAccount`, not `Account`. A ported query usually dies on the field name before it dies on syntax."
+      ]
+    },
+    {
+      "id": "a28",
+      "day": 28,
+      "moduleId": "m6",
+      "title": "Five alerts, five decisions, one escalation rate",
+      "level": 3,
+      "minutes": 40,
+      "scenario": "Monday 08:00. The queue holds five alerts, L2 has three analysts and twelve open incidents, and last week 81 percent of L1 alerts went up the line. Your lead wants every close defended with one field taken from the alert, not a feeling, and every escalation to arrive with the evidence already attached. You have 40 minutes.",
+      "task": "1. Create the queue. Five synthetic alerts, each with the fields the decision will rest on.\n\n```bash\nmkdir -p ~/m6/day28 && cd ~/m6/day28\ncat > alerts.json <<'EOF'\n[\n{\"id\":\"A1\",\"rule\":\"Office process spawned encoded PowerShell\",\"severity\":\"high\",\"host\":\"ws-042\",\"user\":\"rpatel\",\"evidence\":{\"parent\":\"OUTLOOK.EXE\",\"command\":\"powershell.exe -nop -w hidden -enc SQBFAFgA\",\"change_ref\":null,\"alerts_7d\":3}},\n{\"id\":\"A2\",\"rule\":\"Local administrator group changed\",\"severity\":\"medium\",\"host\":\"srv-file02\",\"user\":\"svc_backup\",\"evidence\":{\"change_ref\":\"CHG00409\",\"change_scope\":\"local admin group change approved\",\"window\":\"16:00-18:00\",\"added_account\":\"svc_patch\",\"alerts_7d\":40}},\n{\"id\":\"A3\",\"rule\":\"Failed sign-ins then success\",\"severity\":\"medium\",\"host\":\"dc01\",\"user\":\"svc_backup\",\"evidence\":{\"failures\":12,\"window_minutes\":6,\"src_ip\":\"10.20.4.55\",\"inventory_match\":false,\"success_after_failures\":true}},\n{\"id\":\"A4\",\"rule\":\"Impossible travel\",\"severity\":\"high\",\"host\":\"sentinel\",\"user\":\"mgarcia\",\"evidence\":{\"first_signin\":\"203.0.113.45\",\"second_signin\":\"198.51.100.7\",\"minutes_apart\":6,\"device_1\":\"mgarcia-lt-01\",\"device_2\":\"mgarcia-lt-01\",\"egress\":\"corporate proxy pool, documented\"}},\n{\"id\":\"A5\",\"rule\":\"Malware blocked by antivirus\",\"severity\":\"medium\",\"host\":\"ws-117\",\"user\":\"achen\",\"evidence\":{\"file\":\"%TEMP%\\\\invoice_2026.exe\",\"action\":\"quarantined\",\"executed\":false,\"parent\":\"chrome.exe\"}}\n]\nEOF\n```\n\n2. Print the queue in one screen:\n\n```bash\njq -r '.[] | [.id, .rule, .severity, .host, .user] | @tsv' alerts.json | column -t -s $'\\t'\n```\n\n3. Read the evidence block for each alert and write down the single field that decides it:\n\n```bash\njq '.[] | {id, evidence}' alerts.json\n```\n\n4. Classify each alert as malicious, benign with authorization, benign and contained, or false positive. Then map the class to one action: escalate, close, or explain to the user until one more field arrives.\n\n5. Fill `triage.md` with one row per alert: id, rule, classification, the deciding field and its value, action, owner, and the minutes you spent.\n\n6. Add the escalation rate: how many of the five you escalated, as a count and a percentage, next to the team baseline of 81 percent. Show the arithmetic, not the percentage alone.\n\n7. For each escalated alert, write the two lines L2 needs: what the evidence proves, and what they should check first.\n\n8. Send one tuning request for A2, the noisiest rule at 40 alerts a week: the exact field and value to add or exclude, why it is safe this week, and the blind spot the change creates.\n\nSafety and privacy: this queue is invented and every address is from the documentation ranges. If you rebuild it from a real queue, strip user names, host names and addresses before you save it, and never post an alert screenshot that shows customer data.",
+      "deliverable": "triage.md with a five-row decision table, the escalation count and percentage against the 81 percent baseline, and one exact tuning request.",
+      "tools": [
+        "jq",
+        "column",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Classification matches the evidence",
+          "weight": 40,
+          "lookFor": "each of the five alerts carries a classification and the one deciding field with its value, and A1 and A3 are the two escalated alerts"
+        },
+        {
+          "criterion": "Escalation rate is measured against the baseline",
+          "weight": 25,
+          "lookFor": "states 2 of 5 and 40 percent next to the 81 percent baseline, and the arithmetic is shown rather than asserted"
+        },
+        {
+          "criterion": "Tuning request is specific and honest",
+          "weight": 35,
+          "lookFor": "names the exact field and value to exclude on A2, argues why it is safe this week, and names the blind spot: an admin change made inside the same window would not alert"
+        }
+      ],
+      "hints": [
+        "Start with the field that changes the story: a change number, a parent process, a device ID, a quarantine result. The severity label is not evidence.",
+        "A close without a named field is the failure this drill targets. If you cannot name the field, the alert is inconclusive, not closed.",
+        "For A4 the same device ID on both sign-ins is the evidence. For A3 an unknown host in the server subnet is the evidence. Different fields, different decisions."
+      ]
+    },
+    {
+      "id": "a29",
+      "day": 29,
+      "moduleId": "m6",
+      "title": "Write the rule, convert it, then count its false positives",
+      "level": 3,
+      "minutes": 50,
+      "scenario": "Detection engineering asks L1 for one rule they would actually trust. You pick Office-spawned encoded PowerShell, the behavior behind a good share of the queue. You have 50 minutes and a laptop, and the rule will be judged by how quiet it stays on a normal day, not by how impressive it looks.",
+      "task": "1. Install the free tooling and see which conversion backends you have.\n\n```bash\nmkdir -p ~/m6/day29 && cd ~/m6/day29\npython3 -m venv .venv\nsource .venv/bin/activate\npython3 -m pip install sigma-cli pyyaml\nsigma --version\nsigma plugin list\n```\n\nOn Windows PowerShell the first two lines are `py -m venv .venv` then `.venv\\Scripts\\Activate.ps1`; the rest is the same.\n\n2. Generate a rule id, then write `rule.yml`. Fill in the two missing conditions: the PowerShell image and the encoded-command switch. Keep the parent condition and the level.\n\n```bash\npython3 -c \"import uuid; print(uuid.uuid4())\"\n```\n\n```yaml\ntitle: Office process spawns encoded PowerShell\nid: 00000000-0000-4000-8000-000000000000  # replace with the uuid you generated\nstatus: experimental\ndescription: Detects an Office application launching PowerShell with an encoded command.\nauthor: your name\ndate: 2026/11/24\nlogsource:\n  category: process_creation\n  product: windows\ndetection:\n  selection:\n    ParentImage|endswith: '\\WINWORD.EXE'\n    # add the PowerShell image condition\n    # add the encoded-command condition\n  condition: selection\nlevel: high\ntags:\n  - attack.t1059.001\nfields:\n  - CommandLine\n  - ParentImage\nfalsepositives:\n  - Build or packaging scripts launched from an Office macro\n```\n\n3. Validate before you convert:\n\n```bash\npython3 -c \"import yaml; d = yaml.safe_load(open('rule.yml')); print(d['logsource'], d['detection']['condition'])\"\n```\n\n4. Convert to the two languages your team uses. If a backend is missing, `sigma plugin list` prints the name to install.\n\n```bash\nsigma convert -t splunk rule.yml > rule.spl\nsigma convert -t sentinel rule.yml > rule.kql\ncat rule.spl\n```\n\n5. Save this as `build_events.py`, run `python3 build_events.py`, and confirm it writes 240 events: 238 normal, one encoded command from Word, one legitimate `-Encoding UTF8` script from Excel.\n\n```python\nimport json\nrows = []\nfor i in range(237):\n    rows.append({\"Image\": \"C:\\\\Windows\\\\System32\\\\notepad.exe\",\n                 \"ParentImage\": \"C:\\\\Windows\\\\explorer.exe\",\n                 \"CommandLine\": \"notepad.exe C:\\\\temp\\\\note%d.txt\" % i})\nrows.append({\"Image\": \"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\",\n             \"ParentImage\": \"C:\\\\Program Files\\\\Microsoft Office\\\\root\\\\Office16\\\\EXCEL.EXE\",\n             \"CommandLine\": \"powershell.exe -Encoding UTF8 -File C:\\\\scripts\\\\build.ps1\"})\nrows.append({\"Image\": \"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\",\n             \"ParentImage\": \"C:\\\\Program Files\\\\Microsoft Office\\\\root\\\\Office16\\\\WINWORD.EXE\",\n             \"CommandLine\": \"powershell.exe -nop -w hidden -enc SQBFAFgAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACkA\"})\nrows.append({\"Image\": \"C:\\\\Windows\\\\System32\\\\cmd.exe\",\n             \"ParentImage\": \"C:\\\\Windows\\\\explorer.exe\",\n             \"CommandLine\": \"cmd.exe /c whoami\"})\nwith open(\"events.json\", \"w\") as f:\n    json.dump(rows, f)\nprint(len(rows))\n```\n\n6. Write `match.py`, run it, and check that it applies the same three conditions. The first run should hit two events: the real one and one false positive.\n\n```python\nimport json\n\ndef hit(e):\n    cmd = e[\"CommandLine\"].lower()\n    return (e[\"ParentImage\"].lower().endswith((\"winword.exe\", \"excel.exe\"))\n            and e[\"Image\"].lower().endswith(\"powershell.exe\")\n            and \"-enc\" in cmd)\n\nrows = json.load(open(\"events.json\"))\nhits = [e for e in rows if hit(e)]\nprint(\"hits:\", len(hits))\nfor h in hits:\n    print(h[\"ParentImage\"].split(\"\\\\\")[-1], h[\"CommandLine\"][:70])\n```\n\n7. Tune once. Narrow the encoded-command condition so `-Encoding UTF8` stops matching, re-run `match.py`, and record the new hit count. Then write one sentence naming a switch form the tuned rule now misses.\n\n8. Write `detection.md`: the rule summary, the converted queries, the hit counts before and after tuning, the ATT&CK tags with the technique they name, and the blind spot.\n\nSafety and privacy: every event is synthetic and the base64 string is a fixed public sample, not something you generate or run. Do not execute encoded PowerShell to make your own data, do not test this rule against a customer's logs, and do not paste a rule from a customer repository into a public gist.",
+      "deliverable": "detection.md with the parsing rule, the converted SPL or KQL, hit counts before and after tuning, the ATT&CK tags, and the blind spot.",
+      "tools": [
+        "python3",
+        "pip",
+        "sigma-cli",
+        "PyYAML",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Rule logic is valid and behavior-based",
+          "weight": 35,
+          "lookFor": "rule.yml parses with yaml.safe_load, the condition is selection, and the three field conditions require an Office parent, the PowerShell image and an encoded-command switch"
+        },
+        {
+          "criterion": "Conversion and test numbers are real",
+          "weight": 35,
+          "lookFor": "shows the converted query text plus hit counts of 2 before tuning and 1 after, taken from a matcher run on the 240 events"
+        },
+        {
+          "criterion": "The tuning trade-off is stated",
+          "weight": 30,
+          "lookFor": "names the -Encoding false positive, the narrowed condition that removed it, and one switch form the rule now misses"
+        }
+      ],
+      "hints": [
+        "`-enc` is a prefix of `-Encoding`, so a legitimate `powershell.exe -Encoding UTF8` matches. Put that event in the test set before you tune, or you will never see the problem.",
+        "Sigma's modifiers do the work: `|endswith` and `|contains` on one field with a list means OR, and different fields inside one selection are ANDed.",
+        "If `sigma convert -t splunk` fails, run `sigma plugin list` and install the backend it names. A hand translation is acceptable if you say which route you took."
+      ]
+    },
+    {
+      "id": "a30",
+      "day": 30,
+      "moduleId": "m6",
+      "title": "Run the shift: twelve alerts, one incident, one handover",
+      "level": 3,
+      "minutes": 60,
+      "scenario": "It is 17:40 and you hand over at 18:40. Twelve alerts arrived from five sources about one customer. Four can close with evidence, and eight are one incident that moved from a VPN login to a domain account, a scheduled task, an admin share and a 48 MB upload. The previous shift escalated all twelve as separate tickets. L2 needs one timeline before they touch anything.",
+      "task": "Part A: build the shift.\n\n1. Create the twelve alerts. Times are UTC, addresses are documentation ranges, and one hash appears twice.\n\n```bash\nmkdir -p ~/m6/day30 && cd ~/m6/day30\npython3 - <<'EOF'\nimport json\nH1 = \"4c1f8a2b6d9e0f3a5c7b1d2e4f60718293a4b5c6d7e8f9012345678abcdef012\"\nrows = [\n{\"ts\":\"2026-11-24T14:02:11Z\",\"source\":\"vpn-01\",\"rule\":\"VPN login\",\"host\":\"vpn-01\",\"user\":\"jsmith\",\"src_ip\":\"203.0.113.45\",\"severity\":\"medium\",\"evidence\":{\"device\":\"unmanaged\",\"mfa\":\"satisfied\"}},\n{\"ts\":\"2026-11-24T14:31:02Z\",\"source\":\"dc01\",\"rule\":\"Brute force\",\"host\":\"dc01\",\"user\":\"svc_backup\",\"src_ip\":\"10.20.4.55\",\"severity\":\"medium\",\"evidence\":{\"failures\":12,\"window_minutes\":6,\"inventory_match\":False}},\n{\"ts\":\"2026-11-24T14:33:40Z\",\"source\":\"dc01\",\"rule\":\"Logon success after failures\",\"host\":\"dc01\",\"user\":\"svc_backup\",\"src_ip\":\"10.20.4.55\",\"severity\":\"high\",\"evidence\":{\"event_id\":4624,\"logon_type\":3}},\n{\"ts\":\"2026-11-24T14:40:02Z\",\"source\":\"edr\",\"rule\":\"Office spawned encoded PowerShell\",\"host\":\"ws-042\",\"user\":\"rpatel\",\"src_ip\":None,\"severity\":\"high\",\"file_hash\":H1,\"evidence\":{\"parent\":\"WINWORD.EXE\",\"command\":\"powershell.exe -nop -w hidden -enc SQBFAFgA\"}},\n{\"ts\":\"2026-11-24T14:41:10Z\",\"source\":\"edr\",\"rule\":\"Scheduled task created\",\"host\":\"ws-042\",\"user\":\"rpatel\",\"src_ip\":None,\"severity\":\"medium\",\"evidence\":{\"task\":\"Updater\",\"binary\":\"%APPDATA%\\\\Updater.exe\"}},\n{\"ts\":\"2026-11-24T15:02:55Z\",\"source\":\"dc01\",\"rule\":\"File written to admin share\",\"host\":\"srv-file02\",\"user\":\"svc_backup\",\"src_ip\":\"10.20.4.55\",\"severity\":\"high\",\"file_hash\":H1,\"evidence\":{\"path\":\"\\\\\\\\srv-file02\\\\finance\\\\Updater.exe\"}},\n{\"ts\":\"2026-11-24T15:10:12Z\",\"source\":\"fw-edge-1\",\"rule\":\"Outbound transfer to new destination\",\"host\":\"srv-file02\",\"user\":None,\"src_ip\":\"10.20.4.55\",\"dest_ip\":\"198.51.100.7\",\"severity\":\"high\",\"evidence\":{\"port\":443,\"bytes\":50331648}},\n{\"ts\":\"2026-11-24T16:05:00Z\",\"source\":\"sentinel\",\"rule\":\"Impossible travel\",\"host\":\"sentinel\",\"user\":\"mgarcia\",\"src_ip\":\"203.0.113.45\",\"severity\":\"high\",\"evidence\":{\"second_ip\":\"198.51.100.7\",\"minutes_apart\":6,\"device_1\":\"mgarcia-lt-01\",\"device_2\":\"mgarcia-lt-01\",\"egress\":\"corporate proxy pool\"}},\n{\"ts\":\"2026-11-24T16:20:00Z\",\"source\":\"edr\",\"rule\":\"Malware blocked by antivirus\",\"host\":\"ws-117\",\"user\":\"achen\",\"src_ip\":None,\"severity\":\"medium\",\"evidence\":{\"file\":\"%TEMP%\\\\invoice_2026.exe\",\"action\":\"quarantined\",\"executed\":False}},\n{\"ts\":\"2026-11-24T16:35:00Z\",\"source\":\"dc01\",\"rule\":\"Local administrator added\",\"host\":\"srv-file02\",\"user\":\"svc_backup\",\"src_ip\":\"10.20.4.55\",\"severity\":\"medium\",\"evidence\":{\"change_ref\":\"CHG00412\",\"change_covers\":\"patch window only\",\"admin_change_in_scope\":False}},\n{\"ts\":\"2026-11-24T16:40:00Z\",\"source\":\"edr\",\"rule\":\"USB device connected\",\"host\":\"ws-088\",\"user\":\"tnguyen\",\"src_ip\":None,\"severity\":\"low\",\"evidence\":{\"device\":\"Samsung flash\",\"files_copied\":0}},\n{\"ts\":\"2026-11-24T16:50:00Z\",\"source\":\"dc01\",\"rule\":\"File written to admin share\",\"host\":\"srv-file02\",\"user\":\"svc_backup\",\"src_ip\":\"10.20.9.20\",\"severity\":\"low\",\"file_hash\":None,\"evidence\":{\"path\":\"\\\\\\\\srv-file02\\\\backup\\\\nightly.bak\",\"job\":\"nightly backup, documented\"}}\n]\nwith open(\"shift.ndjson\", \"w\") as f:\n    for r in rows:\n        f.write(json.dumps(r) + \"\\n\")\nprint(len(rows), \"alerts\")\nEOF\n```\n\n2. Put the queue in time order:\n\n```bash\njq -r '[.ts, .source, .rule, .user] | @tsv' shift.ndjson | sort\n```\n\n3. Count the shared entities before you count tickets:\n\n```bash\njq -r '.user // empty' shift.ndjson | sort | uniq -c | sort -rn\njq -r '.src_ip // empty' shift.ndjson | sort | uniq -c | sort -rn\njq -r '.host // empty' shift.ndjson | sort | uniq -c | sort -rn\n```\n\n4. Pivot on the address that keeps appearing:\n\n```bash\njq -r 'select(.src_ip == \"10.20.4.55\") | [.ts, .rule, .host] | @tsv' shift.ndjson | sort\n```\n\n5. Pivot on the hash, which is the only artifact that proves the tool moved between hosts:\n\n```bash\njq -r 'select(.file_hash) | [.file_hash, .host] | @tsv' shift.ndjson | sort -u\n```\n\n6. Classify all twelve: eight belong to one incident, four close with evidence. For each close, name the deciding field. For each incident alert, name the one field that puts it in the incident and not in a separate ticket.\n\n7. Write `incident.md` with a timeline of the eight incident alerts in UTC order, one row per step: time, host, user, what happened, and the ATT&CK technique ID. Use the technique that the telemetry shows, not the one the story suggests.\n\n8. Decide the two indicators. For the hash, state block, hunt or no action, and run the pivot that supports it. For 198.51.100.7, state block, hunt or no action, and say what the outbound record proves. Write one line on why you would not upload the hash or the file to a public analysis service without the customer's approval.\n\n9. Decide containment before you write the report, because the next hour matters more than the note. For `srv-file02` and `svc_backup`, choose the action that can be undone (network isolation through the EDR, a temporary disable on the service account), name who approves it, and name the one action you would not take at L1 alone, such as shutting the switch port under the running backup job.\n\n10. Write `handover.md` in six labeled lines, under 150 words: Symptom, Scope, Timeline, Evidence, Ruled out, Ask. Add two tuning requests and one detection gap this shift exposed.\n\nPart B: the call.\n\n11. Write the one sentence you would say to L2 at handover, and the one condition that would have made you close the whole incident instead of escalating it.\n\nSafety and privacy: every alert here is synthetic. Do not run any of these commands against a real customer's SIEM, do not copy a real hash into a public lookup service, and keep the documentation addresses in place of any real ones.",
+      "deliverable": "incident.md with one incident timeline carrying a technique per step, four closes each tied to a field, and handover.md in six labeled lines.",
+      "tools": [
+        "jq",
+        "python3",
+        "sort",
+        "uniq",
+        "text editor"
+      ],
+      "rubric": [
+        {
+          "criterion": "Correlation and timeline",
+          "weight": 40,
+          "lookFor": "one incident rather than eight tickets, a UTC-ordered timeline of the eight incident alerts, and a technique ID on each step taken from the telemetry"
+        },
+        {
+          "criterion": "Decisions, evidence and containment",
+          "weight": 35,
+          "lookFor": "the four closes each name a deciding field, the local-admin alert is escalated because the change covers the patch window only, and the containment step names which action L1 may apply alone and which needs the incident owner"
+        },
+        {
+          "criterion": "Handover and follow-ups",
+          "weight": 25,
+          "lookFor": "six labeled lines under 150 words with all six filled, two tuning requests, and one detection gap written as a missing source or condition"
+        }
+      ],
+      "hints": [
+        "Count shared values before you count alerts: one source address and one service account appear in most of the incident rows. That overlap is the incident boundary.",
+        "The change number is a clue, not a close. CHG00412 covers a patch window, and a patch window does not authorize creating a local administrator.",
+        "The contrast pair is the two admin-share alerts: same behavior, different source. One is a documented backup job, the other is a host with no inventory entry."
+      ]
+    }
+  ]
+}

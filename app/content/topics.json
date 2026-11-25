@@ -1,0 +1,762 @@
+{
+ "source": "Complete traning Topics .html",
+ "sections": [
+  {
+   "section": "Topic",
+   "col2": "What you should understand",
+   "rows": [
+    {
+     "a": "OSI Model",
+     "b": "All 7 layers and their functions",
+     "c": ""
+    },
+    {
+     "a": "TCP/IP Model",
+     "b": "Network communication architecture",
+     "c": ""
+    },
+    {
+     "a": "IP Addressing",
+     "b": "IPv4, IPv6, public and private IP",
+     "c": ""
+    },
+    {
+     "a": "Subnetting",
+     "b": "Network ranges and subnet masks",
+     "c": ""
+    },
+    {
+     "a": "DNS",
+     "b": "How domain names resolve into IP addresses",
+     "c": ""
+    },
+    {
+     "a": "DHCP",
+     "b": "Automatic IP address assignment",
+     "c": ""
+    },
+    {
+     "a": "HTTP/HTTPS",
+     "b": "How websites communicate",
+     "c": ""
+    },
+    {
+     "a": "TCP and UDP",
+     "b": "Differences and use cases",
+     "c": ""
+    },
+    {
+     "a": "Ports and Protocols",
+     "b": "Common ports and services",
+     "c": ""
+    },
+    {
+     "a": "Routing and Switching",
+     "b": "How packets move across networks",
+     "c": ""
+    },
+    {
+     "a": "Firewalls",
+     "b": "Filtering network traffic",
+     "c": ""
+    },
+    {
+     "a": "VPN",
+     "b": "Secure network communication",
+     "c": ""
+    }
+   ],
+   "index": 0
+  },
+  {
+   "section": "Port",
+   "col2": "Protocol",
+   "rows": [
+    {
+     "a": "20, 21",
+     "b": "FTP",
+     "c": "File transfer"
+    },
+    {
+     "a": "22",
+     "b": "SSH",
+     "c": "Secure remote access"
+    },
+    {
+     "a": "23",
+     "b": "Telnet",
+     "c": "Remote terminal"
+    },
+    {
+     "a": "25",
+     "b": "SMTP",
+     "c": "Email transfer"
+    },
+    {
+     "a": "53",
+     "b": "DNS",
+     "c": "Domain resolution"
+    },
+    {
+     "a": "80",
+     "b": "HTTP",
+     "c": "Web traffic"
+    },
+    {
+     "a": "110",
+     "b": "POP3",
+     "c": "Email retrieval"
+    },
+    {
+     "a": "143",
+     "b": "IMAP",
+     "c": "Email retrieval"
+    },
+    {
+     "a": "443",
+     "b": "HTTPS",
+     "c": "Secure web traffic"
+    },
+    {
+     "a": "445",
+     "b": "SMB",
+     "c": "Windows file sharing"
+    },
+    {
+     "a": "3389",
+     "b": "RDP",
+     "c": "Remote desktop"
+    }
+   ],
+   "index": 13
+  },
+  {
+   "section": "Command",
+   "col2": "Purpose",
+   "rows": [
+    {
+     "a": "pwd",
+     "b": "Current directory",
+     "c": ""
+    },
+    {
+     "a": "ls",
+     "b": "List files",
+     "c": ""
+    },
+    {
+     "a": "cd",
+     "b": "Change directory",
+     "c": ""
+    },
+    {
+     "a": "mkdir",
+     "b": "Create directory",
+     "c": ""
+    },
+    {
+     "a": "cat",
+     "b": "Read file contents",
+     "c": ""
+    },
+    {
+     "a": "grep",
+     "b": "Search text",
+     "c": ""
+    },
+    {
+     "a": "find",
+     "b": "Find files",
+     "c": ""
+    },
+    {
+     "a": "chmod",
+     "b": "Change permissions",
+     "c": ""
+    },
+    {
+     "a": "chown",
+     "b": "Change file ownership",
+     "c": ""
+    },
+    {
+     "a": "ps",
+     "b": "View processes",
+     "c": ""
+    },
+    {
+     "a": "top",
+     "b": "Monitor processes",
+     "c": ""
+    },
+    {
+     "a": "sudo",
+     "b": "Execute with elevated privileges",
+     "c": ""
+    },
+    {
+     "a": "ip addr",
+     "b": "View IP configuration",
+     "c": ""
+    },
+    {
+     "a": "ss -tulnp",
+     "b": "View listening sockets",
+     "c": ""
+    },
+    {
+     "a": "journalctl",
+     "b": "Inspect system logs",
+     "c": ""
+    }
+   ],
+   "index": 25
+  },
+  {
+   "section": "Command",
+   "col2": "Purpose",
+   "rows": [
+    {
+     "a": "ipconfig",
+     "b": "Network configuration",
+     "c": ""
+    },
+    {
+     "a": "ping",
+     "b": "Test connectivity",
+     "c": ""
+    },
+    {
+     "a": "whoami",
+     "b": "Current user",
+     "c": ""
+    },
+    {
+     "a": "tasklist",
+     "b": "List running processes",
+     "c": ""
+    },
+    {
+     "a": "net user",
+     "b": "Manage local users",
+     "c": ""
+    },
+    {
+     "a": "Get-Process",
+     "b": "View processes in PowerShell",
+     "c": ""
+    },
+    {
+     "a": "Get-Service",
+     "b": "View system services",
+     "c": ""
+    },
+    {
+     "a": "Get-EventLog",
+     "b": "Query supported Windows event logs",
+     "c": ""
+    },
+    {
+     "a": "Get-WinEvent",
+     "b": "Query Windows event logs",
+     "c": ""
+    }
+   ],
+   "index": 41
+  },
+  {
+   "section": "Category",
+   "col2": "Concepts",
+   "rows": [
+    {
+     "a": "Security Principles",
+     "b": "CIA Triad",
+     "c": ""
+    },
+    {
+     "a": "Identity Security",
+     "b": "Authentication and Authorization",
+     "c": ""
+    },
+    {
+     "a": "Cryptography",
+     "b": "Encryption and Hashing",
+     "c": ""
+    },
+    {
+     "a": "Access Security",
+     "b": "MFA and Access Control",
+     "c": ""
+    },
+    {
+     "a": "Network Protection",
+     "b": "Network Security",
+     "c": ""
+    },
+    {
+     "a": "Device Protection",
+     "b": "Endpoint Security",
+     "c": ""
+    },
+    {
+     "a": "Application Protection",
+     "b": "Web Security",
+     "c": ""
+    },
+    {
+     "a": "Risk Management",
+     "b": "Vulnerability Management",
+     "c": ""
+    },
+    {
+     "a": "Governance",
+     "b": "Security Policies",
+     "c": ""
+    }
+   ],
+   "index": 51
+  },
+  {
+   "section": "Topic",
+   "col2": "What you should learn",
+   "rows": [
+    {
+     "a": "Reconnaissance",
+     "b": "Collect information about a target",
+     "c": ""
+    },
+    {
+     "a": "Footprinting",
+     "b": "Understand target infrastructure",
+     "c": ""
+    },
+    {
+     "a": "Port Scanning",
+     "b": "Identify exposed services",
+     "c": ""
+    },
+    {
+     "a": "Nmap",
+     "b": "Network discovery and service detection",
+     "c": ""
+    },
+    {
+     "a": "Wireshark",
+     "b": "Analyze network traffic",
+     "c": ""
+    },
+    {
+     "a": "Burp Suite",
+     "b": "Test web application security",
+     "c": ""
+    },
+    {
+     "a": "Metasploit",
+     "b": "Understand and validate vulnerabilities in labs",
+     "c": ""
+    },
+    {
+     "a": "OWASP Top 10",
+     "b": "Common web application security risks",
+     "c": ""
+    },
+    {
+     "a": "SQL Injection",
+     "b": "Understand database query injection",
+     "c": ""
+    },
+    {
+     "a": "Cross-Site Scripting",
+     "b": "Understand browser-side script injection",
+     "c": ""
+    },
+    {
+     "a": "Vulnerability Scanning",
+     "b": "Identify known security weaknesses",
+     "c": ""
+    },
+    {
+     "a": "Penetration Testing",
+     "b": "Assess security through authorized testing",
+     "c": ""
+    }
+   ],
+   "index": 61
+  },
+  {
+   "section": "Category",
+   "col2": "Concepts",
+   "rows": [
+    {
+     "a": "Log Management",
+     "b": "Log analysis and event monitoring",
+     "c": ""
+    },
+    {
+     "a": "SIEM",
+     "b": "SIEM fundamentals",
+     "c": ""
+    }
+   ],
+   "index": 74
+  },
+  {
+   "section": "Tools",
+   "col2": "Splunk, Microsoft Sentinel, Elastic Security",
+   "rows": [
+    {
+     "a": "Threat Detection",
+     "b": "Identify suspicious activities",
+     "c": ""
+    },
+    {
+     "a": "Security Alerts",
+     "b": "Understand and investigate alerts",
+     "c": ""
+    },
+    {
+     "a": "Incident Correlation",
+     "b": "Connect multiple security events",
+     "c": ""
+    },
+    {
+     "a": "Detection Engineering",
+     "b": "Develop security use cases",
+     "c": ""
+    },
+    {
+     "a": "Threat Intelligence",
+     "b": "Understand indicators of compromise",
+     "c": ""
+    }
+   ],
+   "index": 77
+  },
+  {
+   "section": "Framework",
+   "col2": "MITRE ATT&CK",
+   "rows": [],
+   "index": 83
+  },
+  {
+   "section": "Stage",
+   "col2": "What you should understand",
+   "rows": [
+    {
+     "a": "Identification",
+     "b": "Detect suspicious activity",
+     "c": ""
+    },
+    {
+     "a": "Classification",
+     "b": "Determine severity and priority",
+     "c": ""
+    },
+    {
+     "a": "Investigation",
+     "b": "Investigate the threat",
+     "c": ""
+    },
+    {
+     "a": "Evidence Collection",
+     "b": "Preserve logs and digital evidence",
+     "c": ""
+    },
+    {
+     "a": "Digital Forensics",
+     "b": "Analyze files, logs and system artefacts",
+     "c": ""
+    },
+    {
+     "a": "Malware Analysis",
+     "b": "Understand suspicious files safely",
+     "c": ""
+    },
+    {
+     "a": "Containment",
+     "b": "Limit the spread of the incident",
+     "c": ""
+    },
+    {
+     "a": "Eradication",
+     "b": "Remove the root threat",
+     "c": ""
+    },
+    {
+     "a": "Recovery",
+     "b": "Restore affected systems",
+     "c": ""
+    },
+    {
+     "a": "Root Cause Analysis",
+     "b": "Understand why it happened",
+     "c": ""
+    },
+    {
+     "a": "Documentation",
+     "b": "Record incident details",
+     "c": ""
+    },
+    {
+     "a": "Reporting",
+     "b": "Communicate findings and recommendations",
+     "c": ""
+    }
+   ],
+   "index": 84
+  },
+  {
+   "section": "Category",
+   "col2": "Concepts",
+   "rows": [
+    {
+     "a": "Python",
+     "b": "Python basics and scripting",
+     "c": ""
+    },
+    {
+     "a": "Linux Automation",
+     "b": "Bash scripting",
+     "c": ""
+    },
+    {
+     "a": "Windows Automation",
+     "b": "PowerShell scripting",
+     "c": ""
+    },
+    {
+     "a": "Log Processing",
+     "b": "Log parsing",
+     "c": ""
+    },
+    {
+     "a": "Security Automation",
+     "b": "Automating repetitive tasks",
+     "c": ""
+    },
+    {
+     "a": "Integrations",
+     "b": "API integration",
+     "c": ""
+    },
+    {
+     "a": "Threat Intelligence",
+     "b": "IOC extraction",
+     "c": ""
+    },
+    {
+     "a": "Threat Hunting",
+     "b": "Search for hidden threats",
+     "c": ""
+    },
+    {
+     "a": "Detection",
+     "b": "YARA rules",
+     "c": ""
+    },
+    {
+     "a": "Programming",
+     "b": "Regular expressions",
+     "c": ""
+    },
+    {
+     "a": "Monitoring",
+     "b": "Automated alerting",
+     "c": ""
+    },
+    {
+     "a": "Response",
+     "b": "Security playbooks",
+     "c": ""
+    }
+   ],
+   "index": 97
+  },
+  {
+   "section": "Library",
+   "col2": "Purpose",
+   "rows": [
+    {
+     "a": "requests",
+     "b": "API requests",
+     "c": ""
+    },
+    {
+     "a": "json",
+     "b": "Process JSON data",
+     "c": ""
+    },
+    {
+     "a": "re",
+     "b": "Regular expressions",
+     "c": ""
+    },
+    {
+     "a": "pandas",
+     "b": "Analyze logs and datasets",
+     "c": ""
+    },
+    {
+     "a": "socket",
+     "b": "Network programming",
+     "c": ""
+    },
+    {
+     "a": "hashlib",
+     "b": "Generate file hashes",
+     "c": ""
+    },
+    {
+     "a": "logging",
+     "b": "Application logging",
+     "c": ""
+    }
+   ],
+   "index": 110
+  },
+  {
+   "section": "Filter",
+   "col2": "Purpose",
+   "rows": [
+    {
+     "a": "dns",
+     "b": "Display DNS traffic",
+     "c": ""
+    },
+    {
+     "a": "http",
+     "b": "Display HTTP traffic",
+     "c": ""
+    },
+    {
+     "a": "tcp",
+     "b": "Display TCP packets",
+     "c": ""
+    },
+    {
+     "a": "udp",
+     "b": "Display UDP packets",
+     "c": ""
+    },
+    {
+     "a": "icmp",
+     "b": "Display ICMP traffic",
+     "c": ""
+    },
+    {
+     "a": "tcp.flags.syn == 1",
+     "b": "Identify SYN packets",
+     "c": ""
+    },
+    {
+     "a": "ip.addr == 192.168.1.10",
+     "b": "Filter traffic for an IP",
+     "c": ""
+    },
+    {
+     "a": "dns.flags.rcode != 0",
+     "b": "Identify DNS error responses",
+     "c": ""
+    }
+   ],
+   "index": 118
+  },
+  {
+   "section": "Event ID",
+   "col2": "What it indicates",
+   "rows": [
+    {
+     "a": "4624",
+     "b": "Successful login",
+     "c": ""
+    },
+    {
+     "a": "4625",
+     "b": "Failed login",
+     "c": ""
+    },
+    {
+     "a": "4688",
+     "b": "Process creation",
+     "c": ""
+    },
+    {
+     "a": "4720",
+     "b": "User account created",
+     "c": ""
+    },
+    {
+     "a": "4726",
+     "b": "User account deleted",
+     "c": ""
+    },
+    {
+     "a": "1102",
+     "b": "Security audit log cleared",
+     "c": ""
+    }
+   ],
+   "index": 127
+  },
+  {
+   "section": "Vulnerability",
+   "col2": "Severity",
+   "rows": [
+    {
+     "a": "SQL Injection",
+     "b": "Context-dependent",
+     "c": "Parameterized queries"
+    },
+    {
+     "a": "XSS",
+     "b": "Context-dependent",
+     "c": "Output encoding and safe sanitization"
+    },
+    {
+     "a": "Weak authentication",
+     "b": "Context-dependent",
+     "c": "MFA and secure authentication"
+    },
+    {
+     "a": "Misconfiguration",
+     "b": "Context-dependent",
+     "c": "Secure configuration and hardening"
+    },
+    {
+     "a": "Outdated components",
+     "b": "Context-dependent",
+     "c": "Patch and update dependencies"
+    }
+   ],
+   "index": 134
+  },
+  {
+   "section": "Project",
+   "col2": "Skills demonstrated",
+   "rows": [
+    {
+     "a": "Wireshark Traffic Analysis",
+     "b": "Networking, packet analysis",
+     "c": "SOC Analyst"
+    },
+    {
+     "a": "SIEM Threat Detection",
+     "b": "SIEM, log analysis, detection",
+     "c": "SOC Analyst"
+    },
+    {
+     "a": "Phishing Detection",
+     "b": "Python, NLP, email security",
+     "c": "Security Analyst"
+    },
+    {
+     "a": "Vulnerability Assessment",
+     "b": "Nmap, Burp, OWASP, reporting",
+     "c": "VAPT Analyst"
+    }
+   ],
+   "index": 140
+  }
+ ],
+ "row_count": 145
+}

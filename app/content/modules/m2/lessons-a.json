@@ -1,0 +1,412 @@
+{
+  "moduleId": "m2",
+  "lessons": [
+    {
+      "id": "l2-1",
+      "moduleId": "m2",
+      "seq": 1,
+      "title": "Find your way: the six commands you will type daily",
+      "subtitle": "pwd, ls, cd, mkdir, cat and find — and the paths that bite when you guess.",
+      "minutes": 13,
+      "level": "Core",
+      "objectives": [
+        "Prove the host and the current directory before running any fix command",
+        "Read an ls -l line for mode, owner, group, size and modification time",
+        "Move between directories with absolute and relative paths without guessing",
+        "Locate a file by name and age with find, and explain what the result rules out"
+      ],
+      "ticket": {
+        "from": "Service Desk — Linux server queue",
+        "subject": "nginx.conf is missing on web01 after last night's reboot",
+        "body": "The user edited the nginx config yesterday and the change is not live. They say `/etc/nginx/nginx.conf` is gone: `ls` in that directory shows only `conf.d`. They restarted nginx and the old page is still served. No change was raised for a delete.",
+        "impact": "Storefront on web01 serving the old build since 08:40; one developer blocked on the release."
+      },
+      "sections": [
+        {
+          "h": "A developer swears the config file is gone",
+          "body": "The call arrives twice a week. A developer says the nginx config edited last night is gone, or monitoring reports that `/etc/hosts` lost an entry. Almost never is anything deleted. L1 is standing in the wrong room: a relative path that resolved against `/root`, the passive node of a pair instead of the active one, or a listing that hid a dotfile.\n\nThe cost is a round trip. A \"file is gone\" ticket escalated without a path makes the next engineer retype the same commands, and the developer waits through a deploy window for an answer that took ninety seconds to produce. The job here is one line of evidence: host, absolute path, and what `ls -l` says about the file."
+        },
+        {
+          "h": "Where am I, and what is actually in this directory",
+          "body": "`pwd` prints the absolute path of the shell's current directory. Run it first, together with `hostname -f`, so the ticket records which host answered. Those two commands prevent most wrong-host escalations.\n\n`ls -l` prints one line per entry: type and mode, link count, owner, group, size in bytes, modification time, name. `ls -la` adds entries that begin with a dot. A file named `.env` is invisible to plain `ls`, which is how many \"missing\" files are born.\n\n```bash\n$ pwd\n/home/helpdesk\n$ ls -la /etc/nginx\ntotal 32\ndrwxr-xr-x  4 root root 4096 Nov 21 08:14 .\ndrwxr-xr-x 96 root root 4096 Nov 19 17:02 ..\ndrwxr-xr-x  2 root root 4096 Nov 21 08:14 conf.d\n-rw-r--r--  1 root root 1448 Nov 20 11:30 nginx.conf\n-rw-r--r--  1 root root  664 Nov 19 17:02 mime.types\n```\n\n`total 32` is disk blocks, not kilobytes; do not quote it as a size. Use `ls -lh` for human units and `ls -ltr` when you want the newest change last, which is where you start reading."
+        },
+        {
+          "h": "cd, and the four ways to land in the wrong place",
+          "body": "`cd /etc/nginx` is absolute and lands in the same place from anywhere. `cd conf.d` is relative and depends on where you already are. `cd` with no argument goes to your home directory, so a stray `cd` before `ls nginx.conf` explains a surprising number of missing files. `cd -` returns to the previous directory and prints it, which is faster than retyping a long path.\n\nA symlink adds a trap: `pwd` reports the logical path you typed, while `pwd -P` reports the resolved physical one. When the real location matters for a backup or an audit, use the physical path. The error text also tells you which layer failed, and the three messages are not interchangeable:\n\n| Message | What it means |\n| --- | --- |\n| `No such file or directory` | A path component does not exist, or a name is misspelled |\n| `Not a directory` | Some component of the path is a regular file |\n| `Permission denied` | The name exists; you lack search permission on a directory in the path |\n\nIf `pwd` is not the directory the ticket names, stop. Do not run a fix from the wrong directory; you will change the wrong file and open a second incident."
+        },
+        {
+          "h": "mkdir -p, cat -n, and letting find do the walking",
+          "body": "`mkdir -p /var/tmp/incident-4821/logs` creates the whole chain and does not fail when part of it exists. Without `-p`, a missing parent is an error, which is usually the useful behavior.\n\n`cat -n file` numbers the lines so you can cite one in a ticket. For a long file, `sed -n '40,60p' file` reads a window instead of flooding the session. Run `file` before `cat` on anything you did not create; a binary dump of control characters can wedge the terminal.\n\n`find` takes the starting path first, then tests:\n\n```bash\n$ find /var/log -type f -name \"*.log\" -mtime -1\n/var/log/nginx/error.log\n/var/log/app/api.log\n```\n\nQuote the `-name` pattern so the shell does not expand it against the current directory. Add `-maxdepth 3` to keep a search inside one tree and `-xdev` to stop it crossing into mounted shares. A `find` that wanders onto an NFS mount can hang for minutes and return nothing, and that is not the same problem as a missing file."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Write the note in this order: the host from `hostname -f`, the output of `pwd`, the absolute path, the `ls -l` line for the file and for its parent directory, and the `find` command with its result. Then one sentence to the user that states the fact, not the effort.\n\n> Confirmed on web01: `/etc/nginx/nginx.conf` exists, owned by root, mode 644, modified Nov 20 11:30. The change described in the ticket is not in this file.\n\nEscalate when `find / -xdev -name <name>` returns nothing and the application still opens the path, because the file then comes from a mount, an autofs map, or a container layer that L1 cannot see. Escalate also when `find` on a network mount hangs past 30 seconds: that is a storage ticket, and killing the shell does not fix it."
+        }
+      ],
+      "diagram": {
+        "type": "tree",
+        "title": "Where a missing file actually is",
+        "caption": "Four checks, in order. The first two are free; the last two take a minute and stop the escalation.",
+        "data": {
+          "root": "User reports file gone",
+          "branches": [
+            {
+              "label": "Right host?",
+              "result": "Wrong node of the pair",
+              "tone": "bad"
+            },
+            {
+              "label": "pwd matches the path?",
+              "result": "Relative path, wrong dir",
+              "tone": "bad"
+            },
+            {
+              "label": "ls -la on the path",
+              "result": "Dotfile was hidden",
+              "tone": "warn"
+            },
+            {
+              "label": "find / -xdev -name",
+              "result": "Lives under another path",
+              "tone": "warn"
+            },
+            {
+              "label": "ls -l shows a -> target",
+              "result": "Symlink to missing file",
+              "tone": "warn"
+            }
+          ]
+        }
+      },
+      "video": {
+        "title": "Linux Commands for Beginners 04 - Navigating the Filesystem",
+        "channel": "Learn Linux TV",
+        "url": "https://www.youtube.com/watch?v=MnY0K-3_Fjk",
+        "start": 0,
+        "length": "18:09",
+        "why": "You see a prompt move through a real tree, so relative paths and the place they land make sense in a way a command list cannot show."
+      },
+      "commands": [
+        {
+          "cmd": "pwd",
+          "what": "Prints the absolute path of the current directory; put it in every path ticket"
+        },
+        {
+          "cmd": "hostname -f",
+          "what": "Names the host that answered, which is half of a wrong-host ticket"
+        },
+        {
+          "cmd": "ls -la /etc/nginx",
+          "what": "Lists dotfiles too, with mode, owner, group, size and modification time"
+        },
+        {
+          "cmd": "cd -",
+          "what": "Returns to the previous directory, useful after a path guess fails"
+        },
+        {
+          "cmd": "find /var/log -type f -name \"*.log\" -mtime -1",
+          "what": "Finds files by name and age without walking the whole disk"
+        }
+      ],
+      "pitfalls": [
+        "Running `ls nginx.conf` from `/root` after `sudo -i`, then reporting the file missing. Check `pwd` and `hostname -f` before you write the word missing.",
+        "Trusting `pwd` inside a symlinked path. It shows the logical path; use `pwd -P` when the physical location matters for a backup or an audit.",
+        "Running `find /` without `-xdev`, so the search crosses into an NFS mount, stalls, and returns nothing that helps the ticket."
+      ],
+      "takeaways": [
+        "A path ticket closes on three facts: host, absolute path, and the `ls -l` line.",
+        "Plain `ls` hides dotfiles; `ls -a` is the difference between missing and hidden.",
+        "`find` takes the path first and the tests after it, and the `-name` pattern must be quoted."
+      ],
+      "drill": {
+        "prompt": "On a lab host or a VM, create `/var/tmp/lab-paths` with three files, one of them named `.hidden`. Change into the directory, list it twice, and find the hidden file from `/var/tmp` without using `ls`. Then record which command proved the file existed.",
+        "minutes": 8,
+        "checklist": [
+          "`pwd` output shows `/var/tmp/lab-paths` before any file is touched",
+          "`ls` shows two files and `ls -a` shows three",
+          "`find /var/tmp -name \".hidden\"` returns the full path",
+          "Your note contains the host name, the absolute path and the `find` command you ran"
+        ]
+      },
+      "sheetTopics": [
+        "pwd",
+        "ls",
+        "cd",
+        "mkdir",
+        "cat",
+        "find"
+      ]
+    },
+    {
+      "id": "l2-2",
+      "moduleId": "m2",
+      "seq": 2,
+      "title": "grep and journalctl: reading what the box is telling you",
+      "subtitle": "Search a tree, read a unit's journal, and pull the error that matters.",
+      "minutes": 15,
+      "level": "Core",
+      "objectives": [
+        "Filter a log file by symptom word and cite the matching line with its number",
+        "Read one systemd unit's journal for a time window at error priority",
+        "Decide whether a failure lives in the journal or in the application's own log",
+        "Quote a timestamped error line that an L2 engineer can act on"
+      ],
+      "ticket": {
+        "from": "NOC — alert queue",
+        "subject": "app01 responding with 5xx errors, logs not attached",
+        "body": "Monitoring shows 5xx responses on app.example since 09:40. The on-call engineer restarted nginx at 10:02 and the errors continue. No error text was attached and nobody has opened the application log. Some requests still succeed.",
+        "impact": "Roughly one in four checkout requests fails; the incident is two hours old and unowned."
+      },
+      "sections": [
+        {
+          "h": "The escalation that says only \"the service is failing\"",
+          "body": "Read the average L1 escalation. The summary is \"app not working\", the body says nginx was restarted, and there is no error line. L2 cannot start from that, so the ticket goes back for the log, and it ages two hours before anyone reads a message the host has been printing all morning.\n\nThe journal and the log files are not optional reading. On a Linux host, one command with one filter usually produces the sentence that names the cause, and that sentence is what turns an escalation into a fix. This lesson is about cutting a log down to twenty lines and picking the one that matters."
+        },
+        {
+          "h": "grep: cut the file down before you read it",
+          "body": "`grep` prints the lines that match a pattern. The flags that matter on a call are `-n` for line numbers, `-i` for case-insensitive, `-c` for a count, and `-A`/`-B` for lines after and before the match, which is how you capture the stack trace attached to an error.\n\n```bash\n$ grep -c \"upstream timed out\" /var/log/nginx/error.log\n42\n$ grep -n -m 1 \"upstream timed out\" /var/log/nginx/error.log\n1181:2026/11/24 09:41:07 [error] 2214#2214: *9041 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 10.20.14.51, server: app.example, request: \"GET /api/orders HTTP/1.1\", upstream: \"http://10.20.30.12:8080/api/orders\"\n```\n\nForty-two matches, one upstream address, and a client address that tells you which network segment is hitting it. That count is the difference between \"the app is slow\" and \"one backend has been timing out since 09:41\". For a directory tree, `grep -rn --include=\"*.conf\" \"proxy_pass\" /etc/nginx` searches config files only; without `--include`, grep also walks binaries and fills the screen with `Binary file matches`. When one line is not enough, `-A3` carries the three lines under it, which is where log formats that write a stack trace keep the detail."
+        },
+        {
+          "h": "journalctl: one question per flag",
+          "body": "`journalctl` reads the systemd journal. `-u nginx` limits output to one unit. `--since \"1 hour ago\"` limits it in time, and `-p err` limits it by priority, from 0 (emergency) to 7 (debug). `-b` limits it to the current boot, `-n 50` to the last fifty lines, and `--no-pager` stops the output from opening in `less` so you can copy it into a ticket. `-o short-iso` gives sortable timestamps when you are lining up two hosts.\n\n```bash\n$ journalctl -u nginx --since \"09:30\" --no-pager\nNov 24 09:41:07 web01 nginx[2214]: 2026/11/24 09:41:07 [error] 2214#2214: *9041 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 10.20.14.51, server: app.example, request: \"GET /api/orders HTTP/1.1\", upstream: \"http://10.20.30.12:8080/api/orders\"\nNov 24 09:41:12 web01 nginx[2214]: 2026/11/24 09:41:12 [error] 2214#2214: *9043 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 10.20.14.52, server: app.example, request: \"GET /api/orders HTTP/1.1\", upstream: \"http://10.20.30.12:8080/api/orders\"\n$ journalctl --list-boots\n-1 7f2c1a9e... Sun 2026-11-22 02:11:04 IST—Sun 2026-11-22 23:40:16 IST\n 0 41b8d0c2... Mon 2026-11-23 02:10:51 IST—Mon 2026-11-24 10:12:03 IST\n```\n\nRead the first line, not the last. The first error after a quiet period is usually the trigger; the lines below it are consequences. If you need to watch while the user retries, add `-f` to follow the journal live, and keep the time window on so the screen stays readable. Unit names work with or without the `.service` suffix."
+        },
+        {
+          "h": "Four rules that turn output into a finding",
+          "body": "1. If `systemctl status nginx` says `active (running)` and `journalctl -u nginx -p err --since \"1 hour ago\"` is empty, drop `-p` and read the same window. If that is also empty, the messages are in the application's own file, `/var/log/app/api.log`, not in the journal.\n2. Search by symptom word: `timeout`, `refused`, `denied`, `No space left`. Application messages rarely contain the word \"error\", so grepping for `error` returns the web server's complaints and misses the application's.\n3. If the unit restarts every few seconds, `journalctl -u <unit> -b -n 80 --no-pager` shows the exit reason between starts. A restart loop with no message is usually a missing config file or a port already held by another process.\n4. If the line you found is older than the incident window, you have found history, not the fault. Line up the timestamp with the first failing request before you quote it."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Quote, do not summarize. The note needs the host, the unit, the filter you used, the exact error line with its timestamp, and the count.\n\n> web01, nginx, 09:41 to 10:05: 42 lines `upstream timed out ... 10.20.30.12:8080`. No errors between 08:00 and 09:41. Restart at 10:02 did not clear it.\n\nPaste the filter and the output as text, not a screenshot. A screenshot cannot be counted, searched, or quoted in the next ticket.\n\nEscalate when the quoted line names something L1 cannot change: an upstream address on another team's subnet, a database authentication failure, or a kernel message such as an I/O error on a device. Escalate also when `systemctl restart` returns the unit to `failed` within 60 seconds with the same line; that is a configuration or code defect, not a service hiccup."
+        }
+      ],
+      "diagram": {
+        "type": "flow",
+        "title": "From alert to one quotable line",
+        "caption": "The filter comes before the reading. A filter that returns nothing is itself evidence about where the errors are.",
+        "data": {
+          "steps": [
+            {
+              "label": "Fix the window",
+              "detail": "since the first report, not \"today\""
+            },
+            {
+              "label": "Choose the source",
+              "detail": "unit goes to journal, app goes to file"
+            },
+            {
+              "label": "Filter hard",
+              "detail": "-u, -p err, --since, -n 50"
+            },
+            {
+              "label": "Read the first error",
+              "detail": "the top error names the trigger"
+            },
+            {
+              "label": "Quote one line",
+              "detail": "timestamp, unit, exact text, count"
+            }
+          ],
+          "footer": "Empty result is a finding: the messages are in the other source."
+        }
+      },
+      "video": {
+        "title": "journalctl Basics: How to Easily Check Your Linux Logs",
+        "channel": "Learn Linux TV",
+        "url": "https://www.youtube.com/watch?v=0dG3vUYt7Uk",
+        "start": 0,
+        "length": "19:34",
+        "why": "Shows the journal on a live host, including the pager and the default timestamp format, so you recognize the output you will paste into a ticket."
+      },
+      "commands": [
+        {
+          "cmd": "journalctl -u nginx --since \"1 hour ago\" -p err --no-pager",
+          "what": "One unit, one time window, error priority only, copyable output"
+        },
+        {
+          "cmd": "journalctl -b -n 50 --no-pager",
+          "what": "The last fifty journal lines from the current boot"
+        },
+        {
+          "cmd": "journalctl --list-boots",
+          "what": "Proves whether the host rebooted before the report"
+        },
+        {
+          "cmd": "grep -n -m 2 \"upstream timed out\" /var/log/nginx/error.log",
+          "what": "Two matching lines with numbers, for citation"
+        },
+        {
+          "cmd": "grep -c \"upstream timed out\" /var/log/nginx/error.log",
+          "what": "Counts the failure so you can state its scale"
+        }
+      ],
+      "pitfalls": [
+        "Grepping for the word `error` only. Application errors often say `timeout`, `refused` or `denied`, so the real line never matches.",
+        "Running `journalctl -u nginx` with no window on a busy host, then scrolling instead of filtering. Twenty thousand lines is not evidence.",
+        "Reading the last error before the first. The bottom of the log holds consequences; the top holds the trigger."
+      ],
+      "takeaways": [
+        "The journal answers \"what did this unit do\"; the log file answers \"what did the application do\".",
+        "A filter that returns nothing tells you the errors are in the other source.",
+        "One quoted line with a timestamp is worth more than a pasted page of log."
+      ],
+      "drill": {
+        "prompt": "On the lab host, pick a unit that logs on every boot, such as `sshd` or `cron`, and answer four questions with one journalctl command each: what did it do last boot, what did it log in the last hour, what is its last warning, and did the host reboot before that. Then find the same event in `/var/log/syslog` or `/var/log/messages`.",
+        "minutes": 10,
+        "checklist": [
+          "Four journalctl commands, each with the filter that narrowed the output",
+          "One line quoted with its timestamp and unit name",
+          "A note saying whether the matching entry also exists in the plain log file",
+          "No command run without `--no-pager` or a line limit"
+        ]
+      },
+      "sheetTopics": [
+        "grep",
+        "journalctl"
+      ]
+    },
+    {
+      "id": "l2-3",
+      "moduleId": "m2",
+      "seq": 3,
+      "title": "Permissions, ownership and sudo: why 'permission denied' happens",
+      "subtitle": "rwx bits, numeric modes, and the smallest change that fixes access.",
+      "minutes": 15,
+      "level": "Core",
+      "objectives": [
+        "Read a mode string and say which triplet applies to a given user",
+        "Convert between symbolic and numeric modes and change only one triplet",
+        "Diagnose a denial caused by a parent directory or a read-only mount",
+        "Use sudo for a single command and capture the change for the ticket"
+      ],
+      "ticket": {
+        "from": "Service Desk — deployments queue",
+        "subject": "Release 4.8 fails with permission denied writing to storage",
+        "body": "The release job stops at cache warmup with `permission denied` writing into /var/www/app/storage. The last release three weeks ago succeeded. The engineer set the cache file to 777 and chowned it to www-data, and the job still fails at the same step.",
+        "impact": "Release 4.8 is blocked and the change window closes at 18:00; two other teams are waiting on it."
+      },
+      "sections": [
+        {
+          "h": "The deploy that fails on a file the service already owns",
+          "body": "A deploy writes to `/var/www/app/storage` and returns `permission denied`. The cache file was owned by `www-data`, the mode read `-rw-r--r--`, and the service runs as `www-data`, so nothing looked wrong. The last engineer ran `chmod 777` on it, the error did not move, and the ticket came back with a security note attached.\n\n\"Permission denied\" is one kernel decision built from several inputs. Changing the loudest one, the mode, without reading the others is how a fix becomes the next incident. The smallest change that restores access is also the one that survives an audit."
+        },
+        {
+          "h": "Read the ten characters before you change them",
+          "body": "`ls -l` starts each line with type and mode. `-rw-r--r--` is a regular file, readable and writable by the owner, readable by group and others, not executable. `d` at the front means directory. The next nine characters are three triplets: **owner**, **group**, **other**, in that order.\n\n| Bit | On a file | On a directory |\n| --- | --- | --- |\n| `r` (4) | read contents | list names |\n| `w` (2) | change contents | create, delete, rename entries |\n| `x` (1) | execute | enter and traverse the directory |\n\n`id` shows your uid and every group you belong to. The kernel applies exactly one triplet: owner if your uid matches, otherwise group if any of your groups match, otherwise other. So the first question is never \"what mode is this\", it is \"who is asking\".\n\n```bash\n$ id\nuid=1001(helpdesk) gid=1001(helpdesk) groups=1001(helpdesk),27(sudo),33(www-data)\n$ ls -ld /var/www/app /var/www/app/storage\ndrwxr-x--- 5 root deploy 4096 Nov 20 09:12 /var/www/app\ndrwxr-xr-x 3 root root   4096 Nov 22 16:07 /var/www/app/storage\n```\n\nHere the storage directory is writable by root only, and its parent is not traversable by `www-data` at all. Both facts matter, and only the second stops the app before it reaches the file."
+        },
+        {
+          "h": "Numeric modes, and the smallest change that fixes it",
+          "body": "`chmod 640 file` is `rw-` for owner, `r--` for group, `---` for other: 6 + 4 + 0. Learn to add per triplet and you can read any mode: 4 read, 2 write, 1 execute. 644 is a normal config file, 600 a private key, 755 a directory or a program, 640 a file shared with one group.\n\nSymbolic mode changes one thing and leaves the rest alone. `chmod g+w /var/www/app/storage` adds group write, which is what a shared deploy directory usually needs. `chmod o-r file` removes a permission instead of setting a whole mode you guessed at.\n\n`chmod -R 755 /var/www` is the common reflex and it has two effects: every directory becomes world-readable, and every data file gains an execute bit it does not need. Recursion should be limited to the path that failed."
+        },
+        {
+          "h": "The directory that blocks the path",
+          "body": "Mode and owner can both be correct and access still fails, because traversal needs the x bit on every directory from `/` down. `ls -ld /var/www /var/www/app /var/www/app/storage` prints all three in one command. A missing `x` on the parent denies the child no matter what the child says, which is exactly the failure in the ticket above: the cache file was 777, and `/var/www/app` was `750 root:deploy`.\n\nIf the path is on a mount, `mount | grep /var/www` reveals `ro` (read-only) or `noexec`. Neither is fixed by `chmod`. The rule for a call: when `ls -l` on the file already shows the bit you need, stop editing the file and walk `ls -ld` up the path.\n\n`chown www-data:www-data /var/www/app/storage` sets user and group together. `chown -R` does it to everything below, including `.git` and files the application never touches, so check first with `find /var/www/app/storage -not -user www-data`."
+        },
+        {
+          "h": "sudo: borrowed permission leaves a record",
+          "body": "`sudo -l` lists what your account may run. `sudo -u www-data test -w /var/www/app/storage` answers the real question, whether the service account can write, without changing ownership; exit status 0 means writable, 1 means not. `sudo -i` opens a root shell; prefer one `sudo` command at a time, because each is logged with your username and the exact command.\n\nNever edit `/etc/sudoers` with a text editor. `visudo` checks the syntax before saving, and a broken sudoers file locks out every sudo user including the one who broke it. Local rules belong in a file under `/etc/sudoers.d/`.\n\nOn RHEL-family hosts with SELinux enforcing, `chmod` cannot fix a label problem: `getenforce` returns `Enforcing` and `ls -Z` shows the context. Changing that is a policy decision, not an L1 action."
+        },
+        {
+          "h": "What you hand over",
+          "body": "Give the before and after. The `ls -l` line before your change, the exact command, the exit code, the `ls -l` line after, and who confirmed the result. That is a change record, and it is what makes a permissions ticket auditable.\n\n> web01: `/var/www/app` was `drwxr-x--- root deploy` and `storage` was `755 root:root`; the app runs as www-data. Ran `chmod o+x /var/www/app`, then `chown www-data:www-data /var/www/app/storage` (one directory, no recursion). Cache warmup passed at 11:42.\n\nEscalate when the file and every parent directory are correct, the mount is read-write, and access still fails: the next layer is ACLs (`getfacl`) or SELinux labels, and both need a decision L1 should not make alone. Escalate any request to change `/etc/sudoers` beyond an existing template."
+        }
+      ],
+      "diagram": {
+        "type": "layers",
+        "title": "Five checks the kernel makes before yes",
+        "caption": "Access is granted only when every layer passes. Fix the lowest layer that fails, not the loudest one.",
+        "data": {
+          "layers": [
+            {
+              "n": "1",
+              "name": "Path traversal",
+              "fn": "x on every directory in the path",
+              "example": "ls -ld /var/www/app"
+            },
+            {
+              "n": "2",
+              "name": "Identity",
+              "fn": "your uid and groups pick the triplet",
+              "example": "id; groups"
+            },
+            {
+              "n": "3",
+              "name": "Owner or group",
+              "fn": "which triplet applies to you",
+              "example": "ls -l file"
+            },
+            {
+              "n": "4",
+              "name": "Mode bits",
+              "fn": "r, w, x for owner, group, other",
+              "example": "chmod 640 file"
+            },
+            {
+              "n": "5",
+              "name": "ACL and label",
+              "fn": "named users, SELinux context",
+              "example": "getfacl; ls -Z"
+            }
+          ],
+          "footer": "A 777 on the file passes layer 4 only. Layers 1 and 5 still deny.",
+          "highlight": 3
+        }
+      },
+      "video": {
+        "title": "Linux Commands for Beginners 21 - Changing Permissions Numerically",
+        "channel": "Learn Linux TV",
+        "url": "https://www.youtube.com/watch?v=0SGGCklKa1U",
+        "start": 0,
+        "length": "11:17",
+        "why": "The octal arithmetic is easier to absorb applied in sequence than read from a table, which is all this lesson can give you."
+      },
+      "commands": [
+        {
+          "cmd": "id",
+          "what": "Shows your uid and groups, which decide the triplet that applies"
+        },
+        {
+          "cmd": "ls -ld /var/www/app/storage",
+          "what": "Shows the directory's own mode and owner instead of its contents"
+        },
+        {
+          "cmd": "chmod g+w /var/www/app/storage",
+          "what": "Adds group write only, the smallest change for a shared directory"
+        },
+        {
+          "cmd": "sudo -u www-data test -w /var/www/app/storage",
+          "what": "Proves whether the service account can write, without changing anything"
+        },
+        {
+          "cmd": "sudo -l",
+          "what": "Lists what your account may run as root, before you promise a fix"
+        }
+      ],
+      "pitfalls": [
+        "`chmod 777` to clear a denial. It passes one layer, opens the file to every account on the host, and lands in the next audit.",
+        "`chmod -R 755 /var/www`, which makes every directory world-readable and gives every data file an execute bit it should not have.",
+        "`chown -R` over a web root that holds a `.git` directory or a mounted share, changing files the application never reads.",
+        "Editing `/etc/sudoers` directly. One syntax error locks every sudo user out of the host, including you."
+      ],
+      "takeaways": [
+        "The kernel picks one triplet from your uid and groups; ask who is asking before you ask what the mode is.",
+        "Directories need x to be traversed, so a denial often comes from a parent, not the file.",
+        "Change one triplet, close the ticket with the before and after lines."
+      ],
+      "drill": {
+        "prompt": "On a lab host, create `/var/tmp/labperm` with one file inside. Prove three denials in this order: remove read from the file, remove execute from the directory, then make a second user the owner. After each, copy the exact error and the single command that fixed it. Do not use 777 at any point.",
+        "minutes": 10,
+        "checklist": [
+          "Three separate denials, each reproduced on purpose",
+          "Each error message recorded verbatim, with the command that produced it",
+          "The fix is one symbolic or numeric change per case, not a recursive reset",
+          "Final `ls -ld` on directory and file shows the original intent restored"
+        ]
+      },
+      "sheetTopics": [
+        "chmod",
+        "chown",
+        "sudo"
+      ]
+    }
+  ]
+}
