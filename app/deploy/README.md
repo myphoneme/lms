@@ -156,6 +156,17 @@ git push -u origin main
 
 Verify: `ssh -T git@github.com` → "Hi <user>! You've successfully authenticated".
 
+If `git push` says **Permission to myphoneme/lms.git denied**, the key is authenticated but has no
+write access to that repo. Two fixes, either is fine:
+
+1. Add your GitHub user as a collaborator with **Write** on `myphoneme/lms` (repo → Settings →
+   Collaborators), then push over `git@github.com:myphoneme/lms.git`.
+2. Add a **new deploy key with write access** (repo → Settings → Deploy keys → Add, tick
+   "Allow write access") for a key you control, and use the SSH host alias that selects it.
+   Existing deploy keys are often read-only, which produces exactly this error.
+
+A personal access token with `Contents: write` on that repo also works as the HTTPS password.
+
 Alternative to SSH: a fine-grained PAT scoped to `myphoneme/lms` with **Contents: read/write**,
 used once as the password for an HTTPS remote. SSH keys are preferable for daily use.
 

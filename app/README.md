@@ -21,8 +21,9 @@ To explore with a realistic cohort instead:
 
 ```bash
 node scripts/seed_demo.mjs --reset
-# admin    admin@northwind.example / demo12345
-# learner  asha@northwind.example / demo12345
+# admin        admin@northwind.example / demo12345
+# coordinator  coordinator@northwind.example / demo12345
+# learner      asha@northwind.example / demo12345
 ```
 
 The demo tenant is fictional. Delete `data/app.db` to start clean.
