@@ -170,7 +170,9 @@ The full staging runbook — DNS, TLS, systemd, nginx, git keys, GitHub secrets 
 
 ## Deploy notes
 
-Run behind a TLS-terminating reverse proxy. Keep `data/` on persistent storage and back up `data/app.db` (WAL mode — copy all three files or use `sqlite3 .backup`). Single-node by design: SQLite is the concurrency boundary, which is right for a cohort of tens, not thousands.
+Run behind TLS. Keep the database outside the checkout (`DB_PATH=/var/lib/lms/app.db`) and back it up with `sqlite3 .backup` (WAL mode). The staging deployment is pull-based: GitHub Actions SSHes to the host and runs `deploy/pull-deploy.sh`, which does `git fetch && git reset --hard origin/main`, restarts the service and checks `/api/health`. See [`deploy/README.md`](deploy/README.md).
+
+Single-node by design: SQLite is the concurrency boundary, which is right for a cohort of tens, not thousands.
 
 ```
 [Unit]

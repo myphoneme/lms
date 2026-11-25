@@ -11,6 +11,7 @@
     "build:content": "node scripts/build_curriculum.mjs",
     "build:resources": "node scripts/build_resources.mjs",
     "verify:content": "node scripts/verify_content.mjs",
-    "build:coverage": "node scripts/build_coverage.mjs"
+    "build:coverage": "node scripts/build_coverage.mjs",
+    "preflight": "node scripts/build_curriculum.mjs && node scripts/build_coverage.mjs && node scripts/verify_content.mjs && node --check server.js && node --check oidc.js"
   }
 }

@@ -24,8 +24,17 @@ id lms >/dev/null 2>&1 || adduser --system --group --home /opt/lms --shell /usr/
 id lms-deploy >/dev/null 2>&1 || adduser --system --group --home /home/lms-deploy --shell /bin/bash lms-deploy
 
 install -d -o lms -g lms -m 750 /var/lib/lms
-install -d -o lms -g lms -m 755 /opt/lms /opt/lms/current
+install -d -o lms -g lms -m 755 /opt/lms
 install -d -o root -g lms -m 750 /etc/lms
+
+# Code is a git clone at /opt/lms/repo; current is a symlink so systemd paths stay stable.
+if [ -d /opt/lms/repo/app ]; then
+  ln -sfn /opt/lms/repo /opt/lms/current
+  chgrp -R lms /opt/lms/repo 2>/dev/null || true
+  chmod -R g+rX /opt/lms/repo
+else
+  install -d -o lms -g lms -m 755 /opt/lms/current
+fi
 
 install -m 644 "$APP_DIR/deploy/lms.service" /etc/systemd/system/lms.service
 systemctl daemon-reload
