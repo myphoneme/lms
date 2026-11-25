@@ -67,6 +67,17 @@ Do **not** install nginx or certbot on this host.
 
 ### 3a. Staging read-only key (one time)
 
+Fast path — as root on staging, run the initialiser. It creates the users, generates the
+read-only key, waits while you add it in GitHub, clones the repo and runs the bootstrap:
+
+```bash
+bash /path/to/lms/app/deploy/staging-init.sh
+# if the key is already added:
+bash /path/to/lms/app/deploy/staging-init.sh --key-added
+```
+
+The manual equivalent follows.
+
 On staging, as root:
 
 ```bash
