@@ -3,6 +3,10 @@
 node_modules/
 *.log
 
+# CI deploy keypair generated during staging setup — never commit
+lms_deploy
+lms_deploy.pub
+
 # runtime data — never commit learner records or certificate codes
 app/data/
 *.db

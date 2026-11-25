@@ -63,6 +63,27 @@ Group names expected (change the env values if the auth team uses different ones
 - `lms-coordinators` → course coordinator (curriculum, review, complexity)
 - no group → learner
 
+### If ssh says the host key changed
+
+A rebuilt staging VM produces new host keys, and strict checking refuses to continue. That warning
+is correct: verify before you trust it. On the server console run:
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+Compare the SHA256 fingerprint with the one your laptop reports for the host. If they match, clear
+the stale entries and record the new key:
+
+```bash
+ssh-keygen -R staging.phoneme.in
+ssh-keyscan -t ed25519 staging.phoneme.in >> ~/.ssh/known_hosts
+ssh-copy-id -i ./lms_deploy.pub lms-deploy@staging.phoneme.in
+```
+
+If they do not match, stop and ask whoever provisioned the VM. Do not disable host checking.
+CI uses `STAGING_KNOWN_HOSTS`, so refresh that secret with the same verified `ssh-keyscan` output.
+
 ## 4. Environment file — the keys
 
 Install `/etc/lms/lms.env` from `deploy/lms.env.example`. Never commit the real file.
