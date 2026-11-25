@@ -1,0 +1,29 @@
+# /etc/caddy/lms.caddy
+# The staging host already runs Caddy for other products. Add this as a NEW site
+# block; do not replace the existing Caddyfile.
+#
+# If /etc/caddy/Caddyfile contains:  import /etc/caddy/conf.d/*
+#   install this file as /etc/caddy/conf.d/lms.caddy
+# Otherwise append the block below to the end of /etc/caddy/Caddyfile.
+#
+# Caddy obtains and renews the certificate automatically once lms.phoneme.in
+# resolves to this server and ports 80/443 reach it.
+
+lms.phoneme.in {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:4173
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/lms-access.log
+		format console
+	}
+}

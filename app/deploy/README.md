@@ -1,5 +1,10 @@
 # Staging deployment — lms.phoneme.in
 
+> **This staging host already runs Caddy for another product (GiveWings).**
+> Do **not** install nginx and do **not** apply `deploy/nginx.conf` here: it would bind
+> ports 80/443 and take that site down. Use `deploy/Caddyfile.lms` as an additional
+> Caddy site block. `deploy/nginx.conf` is kept only for a dedicated LMS host.
+
 Target: one Ubuntu 22.04/24.04 VM reachable as `staging.phoneme.in`, serving the LMS at
 `https://lms.phoneme.in`, with staff signing in through **Phoneme Auth** (OIDC).
 
@@ -75,10 +80,23 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 Compare the SHA256 fingerprint with the one your laptop reports for the host. If they match, clear
 the stale entries and record the new key:
 
+Run this **on your laptop**, not on the server — the keypair lives on your machine:
+
 ```bash
 ssh-keygen -R staging.phoneme.in
 ssh-keyscan -t ed25519 staging.phoneme.in >> ~/.ssh/known_hosts
-ssh-copy-id -i ./lms_deploy.pub lms-deploy@staging.phoneme.in
+ssh root@staging.phoneme.in 'ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub'
+```
+
+Once the fingerprint matches, install the deploy key for CI (after `bootstrap.sh`
+has created `lms-deploy`):
+
+```bash
+cat ~/.ssh/lms_deploy.pub | ssh root@staging.phoneme.in \
+  'install -d -m700 -o lms-deploy -g lms-deploy /home/lms-deploy/.ssh && \
+   tee -a /home/lms-deploy/.ssh/authorized_keys >/dev/null && \
+   chown lms-deploy:lms-deploy /home/lms-deploy/.ssh/authorized_keys && \
+   chmod 600 /home/lms-deploy/.ssh/authorized_keys'
 ```
 
 If they do not match, stop and ask whoever provisioned the VM. Do not disable host checking.
@@ -120,12 +138,34 @@ If a secret is ever committed, rotate it at the IdP first; scrubbing git history
 
 ## 5. Code, service, TLS
 
+Copy the code from your machine (the key copy in step 6 is for CI; for the first
+deploy, root over SSH is fine):
+
 ```bash
-sudo -u lms-deploy rsync -az --delete --exclude data --exclude node_modules \
-  app/ lms-deploy@staging.phoneme.in:/opt/lms/current/app/
+rsync -az --delete --exclude 'data/' --exclude 'node_modules/' \
+  app/ root@staging.phoneme.in:/opt/lms/current/app/
 ```
 
-`/etc/systemd/system/lms.service` — copy `deploy/lms.service`.
+Then on the server:
+
+```bash
+cd /opt/lms/current/app && bash deploy/bootstrap.sh
+```
+
+`bootstrap.sh` creates `lms` and `lms-deploy`, `/var/lib/lms`, `/etc/lms`, installs Node 22
+if missing, installs the systemd unit and the sudoers rule. It does **not** touch Caddy.
+
+TLS is handled by the existing Caddy, not certbot/nginx:
+
+```bash
+sudo cp /opt/lms/current/app/deploy/Caddyfile.lms /etc/caddy/conf.d/lms.caddy
+# if /etc/caddy/Caddyfile does not import conf.d, append the block instead
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+Publish the DNS record **before** reloading Caddy: `lms.phoneme.in` A → the staging IP.
+Caddy then issues the certificate on first request. No certbot step.
 
 ```bash
 sudo systemctl daemon-reload
@@ -136,15 +176,8 @@ curl -fsS http://127.0.0.1:4173/api/health
 TLS and nginx:
 
 ```bash
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/lms.conf
-sudo ln -s /etc/nginx/sites-available/lms.conf /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo certbot --nginx -d lms.phoneme.in -d staging.phoneme.in
-sudo systemctl reload nginx
-```
-
-`deploy/nginx.conf` redirects http → https, `staging` → `lms`, sets HSTS and proxy headers.
-Only `127.0.0.1:4173` is exposed; the Node process is never public.
+Only `127.0.0.1:4173` is exposed; the Node process is never public. TLS and HSTS come
+from the Caddy block in `deploy/Caddyfile.lms`.
 
 ## 6. Git — repository and keys
 
