@@ -18,10 +18,12 @@ const createOidc = require('./oidc');
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const CONTENT_DIR = path.join(ROOT, 'content');
-const DATA_DIR = path.join(ROOT, 'data');
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '127.0.0.1';
-const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'app.db');
+// The database lives wherever DB_PATH says; only its parent is created.
+// In production that is /var/lib/lms, outside the read-only code tree.
+const DB_PATH = process.env.DB_PATH || path.join(ROOT, 'data', 'app.db');
+const DATA_DIR = path.dirname(DB_PATH);
 const APP_BASE_URL = (process.env.APP_BASE_URL || `http://${HOST}:${PORT}`).replace(/\/$/, '');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
