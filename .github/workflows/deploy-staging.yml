@@ -35,7 +35,7 @@ jobs:
   deploy:
     needs: verify
     runs-on: ubuntu-latest
-    environment: staging
+    environment: staging.phoneme.in
     steps:
       - name: Validate staging secrets
         run: |
