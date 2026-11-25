@@ -48,6 +48,14 @@ fi
 
 install -m 440 "$APP_DIR/deploy/lms-deploy.sudoers" /etc/sudoers.d/lms-deploy
 
+# Caddy writes the LMS access log here; the directory does not always exist.
+if id caddy >/dev/null 2>&1; then
+  install -d -o caddy -g caddy -m 750 /var/log/caddy
+  touch /var/log/caddy/lms-access.log
+  chown caddy:caddy /var/log/caddy/lms-access.log
+  chmod 640 /var/log/caddy/lms-access.log
+fi
+
 cat <<'NEXT'
 
 Next, on this server:

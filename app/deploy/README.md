@@ -158,11 +158,21 @@ For the first boot without an auth client yet: `PHONEME_AUTH_ENABLED=0`.
 DNS first, then:
 
 ```bash
+# the access log needs a writable directory owned by the caddy service user
+install -d -o caddy -g caddy -m 750 /var/log/caddy
+touch /var/log/caddy/lms-access.log
+chown caddy:caddy /var/log/caddy/lms-access.log
+chmod 640 /var/log/caddy/lms-access.log
+
 cp /opt/lms/repo/app/deploy/Caddyfile.lms /etc/caddy/conf.d/lms.caddy
 # if /etc/caddy/Caddyfile does not `import /etc/caddy/conf.d/*`, append that file instead
 caddy validate --config /etc/caddy/Caddyfile
 systemctl reload caddy
 ```
+
+If the reload fails with `permission denied` on the log file, the directory is owned by root;
+the three `install`/`chown` lines above fix it. If Caddy runs as a different user, use
+`chown $(ps -o user= -C caddy | head -1): /var/log/caddy/lms-access.log`.
 
 Caddy obtains and renews the certificate automatically. The existing GiveWings site and its
 certificate are untouched.
