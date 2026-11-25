@@ -217,7 +217,7 @@ sudo install -m 440 deploy/lms-deploy.sudoers /etc/sudoers.d/lms-deploy
 | `STAGING_SSH_KEY` | full private key including `-----BEGIN…` lines |
 | `STAGING_KNOWN_HOSTS` | output of `ssh-keyscan -H staging.phoneme.in` |
 
-`.github/workflows/deploy-staging.yml` validates the curriculum, rsyncs `app/`, restarts the
+`../.github/workflows/deploy-staging.yml` validates the curriculum, rsyncs `app/`, restarts the
 service and fails the job if `https://lms.phoneme.in/api/health` does not answer.
 
 Server-side DNS for git is not needed; the staging VM does not pull from GitHub. If you prefer
