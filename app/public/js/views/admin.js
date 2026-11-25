@@ -1,7 +1,7 @@
 /* Control room: grading, roster, curriculum, review, complexity, branding, tenants.
    Course coordinators see only curriculum, review and complexity. */
 import { api, state, refreshMe } from '../api.js';
-import { icon, esc, fmtDate, statusChip, copyText, toast } from '../ui.js';
+import { icon, esc, fmtDate, statusChip, copyText, toast, openModal } from '../ui.js';
 import { navigate } from '../shell.js';
 
 const shortDate = (iso) => {
@@ -43,6 +43,8 @@ export async function controlRoom() {
   const roster = adminMode ? await api('/api/admin/roster') : null;
 
   const tabs = tabsFor(role);
+  const requestedTab = new URLSearchParams(location.search).get('tab');
+  if (requestedTab && tabs.some(([id]) => id === requestedTab)) tab = requestedTab;
   if (!tabs.some(([id]) => id === tab)) tab = adminMode ? 'grading' : 'curriculum';
 
   const submission = overview ? (overview.submissions.find((s) => s.id === selectedSub) || overview.submissions.find((s) => s.status === 'submitted') || null) : null;
@@ -344,6 +346,23 @@ function curriculumTab(data, role) {
   const list = data.lessons.filter((l) => showHidden || !l.hidden);
   const modules = data.modules;
   return `<div class="two-col" style="grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)">
+    <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="panel">
+      <div class="panel-head"><h2>Courses</h2><span class="spacer"></span><span class="small dim">rename the course and its line</span></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Course name</th><th>Line</th><th></th></tr></thead>
+          <tbody>
+            ${modules.map((m) => `<tr>
+              <td class="mono small dim">${String(m.seq).padStart(2, '0')}</td>
+              <td><b style="font-weight:560">${esc(m.title)}</b></td>
+              <td class="small dim">${esc(m.tagline || '')}</td>
+              <td style="text-align:right"><button class="btn btn-quiet btn-sm" data-module="${m.id}">Rename</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h2>Topics</h2><span class="spacer"></span>
         <label class="small dim" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="show-hidden" ${showHidden ? 'checked' : ''}/> show removed</label>
@@ -360,6 +379,7 @@ function curriculumTab(data, role) {
                 <td><span class="chip chip-plain">${esc(l.level)}</span></td>
                 <td>${statusChipFor(l.review)}</td>
                 <td style="text-align:right;white-space:nowrap">
+                  <button class="btn btn-quiet btn-sm" data-edit="${esc(l.id)}">Edit</button>
                   <button class="btn btn-quiet btn-sm" data-review="${esc(l.id)}">Review</button>
                   ${l.custom
                     ? `<button class="btn btn-quiet btn-sm" data-delete="${esc(l.id)}" style="color:var(--bad)">Delete</button>`
@@ -374,6 +394,7 @@ function curriculumTab(data, role) {
       <div style="padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--text-3)">
         Removing a shared topic hides it for this company only; the platform content stays intact. Coordinator-added topics are deleted permanently.
       </div>
+    </div>
     </div>
 
     <div class="panel">
@@ -408,7 +429,93 @@ function curriculumTab(data, role) {
   </div>`;
 }
 
+function editTopicModal(lessonId) {
+  const lesson = state.content.lessons[lessonId];
+  if (!lesson) return;
+  const body = (lesson.sections || []).map((s) => `## ${s.h}\n\n${s.body}`).join('\n\n');
+  const dlg = openModal(`<form id="edit-topic">
+    <div class="m-head"><h2 style="font-size:16px">Edit topic</h2><span style="flex:1"></span><button type="button" class="icon-btn" data-close>${icon('x')}</button></div>
+    <div class="m-body">
+      <div class="form-error" id="eerr" hidden></div>
+      <div class="field"><label for="e-title">Title</label><input class="input" id="e-title" value="${esc(lesson.title)}" required /></div>
+      <div class="field"><label for="e-sub">One-line description</label><input class="input" id="e-sub" value="${esc(lesson.subtitle || '')}" /></div>
+      <div class="two-col" style="gap:12px">
+        <div class="field"><label for="e-min">Minutes</label><input class="input mono" id="e-min" type="number" min="3" max="90" value="${lesson.minutes || 12}" /></div>
+        <div class="field"><label for="e-level">Complexity</label><select class="select" id="e-level">${LEVELS.map((l) => `<option ${l === lesson.level ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label for="e-obj">Objectives, one per line</label><textarea class="textarea" id="e-obj" style="min-height:64px">${esc((lesson.objectives || []).join('\n'))}</textarea></div>
+      <div class="field"><label for="e-body">Content — use ## headings to split sections</label><textarea class="textarea" id="e-body" style="min-height:260px">${esc(body)}</textarea></div>
+    </div>
+    <div class="m-foot"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Save topic</button></div>
+  </form>`, { onMount: (d) => { d.style.maxWidth = '760px'; } });
+
+  dlg.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dlg.close()));
+  dlg.querySelector('#edit-topic').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = dlg.querySelector('#eerr');
+    err.hidden = true;
+    const btn = dlg.querySelector('button[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await api(`/api/admin/topics/${encodeURIComponent(lessonId)}/edit`, {
+        method: 'POST',
+        body: {
+          title: dlg.querySelector('#e-title').value,
+          subtitle: dlg.querySelector('#e-sub').value,
+          minutes: Number(dlg.querySelector('#e-min').value),
+          level: dlg.querySelector('#e-level').value,
+          objectives: dlg.querySelector('#e-obj').value,
+          body: dlg.querySelector('#e-body').value,
+        },
+      });
+      dlg.close();
+      toast('Topic updated');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch (error) {
+      err.textContent = error.message;
+      err.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Save topic';
+    }
+  });
+}
+
+function renameModuleModal(moduleId) {
+  const mod = (state.content.modules || []).find((m) => m.id === moduleId);
+  if (!mod) return;
+  const dlg = openModal(`<form id="rename-module">
+    <div class="m-head"><h2 style="font-size:16px">Rename course</h2><span style="flex:1"></span><button type="button" class="icon-btn" data-close>${icon('x')}</button></div>
+    <div class="m-body">
+      <div class="form-error" id="merr" hidden></div>
+      <div class="field"><label for="m-title">Course name</label><input class="input" id="m-title" value="${esc(mod.title)}" required /></div>
+      <div class="field"><label for="m-tag">One-line description</label><input class="input" id="m-tag" value="${esc(mod.tagline || '')}" /></div>
+    </div>
+    <div class="m-foot"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Save name</button></div>
+  </form>`);
+  dlg.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dlg.close()));
+  dlg.querySelector('#rename-module').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = dlg.querySelector('#merr');
+    err.hidden = true;
+    try {
+      await api(`/api/admin/modules/${encodeURIComponent(moduleId)}`, {
+        method: 'POST',
+        body: { title: dlg.querySelector('#m-title').value, tagline: dlg.querySelector('#m-tag').value },
+      });
+      dlg.close();
+      toast('Course renamed');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch (error) {
+      err.textContent = error.message;
+      err.hidden = false;
+    }
+  });
+}
+
 function wireCurriculum(root, data) {
+  root.querySelectorAll('[data-module]').forEach((b) => b.addEventListener('click', () => renameModuleModal(b.dataset.module)));
+  root.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => editTopicModal(b.dataset.edit)));
   const hiddenToggle = root.querySelector('#show-hidden');
   hiddenToggle?.addEventListener('change', () => { showHidden = hiddenToggle.checked; window.dispatchEvent(new PopStateEvent('popstate')); });
 

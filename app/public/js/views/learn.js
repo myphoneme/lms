@@ -305,6 +305,7 @@ export function course() {
         <p class="muted" style="margin-top:6px">Work in order if you are new. Each module ends with a scored test; the drills run in parallel, five a week.</p>
       </div>
       <div class="spacer"></div>
+      ${['admin', 'owner', 'coordinator'].includes(state.user?.role) ? `<a class="btn btn-dark" href="/admin?tab=curriculum" data-nav>${icon('settings')} Manage course</a>` : ''}
       <span class="chip chip-plain">${progress.lessonsDone}/${progress.lessonsTotal} lessons complete</span>
     </div>
     <div class="course-list">

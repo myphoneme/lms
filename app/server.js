@@ -132,6 +132,16 @@ CREATE TABLE IF NOT EXISTS curriculum_overrides (
   PRIMARY KEY (tenant_id, lesson_id)
 );
 
+CREATE TABLE IF NOT EXISTS module_overrides (
+  tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+  module_id TEXT NOT NULL,
+  title TEXT,
+  tagline TEXT,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, module_id)
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id INTEGER,
@@ -156,6 +166,14 @@ CREATE INDEX IF NOT EXISTS idx_ov_tenant ON curriculum_overrides(tenant_id);
 `);
 
 const now = () => new Date().toISOString();
+
+// Small forward migration: content_json was added after the first deployment.
+try {
+  const cols = db.prepare('PRAGMA table_info(curriculum_overrides)').all().map((c) => c.name);
+  if (!cols.includes('content_json')) db.exec('ALTER TABLE curriculum_overrides ADD COLUMN content_json TEXT');
+} catch (e) {
+  console.error('[migrate]', e.message);
+}
 const one = (sql, ...p) => db.prepare(sql).get(...p);
 const all = (sql, ...p) => db.prepare(sql).all(...p);
 const run = (sql, ...p) => db.prepare(sql).run(...p);
@@ -261,6 +279,13 @@ function contentFor(tenantId) {
   for (const lesson of Object.values(base.lessons)) lesson.review = { ...EMPTY_REVIEW };
   if (!tenantId) return base;
 
+  for (const mo of all('SELECT * FROM module_overrides WHERE tenant_id = ?', tenantId)) {
+    const mod = base.modules.find((m) => m.id === mo.module_id);
+    if (!mod) continue;
+    if (mo.title) mod.title = mo.title;
+    if (mo.tagline) mod.tagline = mo.tagline;
+  }
+
   const overrides = all('SELECT * FROM curriculum_overrides WHERE tenant_id = ?', tenantId);
   for (const ov of overrides) {
     if (ov.custom_json) {
@@ -277,6 +302,15 @@ function contentFor(tenantId) {
     const lesson = base.lessons[ov.lesson_id];
     if (!lesson) continue;
     lesson.review = reviewOf(ov);
+    if (ov.content_json) {
+      const patch = safeParse(ov.content_json, null);
+      if (patch) {
+        for (const key of ['title', 'subtitle', 'minutes', 'objectives', 'sections']) {
+          if (patch[key] !== undefined) lesson[key] = patch[key];
+        }
+        lesson.edited = true;
+      }
+    }
     if (ov.level) lesson.level = ov.level;
     if (ov.hidden) {
       delete base.lessons[ov.lesson_id];
@@ -920,6 +954,7 @@ async function api(req, res, url) {
         id, moduleId: lesson.moduleId, seq: lesson.seq, title: lesson.title,
         minutes: lesson.minutes, level: (ov && ov.level) || lesson.level,
         originalLevel: lesson.level, hidden: Boolean(ov && ov.hidden), custom: false,
+        edited: Boolean(ov && ov.content_json),
         review: reviewOf(ov),
       });
     }
@@ -950,8 +985,9 @@ async function api(req, res, url) {
       complexity[r.moduleId][r.level] = (complexity[r.moduleId][r.level] || 0) + 1;
     }
 
+    const merged = contentFor(tenant.id);
     return send(res, 200, {
-      modules: [...CURRICULUM.modules].sort((a, b) => a.seq - b.seq).map((m) => ({
+      modules: [...merged.modules].sort((a, b) => a.seq - b.seq).map((m) => ({
         id: m.id, seq: m.seq, title: m.title, tagline: m.tagline, quiz: m.quiz,
         quizPassPct: CURRICULUM.quizzes[m.quiz]?.passPct || tenant.pass_pct,
         attempts: tenant.attempts,
@@ -1050,6 +1086,81 @@ async function api(req, res, url) {
     upsertOverride(tenant.id, id, { hidden: 1 });
     audit(tenant.id, user.id, 'topic.hide', id, null);
     return send(res, 200, { hidden: true });
+  }
+
+
+  function sectionsFromMarkdown(markdown, fallbackHeading) {
+    const text = String(markdown || '').replace(/\r\n/g, '\n').trim();
+    if (!text) return null;
+    if (!/^##\s+/m.test(text)) return [{ h: fallbackHeading || 'What this topic covers', body: text }];
+    const out = [];
+    const preamble = text.split(/^##\s+/m)[0].trim();
+    if (preamble) out.push({ h: fallbackHeading || 'Overview', body: preamble });
+    for (const part of text.split(/^##\s+/m).slice(1)) {
+      const nl = part.indexOf('\n');
+      const heading = (nl === -1 ? part : part.slice(0, nl)).trim();
+      const body = nl === -1 ? '' : part.slice(nl + 1).trim();
+      if (heading) out.push({ h: heading, body });
+    }
+    return out.length ? out : null;
+  }
+
+  if (p.startsWith('/api/admin/modules/') && method === 'POST') {
+    const user = requireContent(req, res);
+    if (!user) return;
+    const moduleId = decodeURIComponent(p.split('/')[4]);
+    const baseModule = CURRICULUM.modules.find((m) => m.id === moduleId);
+    if (!baseModule) return send(res, 404, { error: 'Unknown module.' });
+    const b = await readBody(req);
+    const title = String(b.title || '').trim();
+    if (title.length < 3 || title.length > 120) return send(res, 400, { error: 'Course name must be 3–120 characters.' });
+    const tagline = String(b.tagline || '').slice(0, 200).trim();
+    const tenant = one('SELECT * FROM tenants WHERE id = ?', user.tenant_id);
+    run(`INSERT INTO module_overrides (tenant_id, module_id, title, tagline, hidden, updated_at)
+         VALUES (?,?,?,?,0,?)
+         ON CONFLICT(tenant_id, module_id) DO UPDATE SET title = excluded.title, tagline = excluded.tagline, updated_at = excluded.updated_at`,
+      tenant.id, moduleId, title, tagline, now());
+    audit(tenant.id, user.id, 'module.rename', moduleId, { title });
+    return send(res, 200, { ok: true, module: { id: moduleId, title, tagline } });
+  }
+
+  if (p.startsWith('/api/admin/topics/') && p.endsWith('/edit') && method === 'POST') {
+    const user = requireContent(req, res);
+    if (!user) return;
+    const lessonId = decodeURIComponent(p.split('/')[4]);
+    const tenant = one('SELECT * FROM tenants WHERE id = ?', user.tenant_id);
+    const current = contentFor(tenant.id).lessons[lessonId];
+    if (!current) return send(res, 404, { error: 'Unknown topic.' });
+    const b = await readBody(req);
+    const title = String(b.title ?? current.title).trim();
+    if (title.length < 3 || title.length > 160) return send(res, 400, { error: 'Topic title must be 3–160 characters.' });
+    const subtitle = String(b.subtitle ?? current.subtitle ?? '').slice(0, 240).trim();
+    const minutes = Math.max(3, Math.min(90, Number(b.minutes) || current.minutes || 12));
+    const objectives = String(b.objectives ?? (current.objectives || []).join('\n'))
+      .split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 6);
+    const incomingBody = typeof b.body === 'string' ? b.body : null;
+    const sections = incomingBody !== null
+      ? sectionsFromMarkdown(incomingBody, current.sections?.[0]?.h)
+      : current.sections;
+    if (!sections || !sections.length) return send(res, 400, { error: 'Course content cannot be empty.' });
+    if (incomingBody !== null && incomingBody.trim().length < 40) return send(res, 400, { error: 'Write at least 40 characters of content.' });
+
+    const existing = one('SELECT * FROM curriculum_overrides WHERE tenant_id = ? AND lesson_id = ?', tenant.id, lessonId);
+    const level = LEVELS.includes(b.level) ? b.level : null;
+    if (existing && existing.custom_json) {
+      const custom = safeParse(existing.custom_json, current);
+      Object.assign(custom, { title, subtitle, minutes, objectives, sections });
+      if (level) custom.level = level;
+      upsertOverride(tenant.id, lessonId, { custom_json: JSON.stringify(custom), review_status: 'in_review', ...(level ? { level } : {}) });
+    } else {
+      upsertOverride(tenant.id, lessonId, {
+        content_json: JSON.stringify({ title, subtitle, minutes, objectives, sections }),
+        review_status: 'in_review',
+        ...(level ? { level } : {}),
+      });
+    }
+    audit(tenant.id, user.id, 'topic.edit', lessonId, { title });
+    return send(res, 200, { ok: true, lesson: contentFor(tenant.id).lessons[lessonId] });
   }
 
   if (p === '/api/admin/review' && method === 'POST') {
