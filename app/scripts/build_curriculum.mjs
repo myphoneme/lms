@@ -155,7 +155,6 @@ assignments.sort((a, b) => a.day - b.day);
 
 const curriculum = {
   version: 1,
-  generatedAt: new Date().toISOString(),
   modules: moduleOut,
   lessons,
   quizzes,
