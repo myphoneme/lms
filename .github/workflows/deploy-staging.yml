@@ -49,4 +49,4 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
             "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
-            'bash -lc "/opt/lms/repo/deploy/pull-deploy.sh"'
+            'bash -lc "/opt/lms/repo/app/deploy/pull-deploy.sh"'

@@ -11,7 +11,7 @@ Target: the existing Ubuntu VM at `staging.phoneme.in`, serving the LMS at
 ```
 Mac: test → git push
         │
-        └─ GitHub Actions ──SSH──> staging: /opt/lms/repo/deploy/pull-deploy.sh
+        └─ GitHub Actions ──SSH──> staging: /opt/lms/repo/app/deploy/pull-deploy.sh
                                         │ git fetch + reset (read-only deploy key)
                                         ▼
                                    /opt/lms/repo  ──> systemd: lms (127.0.0.1:4173)
@@ -194,7 +194,7 @@ Every push to `main` runs [`.github/workflows/deploy-staging.yml`](../.github/wo
 Manual deploy, same path:
 
 ```bash
-sudo -u lms-deploy /opt/lms/repo/deploy/pull-deploy.sh
+sudo -u lms-deploy /opt/lms/repo/app/deploy/pull-deploy.sh
 ```
 
 ## 7. Environment keys
@@ -245,7 +245,7 @@ Rename the env values if the auth team uses different groups.
 ```bash
 journalctl -u lms -f
 curl -fsS https://lms.phoneme.in/api/health
-sudo -u lms-deploy /opt/lms/repo/deploy/pull-deploy.sh      # deploy now
+sudo -u lms-deploy /opt/lms/repo/app/deploy/pull-deploy.sh      # deploy now
 git -C /opt/lms/repo log --oneline -5                        # what is running
 ```
 
