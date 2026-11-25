@@ -1,0 +1,22 @@
+{
+  "name": "L1 Academy",
+  "mode": "operate",
+  "world": "datacenter operations manual",
+  "tokens": {
+    "color": {
+      "ink": "#12171a", "rail": "#0e1315", "paper": "#f4f5f4", "surface": "#ffffff",
+      "line": "#e3e6e4", "lineStrong": "#cdd3cf",
+      "text": "#191f22", "text2": "#4d585e", "text3": "#6d797f",
+      "accent": "tenant", "ok": "#0b7a4b", "warn": "#8a5300", "bad": "#ae2a1c"
+    },
+    "type": {
+      "ui": "system sans", "read": "system serif", "mono": "system mono",
+      "body": "15px/1.55", "prose": "17.5px/1.72", "measure": "68ch"
+    },
+    "space": [0, 4, 6, 8, 10, 12, 14, 18, 22, 30, 40, 48],
+    "radius": [5, 8, 12],
+    "motion": { "fast": "150ms", "base": "200ms", "ease": "cubic-bezier(.22,1,.36,1)" }
+  },
+  "components": ["rail", "topbar", "module rows", "lesson reader", "work order", "diagram plate", "video facade", "quiz", "drill rubric", "leaderboard table", "certificate", "admin tabs"],
+  "surfaces": { "landing": "persuade", "app": "operate", "lesson": "read", "certificate": "document" }
+}

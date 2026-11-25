@@ -11,7 +11,7 @@ app/data/
 
 # build/verification artefacts
 app/.impeccable/review/
-.impeccable/
+/.impeccable/
 
 # real environment files; the example is committed
 .env
