@@ -724,7 +724,7 @@ function wireComplexity(root, data) {
 
 /* ---------------- brand ---------------- */
 function brandTab(grading, isOwner) {
-  const t = state.site || state.user?.tenant || {};
+  const t = state.user?.tenant || state.site || {};
   return `<form id="brand-form" class="two-col">
     <div class="panel">
       <div class="panel-head"><h2>Identity</h2></div>
