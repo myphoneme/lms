@@ -37,6 +37,22 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
+      - name: Validate staging secrets
+        run: |
+          missing=""
+          [ -n "${{ secrets.STAGING_HOST }}" ] || missing="$missing STAGING_HOST"
+          [ -n "${{ secrets.STAGING_USER }}" ] || missing="$missing STAGING_USER"
+          [ -n "${{ secrets.STAGING_SSH_KEY }}" ] || missing="$missing STAGING_SSH_KEY"
+          [ -n "${{ secrets.STAGING_KNOWN_HOSTS }}" ] || missing="$missing STAGING_KNOWN_HOSTS"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing Actions secrets:$missing. They must be repository (or staging environment) secrets, not variables."
+            exit 1
+          fi
+          case "${{ secrets.STAGING_SSH_KEY }}" in
+            *"BEGIN OPENSSH PRIVATE KEY"*|*"BEGIN RSA PRIVATE KEY"*) ;;
+            *) echo "::error::STAGING_SSH_KEY is not a private key. Paste ~/.ssh/lms_deploy in full, including the BEGIN and END lines."; exit 1 ;;
+          esac
+
       - name: Install SSH key
         run: |
           mkdir -p ~/.ssh
@@ -45,8 +61,16 @@ jobs:
           printf '%s\n' "${{ secrets.STAGING_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
+      - name: Test SSH connection
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+            "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
+            'echo "connected as $(id -un)@$(hostname)"'
+
       - name: Pull on staging, restart, health check
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
             "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" \
-            'bash -lc "/opt/lms/repo/app/deploy/pull-deploy.sh"'
+            'bash /opt/lms/repo/app/deploy/pull-deploy.sh'
